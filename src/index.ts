@@ -90,8 +90,17 @@ function formatBody(text: string | undefined, html: string | undefined, maxLen: 
 	let raw = '';
 
 	if (html) {
-		// 优先使用 HTML → Markdown
-		raw = nhm.translate(html).trim();
+		// 预处理 HTML：去掉 doctype、head、style、script 等无用内容
+		let cleanHtml = html
+			.replace(/<!doctype[^>]*>/gi, '')
+			.replace(/<head[\s\S]*?<\/head>/gi, '')
+			.replace(/<style[\s\S]*?<\/style>/gi, '')
+			.replace(/<script[\s\S]*?<\/script>/gi, '')
+			// 在主要块级元素前后保证换行，避免表格布局吞掉换行
+			.replace(/<\/(td|th|div|p|li|tr|h[1-6])>/gi, '</$1>\n')
+			.replace(/<br\s*\/?>/gi, '\n');
+
+		raw = nhm.translate(cleanHtml).trim();
 	}
 
 	if (!raw && text) {
@@ -103,15 +112,26 @@ function formatBody(text: string | undefined, html: string | undefined, maxLen: 
 	// 删除 Markdown 图片 ![alt](url)
 	raw = raw.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
 
-	// 标题 → 纯文本（去掉 # 号，保留文字）
-	raw = raw.replace(/^#{1,6}\s+(.+)$/gm, '$1');
+	// 删除纯空白文字的链接 [  ](url) → 删除（图片套链接的残留）
+	raw = raw.replace(/\[\s*\]\([^)]*\)/g, '');
+
+	// 删除超链接，保留链接文字 [text](url) → text
+	raw = raw.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+
+	// 标题 → 提取文字（后面单独加粗，避免被 escapeMdV2 转义掉）
+	const headings: Array<{ placeholder: string; text: string }> = [];
+	raw = raw.replace(/^#{1,6}\s+(.+)$/gm, (_match, content) => {
+		const ph = `__HEADING_${headings.length}__`;
+		headings.push({ placeholder: ph, text: content });
+		return ph;
+	});
 
 	// 水平线 → 删除
 	raw = raw.replace(/^[-*_]{3,}\s*$/gm, '');
 
 	// 表格：删除分隔行，管道符替换为空格
-	raw = raw.replace(/^\|?[\s-]*:?-+:?[\s-|]*\|?\s*$/gm, ''); // 分隔行 |---|---|
-	raw = raw.replace(/\|/g, ' '); // 管道符 → 空格
+	raw = raw.replace(/^\|?[\s-]*:?-+:?[\s-|]*\|?\s*$/gm, '');
+	raw = raw.replace(/\|/g, ' ');
 
 	// 引用式链接定义 [ref]: url → 删除
 	raw = raw.replace(/^\[[^\]]+\]:\s+.+$/gm, '');
@@ -125,6 +145,15 @@ function formatBody(text: string | undefined, html: string | undefined, maxLen: 
 		.replace(/&quot;/gi, '"')
 		.replace(/&#0?39;/gi, "'");
 
+	// 清理残留 HTML 标签
+	raw = raw.replace(/<[^>]*>/g, '');
+
+	// 将连续空格（同一行内多个空格）压缩为一个
+	raw = raw.replace(/[^\S\n]+/g, ' ');
+
+	// 去掉每行首尾空白
+	raw = raw.replace(/^ +| +$/gm, '');
+
 	// 压缩多余空行
 	raw = collapseBlankLines(raw);
 
@@ -133,6 +162,12 @@ function formatBody(text: string | undefined, html: string | undefined, maxLen: 
 
 	// 对正文进行 MarkdownV2 转义
 	let result = escapeMdV2(body);
+
+	// 恢复标题为加粗（在转义之后处理，这样 ** 不会被转义）
+	for (const h of headings) {
+		result = result.replace(escapeMdV2(h.placeholder), `*${escapeMdV2(h.text)}*`);
+	}
+
 	if (truncated) {
 		result += '\n\n_… 正文过长，已截断 …_';
 	}
