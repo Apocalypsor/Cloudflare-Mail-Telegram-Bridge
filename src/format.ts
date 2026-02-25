@@ -1,11 +1,12 @@
 import { NodeHtmlMarkdown } from 'node-html-markdown';
+import { convert } from 'telegram-markdown-v2';
 
 /** HTML → Markdown 转换器实例 */
 const nhm = new NodeHtmlMarkdown({
 	bulletMarker: '•',
 	codeBlockStyle: 'fenced',
-	strongDelimiter: '**',
 	emDelimiter: '_',
+	strongDelimiter: '**',
 });
 
 /**
@@ -15,6 +16,12 @@ const nhm = new NodeHtmlMarkdown({
 export function escapeMdV2(str: string): string {
 	if (!str) return '';
 	return str.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+/** 标准 Markdown → Telegram MarkdownV2 */
+export function toTelegramMdV2(markdown: string): string {
+	if (!markdown) return '';
+	return convert(markdown).trimEnd();
 }
 
 /**
@@ -42,31 +49,6 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 
 	if (!raw) return escapeMdV2('（正文为空）');
 
-	// 删除 Markdown 图片
-	raw = raw.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
-	// 删除纯空白链接
-	raw = raw.replace(/\[\s*\]\([^)]*\)/g, '');
-	// 删除超链接，保留文字
-	raw = raw.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
-
-	// 标题 → 占位符
-	const headings: Array<{ placeholder: string; text: string }> = [];
-	raw = raw.replace(/^#{1,6}\s+(.+)$/gm, (_match, content) => {
-		const ph = `__HEADING_${headings.length}__`;
-		headings.push({ placeholder: ph, text: content });
-		return ph;
-	});
-
-	// 水平线
-	raw = raw.replace(/^[-*_]{3,}\s*$/gm, '');
-
-	// 表格
-	raw = raw.replace(/^\|?[\s-]*:?-+:?[\s-|]*\|?\s*$/gm, '');
-	raw = raw.replace(/\|/g, ' ');
-
-	// 引用式链接
-	raw = raw.replace(/^\[[^\]]+\]:\s+.+$/gm, '');
-
 	// HTML 实体
 	raw = raw
 		.replace(/&nbsp;/gi, ' ')
@@ -82,15 +64,10 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	const truncated = raw.length > maxLen;
 	const bodyStr = raw.substring(0, maxLen);
 
-	let result = escapeMdV2(bodyStr);
-
-	// 恢复标题为加粗
-	for (const h of headings) {
-		result = result.replace(escapeMdV2(h.placeholder), `*${escapeMdV2(h.text)}*`);
-	}
+	let result = toTelegramMdV2(bodyStr);
 
 	if (truncated) {
-		result += '\n\n_… 正文过长，已截断 …_';
+		result += `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
 	}
 
 	return result;
