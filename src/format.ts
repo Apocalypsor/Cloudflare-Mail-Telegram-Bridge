@@ -61,11 +61,6 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	// 残留 HTML 标签
 	raw = raw.replace(/<[^>]*>/g, '');
 
-	// 移除 Markdown 图片链接 ![alt](url)
-	raw = raw.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
-	// 将 Markdown 普通链接 [text](url) 替换为纯文本
-	raw = raw.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
-
 	const truncated = raw.length > maxLen;
 	const bodyStr = raw.substring(0, maxLen);
 
