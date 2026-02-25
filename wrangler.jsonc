@@ -12,7 +12,7 @@
 	},
 	"compatibility_flags": ["nodejs_compat"],
 	"workers_dev": true,
-	"preview_urls": false,
+	"preview_urls": true,
 	/**
 	 * KV Namespace — 存储 Gmail historyId 和 access_token 缓存
 	 * 先运行: npx wrangler kv namespace create EMAIL_KV
