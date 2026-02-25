@@ -122,7 +122,7 @@ npm run cf-typegen # 根据 wrangler.jsonc 重新生成 TypeScript 类型
 
 ## 项目结构
 
-```
+```text
 src/
   index.ts        # Worker 入口 — fetch handler（Pub/Sub 推送）+ scheduled handler（watch 续订）
   types.ts        # 类型定义：Env, PubSubPushBody, GmailNotification, Attachment
@@ -157,7 +157,7 @@ wrangler.jsonc    # Cloudflare Worker 配置（KV 绑定 + Cron 触发器）
 
 ## Telegram 消息格式
 
-```
+```text
 发件人:  Name <email@example.com>
 时  间:  2026/2/22 10:30:00
 主  题:  Subject line
