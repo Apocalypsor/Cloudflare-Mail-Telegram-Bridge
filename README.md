@@ -138,7 +138,7 @@ src/
   types.ts        # 类型定义：Env, PubSubPushBody, GmailNotification, Attachment, QueueMessage
   gmail.ts        # Gmail OAuth2 + REST API + watch + history 拉取 + base64url 解码
   telegram.ts     # Telegram 发送：sendTextMessage, sendWithAttachments
-  format.ts       # 邮件格式化：node-html-markdown(HTML→Markdown) + telegram-markdown-v2(MarkdownV2 转换)
+  format.ts       # 邮件格式化：linkedom+turndown(HTML→Markdown) + telegram-markdown-v2(MarkdownV2 转换)
 test/
   index.spec.ts   # 测试
 wrangler.jsonc    # Cloudflare Worker 配置（KV + Queue + Cron）

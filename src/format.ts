@@ -1,13 +1,22 @@
-import { NodeHtmlMarkdown } from 'node-html-markdown';
+import { parseHTML } from 'linkedom';
+import TurndownService from 'turndown';
 import { convert } from 'telegram-markdown-v2';
 
-/** HTML → Markdown 转换器实例 */
-const nhm = new NodeHtmlMarkdown({
-	bulletMarker: '•',
+/** HTML → Markdown 转换器实例（linkedom DOM + turndown） */
+const turndown = new TurndownService({
+	bulletListMarker: '-',
 	codeBlockStyle: 'fenced',
 	emDelimiter: '_',
 	strongDelimiter: '**',
 });
+
+function htmlToMarkdown(html: string): string {
+	const { document } = parseHTML(html);
+	for (const node of document.querySelectorAll('head, style, script')) {
+		node.remove();
+	}
+	return turndown.turndown(document.body).trim();
+}
 
 /**
  * 转义 Telegram MarkdownV2 特殊字符。
@@ -32,15 +41,7 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	let raw = '';
 
 	if (html) {
-		let cleanHtml = html
-			.replace(/<!doctype[^>]*>/gi, '')
-			.replace(/<head[\s\S]*?<\/head>/gi, '')
-			.replace(/<style[\s\S]*?<\/style>/gi, '')
-			.replace(/<script[\s\S]*?<\/script>/gi, '')
-			.replace(/<\/(td|th|div|p|li|tr|h[1-6])>/gi, '</$1>\n')
-			.replace(/<br\s*\/?>/gi, '\n');
-
-		raw = nhm.translate(cleanHtml).trim();
+		raw = htmlToMarkdown(html);
 	}
 
 	if (!raw && text) {
@@ -48,15 +49,6 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	}
 
 	if (!raw) return escapeMdV2('（正文为空）');
-
-	// HTML 实体
-	raw = raw
-		.replace(/&nbsp;/gi, ' ')
-		.replace(/&amp;/gi, '&')
-		.replace(/&lt;/gi, '<')
-		.replace(/&gt;/gi, '>')
-		.replace(/&quot;/gi, '"')
-		.replace(/&#0?39;/gi, "'");
 
 	// 残留 HTML 标签
 	raw = raw.replace(/<[^>]*>/g, '');
