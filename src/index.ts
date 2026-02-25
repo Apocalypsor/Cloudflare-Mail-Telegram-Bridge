@@ -73,19 +73,23 @@ async function handlePubSubPush(body: PubSubPushBody, env: Env): Promise<void> {
 
 		console.log(`发现 ${messageIds.length} 封新邮件`);
 		for (const msgId of messageIds) {
-			// 去重：检查是否已处理过
 			const dedupeKey = `processed:${msgId}`;
-			const already = await env.EMAIL_KV.get(dedupeKey);
-			if (already) {
-				console.log(`消息 ${msgId} 已处理过，跳过`);
+			const existing = await env.EMAIL_KV.get(dedupeKey);
+			if (existing) {
+				console.log(`消息 ${msgId} 已处理/处理中，跳过`);
 				continue;
 			}
-			// 标记为已处理（TTL 24 小时，之后自动过期）
-			await env.EMAIL_KV.put(dedupeKey, '1', { expirationTtl: 86400 });
+
+			// 立即写入"处理中"锁（TTL 5 分钟，防止 Worker 崩溃后永久锁死）
+			await env.EMAIL_KV.put(dedupeKey, 'processing', { expirationTtl: 300 });
 
 			try {
 				await processGmailMessage(token, msgId, env);
+				// 发送成功：升级为长期标记（24 小时后自动过期）
+				await env.EMAIL_KV.put(dedupeKey, 'done', { expirationTtl: 86400 });
 			} catch (e: any) {
+				// 发送失败：删除锁，允许后续重试
+				await env.EMAIL_KV.delete(dedupeKey);
 				console.error(`处理消息 ${msgId} 失败:`, e.message);
 			}
 		}
