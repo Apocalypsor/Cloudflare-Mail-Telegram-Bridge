@@ -5,6 +5,17 @@ export const TG_MSG_LIMIT = 4096;
 /** Telegram caption 字符上限 (sendDocument / sendMediaGroup) */
 export const TG_CAPTION_LIMIT = 1024;
 
+function isEntityParseError(description: string | undefined): boolean {
+	return !!description && /can't parse entities/i.test(description);
+}
+
+function markdownV2ToPlainText(text: string): string {
+	let out = text;
+	out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1: $2');
+	out = out.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\])/g, '$1');
+	return out;
+}
+
 /** 发送纯文字消息 */
 export async function sendTextMessage(token: string, chatId: string, text: string): Promise<void> {
 	const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -15,6 +26,23 @@ export async function sendTextMessage(token: string, chatId: string, text: strin
 	});
 	if (!resp.ok) {
 		const err = (await resp.json()) as any;
+		console.error('TG sendMessage failed payload:', {
+			chatId,
+			textLength: text.length,
+			text,
+		});
+		if (isEntityParseError(err?.description)) {
+			const plain = markdownV2ToPlainText(text);
+			console.warn('TG sendMessage parse_mode failed, retrying as plain text');
+			const fallbackResp = await fetch(url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ chat_id: chatId, text: plain }),
+			});
+			if (fallbackResp.ok) return;
+			const fallbackErr = (await fallbackResp.json()) as any;
+			throw new Error(`TG sendMessage fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+		}
 		throw new Error(`TG sendMessage ${resp.status}: ${err.description}`);
 	}
 }
@@ -46,6 +74,23 @@ export async function sendWithAttachments(token: string, chatId: string, caption
 			const resp = await fetch(url, { method: 'POST', body: form });
 			if (!resp.ok) {
 				const err = (await resp.json()) as any;
+				console.error('TG sendDocument failed payload:', {
+					chatId,
+					captionLength: caption.length,
+					caption,
+					filename: att.filename || 'attachment',
+				});
+				if (isEntityParseError(err?.description)) {
+					console.warn('TG sendDocument parse_mode failed, retrying as plain caption');
+					const fallbackForm = new FormData();
+					fallbackForm.append('chat_id', chatId);
+					fallbackForm.append('document', blob, att.filename || 'attachment');
+					fallbackForm.append('caption', markdownV2ToPlainText(caption));
+					const fallbackResp = await fetch(url, { method: 'POST', body: fallbackForm });
+					if (fallbackResp.ok) return;
+					const fallbackErr = (await fallbackResp.json()) as any;
+					throw new Error(`TG sendDocument fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+				}
 				throw new Error(`TG sendDocument ${resp.status}: ${err.description}`);
 			}
 		} else {
@@ -74,6 +119,35 @@ export async function sendWithAttachments(token: string, chatId: string, caption
 			const resp = await fetch(url, { method: 'POST', body: form });
 			if (!resp.ok) {
 				const err = (await resp.json()) as any;
+				console.error('TG sendMediaGroup failed payload:', {
+					chatId,
+					captionLength: caption.length,
+					caption,
+					attachments: attachments.length,
+				});
+				if (isEntityParseError(err?.description)) {
+					console.warn('TG sendMediaGroup parse_mode failed, retrying as plain caption');
+					const fallbackForm = new FormData();
+					fallbackForm.append('chat_id', chatId);
+					const fallbackMedia = attachments.map((att, i) => {
+						const fieldName = `file${i}`;
+						const blob = attToBlob(att);
+						fallbackForm.append(fieldName, blob, att.filename || `attachment_${i + 1}`);
+						const entry: Record<string, string> = {
+							type: 'document',
+							media: `attach://${fieldName}`,
+						};
+						if (i === 0) {
+							entry.caption = markdownV2ToPlainText(caption);
+						}
+						return entry;
+					});
+					fallbackForm.append('media', JSON.stringify(fallbackMedia));
+					const fallbackResp = await fetch(url, { method: 'POST', body: fallbackForm });
+					if (fallbackResp.ok) return;
+					const fallbackErr = (await fallbackResp.json()) as any;
+					throw new Error(`TG sendMediaGroup fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+				}
 				throw new Error(`TG sendMediaGroup ${resp.status}: ${err.description}`);
 			}
 		}

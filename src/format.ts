@@ -33,6 +33,11 @@ export function toTelegramMdV2(markdown: string): string {
 	return convert(markdown).trimEnd();
 }
 
+/** 修复 Telegram MarkdownV2 易出错片段（例如单独一行的 "***"） */
+function sanitizeTelegramMdV2(md: string): string {
+	return md.replace(/(^|\n)\*{3,}(?=\n|$)/g, '$1\\*\\*\\*');
+}
+
 /** 统计未转义字符数量 */
 function countUnescapedChar(str: string, ch: string): number {
 	let count = 0;
@@ -84,14 +89,14 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
 
 	if (!truncated) {
-		return toTelegramMdV2(raw);
+		return sanitizeTelegramMdV2(toTelegramMdV2(raw));
 	}
 
 	// 从后往前回退截断点，直到 MarkdownV2 实体闭合，避免 Telegram 400。
 	let end = maxLen;
 	while (end > 0) {
 		const candidate = raw.substring(0, end);
-		const converted = toTelegramMdV2(candidate);
+		const converted = sanitizeTelegramMdV2(toTelegramMdV2(candidate));
 		if (!hasUnclosedMdV2Entities(converted)) {
 			return `${converted}${truncatedHint}`;
 		}
