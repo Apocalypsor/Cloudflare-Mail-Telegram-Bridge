@@ -33,6 +33,33 @@ export function toTelegramMdV2(markdown: string): string {
 	return convert(markdown).trimEnd();
 }
 
+/** 统计未转义字符数量 */
+function countUnescapedChar(str: string, ch: string): number {
+	let count = 0;
+	let escaped = false;
+	for (const c of str) {
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (c === '\\') {
+			escaped = true;
+			continue;
+		}
+		if (c === ch) count++;
+	}
+	return count;
+}
+
+/** 判断 Telegram MarkdownV2 是否存在明显未闭合实体（重点覆盖粗体/斜体/代码） */
+function hasUnclosedMdV2Entities(md: string): boolean {
+	const boldUnclosed = countUnescapedChar(md, '*') % 2 !== 0;
+	const italicUnclosed = countUnescapedChar(md, '_') % 2 !== 0;
+	const strikeUnclosed = countUnescapedChar(md, '~') % 2 !== 0;
+	const codeUnclosed = countUnescapedChar(md, '`') % 2 !== 0;
+	return boldUnclosed || italicUnclosed || strikeUnclosed || codeUnclosed;
+}
+
 /**
  * 处理邮件正文：优先将 HTML 转 Markdown，fallback 到纯文本，超长截断并提示。
  * @param maxLen 本次可用的最大字符数（由调用方根据其他部分占用动态计算）
@@ -54,13 +81,23 @@ export function formatBody(text: string | undefined, html: string | undefined, m
 	raw = raw.replace(/<[^>]*>/g, '');
 
 	const truncated = raw.length > maxLen;
-	const bodyStr = raw.substring(0, maxLen);
+	const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
 
-	let result = toTelegramMdV2(bodyStr);
-
-	if (truncated) {
-		result += `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
+	if (!truncated) {
+		return toTelegramMdV2(raw);
 	}
 
-	return result;
+	// 从后往前回退截断点，直到 MarkdownV2 实体闭合，避免 Telegram 400。
+	let end = maxLen;
+	while (end > 0) {
+		const candidate = raw.substring(0, end);
+		const converted = toTelegramMdV2(candidate);
+		if (!hasUnclosedMdV2Entities(converted)) {
+			return `${converted}${truncatedHint}`;
+		}
+		end--;
+	}
+
+	// 极端兜底：如果回退仍不安全，降级为纯文本。
+	return `${escapeMdV2(raw.substring(0, maxLen))}${truncatedHint}`;
 }
