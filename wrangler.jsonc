@@ -78,11 +78,4 @@
 	"triggers": {
 		"crons": ["0 0 */6 * *"],
 	},
-	"env": {
-		"test": {
-			"vars": {
-				"WORKER_NAME": "gmail-tg-bridge-test",
-			},
-		},
-	},
 }
