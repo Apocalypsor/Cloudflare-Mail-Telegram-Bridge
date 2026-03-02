@@ -49,6 +49,15 @@
 		},
 	],
 	/**
+	 * Service Binding — 统一错误上报到 Observability Hub
+	 */
+	"services": [
+		{
+			"binding": "OBS_SERVICE",
+			"service": "workers-observability-hub",
+		},
+	],
+	/**
 	 * Queue — 邮件处理队列（sync + message），串行消费，内置重试
 	 * 先运行: npx wrangler queues create gmail-tg-queue
 	 */
@@ -74,5 +83,12 @@
 	 */
 	"triggers": {
 		"crons": ["0 0 */6 * *"],
+	},
+	"env": {
+		"test": {
+			"vars": {
+				"WORKER_NAME": "gmail-tg-bridge-test",
+			},
+		},
 	},
 }

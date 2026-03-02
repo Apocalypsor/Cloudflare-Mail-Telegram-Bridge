@@ -1,7 +1,7 @@
 import { ROUTE_GMAIL_PUSH, ROUTE_GMAIL_WATCH } from '../constants';
 import { renewWatch } from '../services/gmail';
 import { enqueueSyncNotification } from '../services/bridge';
-import { reportErrorToObservabilityAndTelegram } from '../services/observability';
+import { reportErrorToObservability } from '../services/observability';
 import type { Env, PubSubPushBody } from '../types';
 
 /**
@@ -23,7 +23,7 @@ export async function handleHttpRequest(request: Request, env: Env): Promise<Res
 
 		return new Response('Gmail → Telegram Bridge is running');
 	} catch (error: unknown) {
-		await reportErrorToObservabilityAndTelegram(env, 'http.unhandled_error', error, {
+		await reportErrorToObservability(env, 'http.unhandled_error', error, {
 			method: request.method,
 			pathname: url.pathname,
 		});
@@ -50,7 +50,7 @@ async function handleWatchRenewal(url: URL, env: Env): Promise<Response> {
 		return new Response('Watch renewed');
 	} catch (error: unknown) {
 		const message = error instanceof Error ? error.message : String(error);
-		await reportErrorToObservabilityAndTelegram(env, 'http.watch_renew_failed', error, {
+		await reportErrorToObservability(env, 'http.watch_renew_failed', error, {
 			pathname: ROUTE_GMAIL_WATCH,
 		});
 		return new Response(`Watch failed: ${message}`, { status: 500 });

@@ -2,6 +2,19 @@ export interface SecretStoreSecretBinding {
 	get(): Promise<string>;
 }
 
+export interface ObservabilityErrorPayload {
+	source: string;
+	event: string;
+	message: string;
+	stack?: string;
+	context?: Record<string, unknown>;
+	timestamp?: string;
+}
+
+export interface ObservabilityServiceBinding {
+	reportError(payload: ObservabilityErrorPayload | null | undefined): Promise<void>;
+}
+
 export interface Env {
 	/** Worker 名称（用于日志/告警） */
 	WORKER_NAME: string;
@@ -27,6 +40,8 @@ export interface Env {
 	EMAIL_KV: KVNamespace;
 	/** Queue 绑定 */
 	EMAIL_QUEUE: Queue<QueueMessage>;
+	/** Observability Hub Service Binding */
+	OBS_SERVICE: ObservabilityServiceBinding;
 }
 
 /** 队列消息体 */

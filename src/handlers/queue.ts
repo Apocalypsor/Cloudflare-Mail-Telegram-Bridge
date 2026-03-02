@@ -1,5 +1,5 @@
 import { processMessageNotification, processSyncNotification } from '../services/bridge';
-import { reportErrorToObservabilityAndTelegram } from '../services/observability';
+import { reportErrorToObservability } from '../services/observability';
 import type { Env, QueueMessage } from '../types';
 
 /** Queue consumer: 串行处理邮件，内置重试 */
@@ -13,7 +13,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: E
 			}
 			msg.ack();
 		} catch (error: unknown) {
-			await reportErrorToObservabilityAndTelegram(env, 'queue.message_failed', error, {
+			await reportErrorToObservability(env, 'queue.message_failed', error, {
 				attempt: msg.attempts,
 				type: msg.body.type,
 				messageId: msg.body.type === 'message' ? msg.body.messageId : undefined,
