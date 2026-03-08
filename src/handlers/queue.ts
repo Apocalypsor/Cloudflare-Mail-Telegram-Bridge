@@ -7,7 +7,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: E
 	for (const msg of batch.messages) {
 		try {
 			if (msg.body.type === 'sync') {
-				await processSyncNotification(msg.body, env);
+				await processSyncNotification(msg.body, env, ctx.waitUntil.bind(ctx));
 			} else {
 				await processMessageNotification(msg.body, env, ctx.waitUntil.bind(ctx));
 			}

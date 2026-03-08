@@ -7,6 +7,8 @@ import {
 } from '../constants';
 import type { Env } from '../types';
 import { getAccountById, updateAccountEmail, updateRefreshToken } from '../db/accounts';
+import { putCachedAccessToken } from '../db/kv';
+import { renewWatch } from './gmail';
 
 const GOOGLE_OAUTH_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -173,6 +175,22 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 			}
 		}
 		await Promise.all(updates);
+
+		// 缓存 access_token 到 KV，供后续 renewWatch 直接使用
+		if (tokenData.access_token && tokenData.expires_in) {
+			await putCachedAccessToken(env, account.id, tokenData.access_token, Math.max(tokenData.expires_in - 120, 60));
+		}
+
+		// 授权完成后自动 watch，用户无需手动点击
+		if (refreshToken || account.refresh_token) {
+			try {
+				const freshAccount = { ...account, refresh_token: refreshToken || account.refresh_token, email: accountEmail !== 'unknown' ? accountEmail : account.email };
+				await renewWatch(env, freshAccount);
+				console.log(`Auto-watch activated for ${accountEmail}`);
+			} catch (err) {
+				console.warn(`Auto-watch failed for ${accountEmail}:`, err);
+			}
+		}
 	}
 
 	return {

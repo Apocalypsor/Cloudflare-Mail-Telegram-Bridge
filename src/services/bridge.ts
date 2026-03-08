@@ -29,8 +29,15 @@ export async function enqueueSyncNotification(body: PubSubPushBody, env: Env): P
 	});
 }
 
-/** 按账号处理 Gmail history 同步，并将新 message id 入队 */
-export async function processSyncNotification(sync: Extract<QueueMessage, { type: 'sync' }>, env: Env): Promise<void> {
+/** 少量邮件直接处理的阈值 */
+const DIRECT_PROCESS_THRESHOLD = 3;
+
+/** 按账号处理 Gmail history 同步，少量邮件直接处理，大批量才入队 */
+export async function processSyncNotification(
+	sync: Extract<QueueMessage, { type: 'sync' }>,
+	env: Env,
+	waitUntil?: (p: Promise<unknown>) => void,
+): Promise<void> {
 	const account = await getAccountById(env.DB, sync.accountId);
 	if (!account) {
 		console.log(`Account ${sync.accountId} not found, skipping sync`);
@@ -52,12 +59,35 @@ export async function processSyncNotification(sync: Extract<QueueMessage, { type
 		return;
 	}
 
-	console.log(`Found ${messageIds.length} new messages for ${account.email}, enqueueing`);
-	await env.EMAIL_QUEUE.sendBatch(
-		messageIds.map((id) => ({
-			body: { type: 'message' as const, accountId: account.id, messageId: id },
-		})),
-	);
+	// 少量邮件直接处理，减少一跳延迟；大批量仍走队列
+	if (messageIds.length <= DIRECT_PROCESS_THRESHOLD && waitUntil) {
+		console.log(`Found ${messageIds.length} new messages for ${account.email}, processing directly`);
+		const failed: string[] = [];
+		for (const id of messageIds) {
+			try {
+				await processMessageNotification({ type: 'message', accountId: account.id, messageId: id }, env, waitUntil);
+			} catch (err) {
+				console.error(`Direct processing failed for message ${id}:`, err);
+				failed.push(id);
+			}
+		}
+		// 失败的入队重试
+		if (failed.length > 0) {
+			console.log(`Enqueueing ${failed.length} failed messages for retry`);
+			await env.EMAIL_QUEUE.sendBatch(
+				failed.map((id) => ({
+					body: { type: 'message' as const, accountId: account.id, messageId: id },
+				})),
+			);
+		}
+	} else {
+		console.log(`Found ${messageIds.length} new messages for ${account.email}, enqueueing`);
+		await env.EMAIL_QUEUE.sendBatch(
+			messageIds.map((id) => ({
+				body: { type: 'message' as const, accountId: account.id, messageId: id },
+			})),
+		);
+	}
 }
 
 /** 按账号消费消息 + 幂等防重 */
