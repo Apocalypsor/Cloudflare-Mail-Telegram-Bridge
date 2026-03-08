@@ -4,8 +4,9 @@ import { formatBody } from '../lib/format';
 import { escapeMdV2 } from '../lib/markdown-v2';
 import type { Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet, KV_HISTORY_ID } from './gmail';
+import { summarizeEmail } from './ollama';
 import { getTelegramSecrets } from './secrets';
-import { sendTextMessage, sendWithAttachments, TG_CAPTION_LIMIT, TG_MSG_LIMIT } from './telegram';
+import { editMessageCaption, editTextMessage, sendTextMessage, sendWithAttachments, TG_CAPTION_LIMIT, TG_MSG_LIMIT } from './telegram';
 
 /** 解析 Pub/Sub 通知，将同步任务入队 */
 export async function enqueueSyncNotification(body: PubSubPushBody, env: Env): Promise<void> {
@@ -66,19 +67,50 @@ async function processGmailMessage(token: string, messageId: string, env: Env): 
 	const parser = new PostalMime();
 	const email = await parser.parse(rawEmail);
 
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', email.subject || '无主题');
+	const subject = email.subject || '无主题';
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', subject);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const charLimit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
+
+	const ollamaUrl = env.OLLAMA_URL;
+	const shouldSummarize = !!ollamaUrl;
+
 	const overhead = header.length + 40;
 	const bodyBudget = Math.max(charLimit - overhead, 100);
 	const body = formatBody(email.text, email.html, bodyBudget);
 	const text = header + body;
 
+	// 发送原始消息
+	let sentMessageId: number;
 	if (hasAttachments) {
-		await sendWithAttachments(tgToken, chatId, text, email.attachments || []);
-		return;
+		sentMessageId = await sendWithAttachments(tgToken, chatId, text, email.attachments || []);
+	} else {
+		sentMessageId = await sendTextMessage(tgToken, chatId, text);
 	}
-	await sendTextMessage(tgToken, chatId, text);
+
+	if (!shouldSummarize) return;
+
+	// 发送后调用 Ollama 生成摘要，仅处理文字正文
+	const rawBody = email.text || '';
+	if (!rawBody.trim()) return;
+
+	try {
+		const model = env.OLLAMA_MODEL || 'qwen3.5:latest';
+		const summary = await summarizeEmail(ollamaUrl, model, subject, rawBody);
+
+		const summaryBody = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${escapeMdV2(summary)}`;
+		const finalText = header + summaryBody;
+		const limit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
+		const capped = finalText.length <= limit ? finalText : finalText.slice(0, limit);
+
+		if (hasAttachments) {
+			await editMessageCaption(tgToken, chatId, sentMessageId, capped);
+		} else {
+			await editTextMessage(tgToken, chatId, sentMessageId, capped);
+		}
+	} catch (err) {
+		console.error('AI 摘要生成失败:', err);
+	}
 }
 
 function buildTelegramHeader(fromName: string, fromAddress: string, subject: string): string {

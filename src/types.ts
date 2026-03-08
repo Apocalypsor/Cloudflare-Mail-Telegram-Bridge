@@ -38,6 +38,10 @@ export interface Env {
 	EMAIL_QUEUE: Queue<QueueMessage>;
 	/** Observability Hub Service Binding */
 	OBS_SERVICE: ObservabilityServiceBinding;
+	/** Ollama API base URL，例如 https://ollama.example.com（可选，不配置则跳过 AI 摘要） */
+	OLLAMA_URL?: string;
+	/** Ollama 模型名称，默认 qwen3.5:latest */
+	OLLAMA_MODEL?: string;
 }
 
 /** 队列消息体 */

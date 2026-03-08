@@ -22,8 +22,8 @@ function extractTelegramDescription(payload: unknown): string {
 	return typeof desc === 'string' ? desc : 'Unknown Telegram error';
 }
 
-/** 发送纯文本消息（不使用 parse_mode） */
-export async function sendPlainTextMessage(token: string, chatId: string, text: string): Promise<void> {
+/** 发送纯文本消息（不使用 parse_mode），返回 message_id */
+export async function sendPlainTextMessage(token: string, chatId: string, text: string): Promise<number> {
 	const url = `https://api.telegram.org/bot${token}/sendMessage`;
 	const resp = await fetch(url, {
 		method: 'POST',
@@ -34,10 +34,12 @@ export async function sendPlainTextMessage(token: string, chatId: string, text: 
 		const err = (await resp.json()) as unknown;
 		throw new Error(`TG sendMessage plain ${resp.status}: ${extractTelegramDescription(err)}`);
 	}
+	const data = (await resp.json()) as { result: { message_id: number } };
+	return data.result.message_id;
 }
 
-/** 发送纯文字消息 */
-export async function sendTextMessage(token: string, chatId: string, text: string): Promise<void> {
+/** 发送纯文字消息，返回 message_id */
+export async function sendTextMessage(token: string, chatId: string, text: string): Promise<number> {
 	const url = `https://api.telegram.org/bot${token}/sendMessage`;
 	const resp = await fetch(url, {
 		method: 'POST',
@@ -55,10 +57,38 @@ export async function sendTextMessage(token: string, chatId: string, text: strin
 		if (isEntityParseError(errDescription)) {
 			const plain = markdownV2ToPlainText(text);
 			console.warn('TG sendMessage parse_mode failed, retrying as plain text');
-			await sendPlainTextMessage(token, chatId, plain);
-			return;
+			return sendPlainTextMessage(token, chatId, plain);
 		}
 		throw new Error(`TG sendMessage ${resp.status}: ${errDescription}`);
+	}
+	const data = (await resp.json()) as { result: { message_id: number } };
+	return data.result.message_id;
+}
+
+/** 编辑已发送的文字消息 */
+export async function editTextMessage(token: string, chatId: string, messageId: number, text: string): Promise<void> {
+	const url = `https://api.telegram.org/bot${token}/editMessageText`;
+	const resp = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' }),
+	});
+	if (!resp.ok) {
+		const err = (await resp.json()) as unknown;
+		const errDescription = extractTelegramDescription(err);
+		if (isEntityParseError(errDescription)) {
+			console.warn('TG editMessageText parse_mode failed, retrying as plain text');
+			const plain = markdownV2ToPlainText(text);
+			const fallbackResp = await fetch(url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: plain }),
+			});
+			if (fallbackResp.ok) return;
+			const fallbackErr = (await fallbackResp.json()) as unknown;
+			throw new Error(`TG editMessageText fallback ${fallbackResp.status}: ${extractTelegramDescription(fallbackErr)}`);
+		}
+		throw new Error(`TG editMessageText ${resp.status}: ${errDescription}`);
 	}
 }
 
@@ -73,12 +103,12 @@ function attToBlob(att: Attachment): Blob {
 const TG_MEDIA_GROUP_LIMIT = 10;
 
 /**
- * 发送消息 + 附件合并在一条 Telegram 消息中。
+ * 发送消息 + 附件合并在一条 Telegram 消息中，返回第一条消息的 message_id。
  * - 1 个附件: sendDocument + caption
  * - 多个附件: sendMediaGroup，caption 放第一个文件上
  * - 超过 10 个附件: 分批发送，每批最多 10 个
  */
-export async function sendWithAttachments(token: string, chatId: string, caption: string, attachments: Attachment[]): Promise<void> {
+export async function sendWithAttachments(token: string, chatId: string, caption: string, attachments: Attachment[]): Promise<number> {
 	try {
 		if (attachments.length === 1) {
 			const att = attachments[0];
@@ -106,12 +136,17 @@ export async function sendWithAttachments(token: string, chatId: string, caption
 					fallbackForm.append('document', blob, att.filename || 'attachment');
 					fallbackForm.append('caption', markdownV2ToPlainText(caption));
 					const fallbackResp = await fetch(url, { method: 'POST', body: fallbackForm });
-					if (fallbackResp.ok) return;
-					const fallbackErr = (await fallbackResp.json()) as any;
-					throw new Error(`TG sendDocument fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+					if (!fallbackResp.ok) {
+						const fallbackErr = (await fallbackResp.json()) as any;
+						throw new Error(`TG sendDocument fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+					}
+					const fallbackData = (await fallbackResp.json()) as { result: { message_id: number } };
+					return fallbackData.result.message_id;
 				}
 				throw new Error(`TG sendDocument ${resp.status}: ${err.description}`);
 			}
+			const data = (await resp.json()) as { result: { message_id: number } };
+			return data.result.message_id;
 		} else {
 			// 分批发送，每批最多 10 个附件
 			const chunks: Attachment[][] = [];
@@ -119,17 +154,47 @@ export async function sendWithAttachments(token: string, chatId: string, caption
 				chunks.push(attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT));
 			}
 
+			let firstMessageId = 0;
 			for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
 				const chunk = chunks[chunkIdx];
-				await sendMediaGroupChunk(token, chatId, chunkIdx === 0 ? caption : '', chunk);
+				const msgId = await sendMediaGroupChunk(token, chatId, chunkIdx === 0 ? caption : '', chunk);
+				if (chunkIdx === 0) firstMessageId = msgId;
 			}
+			return firstMessageId;
 		}
 	} catch (e: any) {
 		throw new Error(`发送附件消息异常: ${e.message}`);
 	}
 }
 
-async function sendMediaGroupChunk(token: string, chatId: string, caption: string, attachments: Attachment[]): Promise<void> {
+/** 编辑附件消息的 caption */
+export async function editMessageCaption(token: string, chatId: string, messageId: number, caption: string): Promise<void> {
+	const url = `https://api.telegram.org/bot${token}/editMessageCaption`;
+	const resp = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption, parse_mode: 'MarkdownV2' }),
+	});
+	if (!resp.ok) {
+		const err = (await resp.json()) as unknown;
+		const errDescription = extractTelegramDescription(err);
+		if (isEntityParseError(errDescription)) {
+			console.warn('TG editMessageCaption parse_mode failed, retrying as plain text');
+			const plain = markdownV2ToPlainText(caption);
+			const fallbackResp = await fetch(url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: plain }),
+			});
+			if (fallbackResp.ok) return;
+			const fallbackErr = (await fallbackResp.json()) as unknown;
+			throw new Error(`TG editMessageCaption fallback ${fallbackResp.status}: ${extractTelegramDescription(fallbackErr)}`);
+		}
+		throw new Error(`TG editMessageCaption ${resp.status}: ${errDescription}`);
+	}
+}
+
+async function sendMediaGroupChunk(token: string, chatId: string, caption: string, attachments: Attachment[]): Promise<number> {
 	const form = new FormData();
 	form.append('chat_id', chatId);
 
@@ -180,10 +245,15 @@ async function sendMediaGroupChunk(token: string, chatId: string, caption: strin
 			});
 			fallbackForm.append('media', JSON.stringify(fallbackMedia));
 			const fallbackResp = await fetch(url, { method: 'POST', body: fallbackForm });
-			if (fallbackResp.ok) return;
-			const fallbackErr = (await fallbackResp.json()) as any;
-			throw new Error(`TG sendMediaGroup fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+			if (!fallbackResp.ok) {
+				const fallbackErr = (await fallbackResp.json()) as any;
+				throw new Error(`TG sendMediaGroup fallback ${fallbackResp.status}: ${fallbackErr.description}`);
+			}
+			const fallbackData = (await fallbackResp.json()) as { result: Array<{ message_id: number }> };
+			return fallbackData.result[0].message_id;
 		}
 		throw new Error(`TG sendMediaGroup ${resp.status}: ${err.description}`);
 	}
+	const data = (await resp.json()) as { result: Array<{ message_id: number }> };
+	return data.result[0].message_id;
 }
