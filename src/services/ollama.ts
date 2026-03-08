@@ -16,9 +16,14 @@ export async function summarizeEmail(ollamaUrl: string, model: string, subject: 
 	const stripped = stripLinks(rawBody);
 	const body = stripped.length > MAX_BODY_CHARS ? stripped.slice(0, MAX_BODY_CHARS) + '...' : stripped;
 	const prompt =
-		`你是一个邮件助手。请用中文简洁地总结以下邮件内容，3到5句话，直接输出摘要，不要任何前缀或说明。\n\n` +
-		`邮件主题：${subject}\n\n` +
-		`邮件正文：\n${body}`;
+		`Extract the key points of the following email in at most 5 concise sentences, using the SAME LANGUAGE as the email.\n` +
+		`Rules:\n` +
+		`- Do not use "the user" as subject, no lead-ins like "the email says" or "you received"\n` +
+		`- State directly what happened, what the key data is, and what action is needed\n` +
+		`- If the email contains a verification code, OTP, or activation code, you MUST include the exact code prominently\n` +
+		`- Output only the summary, no prefix or explanation\n\n` +
+		`Subject: ${subject}\n\n` +
+		`Body:\n${body}`;
 
 	const resp = await fetch(`${ollamaUrl}/api/generate`, {
 		method: 'POST',
