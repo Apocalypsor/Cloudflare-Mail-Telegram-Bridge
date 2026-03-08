@@ -30,12 +30,11 @@ export async function sendPlainTextMessage(token: string, chatId: string, text: 
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ chat_id: chatId, text }),
 	});
+	const data = (await resp.json()) as { ok: boolean; result?: { message_id: number }; description?: string };
 	if (!resp.ok) {
-		const err = (await resp.json()) as unknown;
-		throw new Error(`TG sendMessage plain ${resp.status}: ${extractTelegramDescription(err)}`);
+		throw new Error(`TG sendMessage plain ${resp.status}: ${data.description || 'Unknown error'}`);
 	}
-	const data = (await resp.json()) as { result: { message_id: number } };
-	return data.result.message_id;
+	return data.result!.message_id;
 }
 
 /** 发送纯文字消息，返回 message_id */
