@@ -84,14 +84,16 @@ document.getElementById('watch-btn').addEventListener('click', async function ()
 	);
 }
 
-const previewScript = `
+function previewScript(secret: string) {
+	const url = `/preview?secret=${encodeURIComponent(secret)}`;
+	return `
 document.getElementById('convert-btn').addEventListener('click', async function () {
   const btn = this;
   const html = document.getElementById('html-input').value;
   if (!html.trim()) return;
   btn.disabled = true; btn.textContent = '转换中…';
   try {
-    const r = await fetch('/preview', {
+    const r = await fetch('${url}', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ html }),
@@ -103,6 +105,7 @@ document.getElementById('convert-btn').addEventListener('click', async function 
     document.getElementById('output').textContent = '请求失败';
   } finally { btn.disabled = false; btn.textContent = '转换'; }
 });`;
+}
 
 export function PreviewPage({ secret }: { secret: string }) {
 	return (
@@ -141,7 +144,7 @@ export function PreviewPage({ secret }: { secret: string }) {
 				<div id="meta" class="mt-2 text-xs text-slate-400" />
 				<BackLink secret={secret} />
 			</Card>
-			<script dangerouslySetInnerHTML={{ __html: previewScript }} />
+			<script dangerouslySetInnerHTML={{ __html: previewScript(secret) }} />
 		</Layout>
 	);
 }
