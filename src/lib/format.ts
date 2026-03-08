@@ -24,7 +24,10 @@ function htmlToMarkdown(html: string): string {
 	for (const node of document.querySelectorAll('head, style, script')) {
 		node.remove();
 	}
-	return turndown.turndown(document.body).replace(/\n{3,}/g, '\n\n').trim();
+	return turndown
+		.turndown(document.body)
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
 }
 
 /** 修复 Telegram MarkdownV2 易出错片段（例如单独一行的 "***"） */

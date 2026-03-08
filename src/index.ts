@@ -1,4 +1,4 @@
-import { handleHttpRequest } from './handlers/http';
+import app from './handlers/http';
 import { handleQueueBatch } from './handlers/queue';
 import { renewWatch } from './services/gmail';
 import { reportErrorToObservability } from './services/observability';
@@ -7,9 +7,7 @@ import type { Env, QueueMessage } from './types';
 export type { Env } from './types';
 
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
-		return handleHttpRequest(request, env);
-	},
+	fetch: app.fetch,
 
 	async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {
 		await handleQueueBatch(batch, env);

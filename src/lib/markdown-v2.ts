@@ -10,11 +10,7 @@ export function escapeMdV2(str: string): string {
 type StyleToken = '*' | '_' | '__' | '~' | '||';
 type CodeToken = '`' | '```';
 
-type TokenState =
-	| { type: 'style'; token: StyleToken }
-	| { type: 'code'; token: CodeToken }
-	| { type: 'link-text' }
-	| { type: 'link-url' };
+type TokenState = { type: 'style'; token: StyleToken } | { type: 'code'; token: CodeToken } | { type: 'link-text' } | { type: 'link-url' };
 
 function toggleStyle(stack: TokenState[], token: StyleToken): void {
 	const top = stack[stack.length - 1];

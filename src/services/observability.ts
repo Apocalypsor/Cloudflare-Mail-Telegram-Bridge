@@ -2,12 +2,7 @@ import type { Env, ObservabilityErrorPayload } from '../types';
 
 type ErrorContext = Record<string, unknown>;
 
-export async function reportErrorToObservability(
-	env: Env,
-	event: string,
-	error: unknown,
-	context: ErrorContext = {},
-): Promise<void> {
+export async function reportErrorToObservability(env: Env, event: string, error: unknown, context: ErrorContext = {}): Promise<void> {
 	const payload = buildErrorPayload(env, event, error, context);
 	const workerName = resolveWorkerName(env);
 	console.error({
@@ -49,12 +44,7 @@ export async function reportErrorToObservability(
 	}
 }
 
-function buildErrorPayload(
-	env: Env,
-	event: string,
-	error: unknown,
-	context: ErrorContext,
-): ObservabilityErrorPayload {
+function buildErrorPayload(env: Env, event: string, error: unknown, context: ErrorContext): ObservabilityErrorPayload {
 	return {
 		source: resolveWorkerName(env),
 		event,

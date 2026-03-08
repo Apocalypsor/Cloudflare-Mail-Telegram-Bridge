@@ -14,9 +14,7 @@ export async function getAccessToken(env: Env): Promise<string> {
 	if (cached) return cached;
 	const refreshToken = await env.EMAIL_KV.get(KV_GMAIL_REFRESH_TOKEN);
 	if (!refreshToken) {
-		throw new Error(
-			'Missing refresh token in KV. Open /oauth/google?secret=GMAIL_WATCH_SECRET to authorize and save one.',
-		);
+		throw new Error('Missing refresh token in KV. Open /oauth/google?secret=GMAIL_WATCH_SECRET to authorize and save one.');
 	}
 
 	const resp = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
