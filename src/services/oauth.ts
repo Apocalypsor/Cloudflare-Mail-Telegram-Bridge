@@ -184,7 +184,7 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 		// 授权完成后自动 watch，用户无需手动点击
 		if (refreshToken || account.refresh_token) {
 			try {
-				const freshAccount = { ...account, refresh_token: refreshToken || account.refresh_token, email: accountEmail !== 'unknown' ? accountEmail : account.email };
+				const freshAccount = { ...account, refresh_token: (refreshToken || account.refresh_token)!, email: accountEmail !== 'unknown' ? accountEmail : account.email };
 				await renewWatch(env, freshAccount);
 				console.log(`Auto-watch activated for ${accountEmail}`);
 			} catch (err) {

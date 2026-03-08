@@ -6,8 +6,8 @@ import { formatBody, toTelegramMdV2 } from '../lib/format';
 import { escapeMdV2, findLongestValidMdV2Prefix } from '../lib/markdown-v2';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
-import { summarizeEmail } from './ollama';
-import { getTelegramToken } from './secrets';
+import { getTelegramToken } from '../db/secrets';
+import { summarizeEmail } from './llm';
 import { editMessageCaption, editTextMessage, sendTextMessage, sendWithAttachments, TG_CAPTION_LIMIT, TG_MSG_LIMIT } from './telegram';
 
 /** 解析 Pub/Sub 通知，根据 emailAddress 查找账号并入队 */
