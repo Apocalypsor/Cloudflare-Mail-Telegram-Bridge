@@ -1,5 +1,5 @@
 import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../constants';
-import { Card, Layout } from './layout';
+import { BackLink, Card, Layout } from './layout';
 
 export function HomePage({ error }: { error?: string }) {
 	return (
@@ -72,7 +72,7 @@ document.getElementById('watch-btn').addEventListener('click', async function ()
 					</button>
 					<a
 						class="block w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg text-center transition-colors"
-						href="/preview"
+						href={`/preview?secret=${encodeURIComponent(secret)}`}
 					>
 						HTML → Telegram 预览
 					</a>
@@ -104,7 +104,7 @@ document.getElementById('convert-btn').addEventListener('click', async function 
   } finally { btn.disabled = false; btn.textContent = '转换'; }
 });`;
 
-export function PreviewPage() {
+export function PreviewPage({ secret }: { secret: string }) {
 	return (
 		<Layout title="HTML Preview — Gmail → Telegram Bridge">
 			<Card class="max-w-5xl">
@@ -139,9 +139,7 @@ export function PreviewPage() {
 					转换
 				</button>
 				<div id="meta" class="mt-2 text-xs text-slate-400" />
-				<p class="mt-5">
-					<a href="/" class="text-blue-400 hover:text-blue-300 text-sm">&larr; 返回主页</a>
-				</p>
+				<BackLink secret={secret} />
 			</Card>
 			<script dangerouslySetInnerHTML={{ __html: previewScript }} />
 		</Layout>

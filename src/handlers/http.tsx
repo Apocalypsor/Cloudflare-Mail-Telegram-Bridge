@@ -90,9 +90,11 @@ app.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 });
 
 // ─── HTML Preview ───────────────────────────────────────────────────────────
-app.get(ROUTE_PREVIEW, (c) => c.html(<PreviewPage />));
+app.get(ROUTE_PREVIEW, requireSecret('GMAIL_WATCH_SECRET'), (c) => {
+	return c.html(<PreviewPage secret={c.env.GMAIL_WATCH_SECRET} />);
+});
 
-app.post(ROUTE_PREVIEW, async (c) => {
+app.post(ROUTE_PREVIEW, requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
 	const { html } = await c.req.json<{ html?: string }>();
 	if (!html) return c.json({ result: '', length: 0 });
 	return c.json(convertPreview(html));
