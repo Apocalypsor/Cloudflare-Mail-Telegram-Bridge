@@ -2,8 +2,8 @@ import PostalMime from 'postal-mime';
 import { KV_PROCESSED_PREFIX, MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE, PROCESSED_TTL_SECONDS } from '../constants';
 import { getAccountByEmail, getAccountById } from '../db/accounts';
 import { getHistoryId, putHistoryId } from '../db/kv';
-import { formatBody } from '../lib/format';
-import { escapeMdV2 } from '../lib/markdown-v2';
+import { formatBody, toTelegramMdV2 } from '../lib/format';
+import { escapeMdV2, findLongestValidMdV2Prefix } from '../lib/markdown-v2';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
 import { summarizeEmail } from './ollama';
@@ -169,10 +169,19 @@ async function processGmailMessage(
 			try {
 				const summary = await summarizeEmail(llmUrl, llmKey, llmModel, subject, rawBody);
 
-				const summaryBody = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${escapeMdV2(summary)}`;
-				const finalText = header + summaryBody;
+				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${escapeMdV2(summary)}\n\n${escapeMdV2('✉️ 邮件正文')}\n\n`;
 				const limit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
-				const capped = finalText.length <= limit ? finalText : finalText.slice(0, limit);
+				// 摘要插在 header 和正文之间，正文保留，安全截断 MarkdownV2
+				const finalText = header + summarySection + body;
+				const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
+				let capped: string;
+				if (finalText.length <= limit) {
+					capped = finalText;
+				} else {
+					const budget = limit - truncatedHint.length;
+					const validEnd = findLongestValidMdV2Prefix(finalText.slice(0, budget));
+					capped = finalText.slice(0, validEnd) + truncatedHint;
+				}
 
 				if (hasAttachments) {
 					await editMessageCaption(tgToken, chatId, sentMessageId, capped);
