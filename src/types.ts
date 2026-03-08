@@ -18,10 +18,9 @@ export interface ObservabilityServiceBinding {
 /** D1 accounts 表记录 */
 export interface Account {
 	id: number;
-	email: string;
+	email: string | null;
 	chat_id: string;
 	refresh_token: string | null;
-	history_id: string | null;
 	label: string | null;
 	created_at: string;
 	updated_at: string;

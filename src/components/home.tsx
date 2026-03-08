@@ -33,6 +33,7 @@ export function HomePage({ error }: { error?: string }) {
 
 function dashboardScript(secret: string) {
 	const watchAllUrl = `${ROUTE_GMAIL_WATCH}?secret=${encodeURIComponent(secret)}`;
+	const esc = encodeURIComponent(secret);
 	return `
 var res = document.getElementById('action-result');
 function showResult(text, ok) {
@@ -52,15 +53,39 @@ document.getElementById('watch-all-btn').addEventListener('click', async functio
   finally { btn.disabled = false; btn.textContent = 'Renew All Watches'; }
 });
 
+document.getElementById('clear-all-kv-btn').addEventListener('click', async function () {
+  if (!confirm('确定要清空所有 KV 缓存吗？（access_token、history_id、消息去重、OAuth state 等全部删除）')) return;
+  var btn = this;
+  btn.disabled = true; btn.textContent = '清空中…';
+  try {
+    var r = await fetch('/clear-all-kv?secret=${esc}', { method: 'POST' });
+    showResult(await r.text(), r.ok);
+  } catch { showResult('网络错误', false); }
+  finally { btn.disabled = false; btn.textContent = '清空全局 KV 缓存'; }
+});
+
 document.querySelectorAll('.watch-btn').forEach(function (btn) {
   btn.addEventListener('click', async function () {
     var id = this.dataset.id;
     this.disabled = true; this.textContent = '…';
     try {
-      var r = await fetch('/accounts/' + id + '/watch?secret=${encodeURIComponent(secret)}', { method: 'POST' });
+      var r = await fetch('/accounts/' + id + '/watch?secret=${esc}', { method: 'POST' });
       showResult(await r.text(), r.ok);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; this.textContent = 'Watch'; }
+  });
+});
+
+document.querySelectorAll('.clear-cache-btn').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    if (!confirm('确定要清除该账号的缓存吗？（access_token + history_id）')) return;
+    var id = this.dataset.id;
+    this.disabled = true; this.textContent = '…';
+    try {
+      var r = await fetch('/accounts/' + id + '/clear-cache?secret=${esc}', { method: 'POST' });
+      showResult(await r.text(), r.ok);
+    } catch { showResult('网络错误', false); }
+    finally { this.disabled = false; this.textContent = '清除缓存'; }
   });
 });
 
@@ -70,13 +95,38 @@ document.querySelectorAll('.delete-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true;
     try {
-      var r = await fetch('/accounts/' + id + '/delete?secret=${encodeURIComponent(secret)}', { method: 'POST' });
+      var r = await fetch('/accounts/' + id + '/delete?secret=${esc}', { method: 'POST' });
       if (r.ok) location.reload();
       else showResult(await r.text(), false);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; }
   });
+});
+
+document.querySelectorAll('.edit-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id = this.dataset.id;
+    var row = document.getElementById('acc-' + id);
+    var form = document.getElementById('edit-' + id);
+    if (row) row.style.display = 'none';
+    if (form) form.style.display = '';
+  });
+});
+
+document.querySelectorAll('.edit-cancel').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id = this.dataset.id;
+    var row = document.getElementById('acc-' + id);
+    var form = document.getElementById('edit-' + id);
+    if (row) row.style.display = '';
+    if (form) form.style.display = 'none';
+  });
 });`;
+}
+
+function accountDisplayName(acc: Account): string {
+	if (acc.email) return acc.label ? `${acc.label} — ${acc.email}` : acc.email;
+	return acc.label || `Account #${acc.id}`;
 }
 
 export function DashboardPage({ secret, accounts, error }: { secret: string; accounts: Account[]; error?: string }) {
@@ -98,32 +148,81 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 				) : (
 					<div class="space-y-2 mb-4">
 						{accounts.map((acc) => (
-							<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-900 border border-slate-700 rounded-lg">
-								<div class="min-w-0">
-									<p class="text-sm text-slate-200 font-medium truncate">{acc.label ? `${acc.label} — ${acc.email}` : acc.email}</p>
-									<p class="text-xs text-slate-500">Chat ID: {acc.chat_id}</p>
-								</div>
-								<div class="flex items-center gap-1.5 flex-shrink-0">
-									<span
-										class={`text-xs px-2 py-0.5 rounded ${acc.refresh_token ? 'bg-emerald-900/50 text-emerald-300' : 'bg-amber-900/50 text-amber-300'}`}
-									>
-										{acc.refresh_token ? '已授权' : '未授权'}
-									</span>
-									<a
-										class="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-										href={`${ROUTE_OAUTH_GOOGLE}?secret=${esc(secret)}&account=${acc.id}`}
-									>
-										{acc.refresh_token ? '重新授权' : '授权'}
-									</a>
-									{acc.refresh_token && (
-										<button class="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors watch-btn" data-id={String(acc.id)} type="button">
-											Watch
+							<div>
+								{/* ── 显示行 ── */}
+								<div id={`acc-${acc.id}`} class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-900 border border-slate-700 rounded-lg">
+									<div class="min-w-0">
+										<p class="text-sm text-slate-200 font-medium truncate">{accountDisplayName(acc)}</p>
+										<p class="text-xs text-slate-500">
+											Chat ID: {acc.chat_id}
+											{!acc.email && <span class="ml-2 text-amber-400">（待授权获取邮箱）</span>}
+										</p>
+									</div>
+									<div class="flex items-center gap-1.5 flex-shrink-0">
+										<span
+											class={`text-xs px-2 py-0.5 rounded ${acc.refresh_token ? 'bg-emerald-900/50 text-emerald-300' : 'bg-amber-900/50 text-amber-300'}`}
+										>
+											{acc.refresh_token ? '已授权' : '未授权'}
+										</span>
+										<a
+											class="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+											href={`${ROUTE_OAUTH_GOOGLE}?secret=${esc(secret)}&account=${acc.id}`}
+										>
+											{acc.refresh_token ? '重新授权' : '授权'}
+										</a>
+										{acc.refresh_token && (
+											<button class="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors watch-btn" data-id={String(acc.id)} type="button">
+												Watch
+											</button>
+										)}
+										<button class="text-xs px-2 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded transition-colors edit-btn" data-id={String(acc.id)} type="button">
+											编辑
 										</button>
-									)}
-									<button class="text-xs px-2 py-1 bg-red-700 hover:bg-red-800 text-white rounded transition-colors delete-btn" data-id={String(acc.id)} type="button">
-										删除
-									</button>
+										<button class="text-xs px-2 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded transition-colors clear-cache-btn" data-id={String(acc.id)} type="button">
+											清除缓存
+										</button>
+										<button class="text-xs px-2 py-1 bg-red-700 hover:bg-red-800 text-white rounded transition-colors delete-btn" data-id={String(acc.id)} type="button">
+											删除
+										</button>
+									</div>
 								</div>
+								{/* ── 编辑表单（默认隐藏） ── */}
+								<form
+									id={`edit-${acc.id}`}
+									method="post"
+									action={`/accounts/${acc.id}/edit?secret=${esc(secret)}`}
+									class="p-3 bg-slate-900 border border-blue-600 rounded-lg space-y-3 mt-1"
+									style="display:none"
+								>
+									<p class="text-xs text-slate-400">编辑 {accountDisplayName(acc)}</p>
+									<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+										<div>
+											<label class="block text-xs text-slate-400 mb-1">Telegram Chat ID *</label>
+											<input
+												name="chat_id"
+												required
+												value={acc.chat_id}
+												class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-sm outline-none focus:border-blue-500 transition-colors"
+											/>
+										</div>
+										<div>
+											<label class="block text-xs text-slate-400 mb-1">Label</label>
+											<input
+												name="label"
+												value={acc.label || ''}
+												class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-sm outline-none focus:border-blue-500 transition-colors"
+											/>
+										</div>
+									</div>
+									<div class="flex gap-2">
+										<button type="submit" class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors">
+											保存
+										</button>
+										<button type="button" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition-colors edit-cancel" data-id={String(acc.id)}>
+											取消
+										</button>
+									</div>
+								</form>
 							</div>
 						))}
 					</div>
@@ -131,18 +230,9 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 
 				{/* ── 添加账号 ─────────────────────────────────────────── */}
 				<h2 class="text-lg font-semibold text-slate-100 mt-5 mb-2">Add Account</h2>
+				<p class="text-xs text-slate-500 mb-2">添加后通过 OAuth 授权，邮箱地址将自动从 Gmail API 获取。</p>
 				<form method="post" action={`/accounts?secret=${esc(secret)}`} class="space-y-3">
-					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-						<div>
-							<label class="block text-xs text-slate-400 mb-1">Email *</label>
-							<input
-								name="email"
-								type="email"
-								required
-								placeholder="user@gmail.com"
-								class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm outline-none focus:border-blue-500 transition-colors"
-							/>
-						</div>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 						<div>
 							<label class="block text-xs text-slate-400 mb-1">Telegram Chat ID *</label>
 							<input
@@ -181,6 +271,13 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 					>
 						HTML → Telegram 预览
 					</a>
+					<button
+						id="clear-all-kv-btn"
+						type="button"
+						class="px-4 py-2.5 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg transition-colors text-sm"
+					>
+						清空全局 KV 缓存
+					</button>
 				</div>
 
 				<div id="action-result" class="hidden" />

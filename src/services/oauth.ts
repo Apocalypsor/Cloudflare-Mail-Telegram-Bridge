@@ -6,7 +6,7 @@ import {
 	ROUTE_OAUTH_GOOGLE_START,
 } from '../constants';
 import type { Env } from '../types';
-import { getAccountById, updateRefreshToken } from '../db/accounts';
+import { getAccountById, updateAccountEmail, updateRefreshToken } from '../db/accounts';
 
 const GOOGLE_OAUTH_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -113,7 +113,7 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 
 	const accountId = parseInt(accountIdStr, 10);
 	const account = await getAccountById(env.DB, accountId);
-	const accountEmail = account?.email || 'unknown';
+	let accountEmail = account?.email || 'unknown';
 
 	const redirectUri = getCallbackUrl(requestUrl.origin);
 	const [, tokenResp] = await Promise.all([
@@ -150,8 +150,29 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 	}
 
 	const refreshToken = tokenData.refresh_token;
-	if (refreshToken && account) {
-		await updateRefreshToken(env.DB, account.id, refreshToken);
+	if (account) {
+		const updates: Promise<void>[] = [];
+		if (refreshToken) {
+			updates.push(updateRefreshToken(env.DB, account.id, refreshToken));
+		}
+		// 用 access_token 从 Gmail API 获取真实邮箱地址
+		if (tokenData.access_token) {
+			try {
+				const profileResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+					headers: { Authorization: `Bearer ${tokenData.access_token}` },
+				});
+				if (profileResp.ok) {
+					const profile = (await profileResp.json()) as { emailAddress?: string };
+					if (profile.emailAddress) {
+						accountEmail = profile.emailAddress;
+						updates.push(updateAccountEmail(env.DB, account.id, profile.emailAddress));
+					}
+				}
+			} catch {
+				// 获取邮箱失败不影响主流程
+			}
+		}
+		await Promise.all(updates);
 	}
 
 	return {

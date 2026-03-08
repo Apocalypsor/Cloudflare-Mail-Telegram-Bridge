@@ -13,10 +13,10 @@ export async function getAccountByEmail(db: D1Database, email: string): Promise<
 	return db.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
 }
 
-export async function createAccount(db: D1Database, email: string, chatId: string, label?: string): Promise<Account> {
+export async function createAccount(db: D1Database, chatId: string, label?: string): Promise<Account> {
 	const result = await db
-		.prepare('INSERT INTO accounts (email, chat_id, label) VALUES (?, ?, ?) RETURNING *')
-		.bind(email, chatId, label ?? null)
+		.prepare('INSERT INTO accounts (chat_id, label) VALUES (?, ?) RETURNING *')
+		.bind(chatId, label ?? null)
 		.first<Account>();
 	if (!result) throw new Error('Failed to create account');
 	return result;
@@ -30,8 +30,10 @@ export async function updateRefreshToken(db: D1Database, id: number, refreshToke
 	await db.prepare("UPDATE accounts SET refresh_token = ?, updated_at = datetime('now') WHERE id = ?").bind(refreshToken, id).run();
 }
 
-export async function updateHistoryId(db: D1Database, id: number, historyId: string): Promise<void> {
-	// 确保存入的是纯整数字符串，避免 D1 读回时变成浮点数
-	const sanitized = String(parseInt(historyId, 10));
-	await db.prepare("UPDATE accounts SET history_id = ?, updated_at = datetime('now') WHERE id = ?").bind(sanitized, id).run();
+export async function updateAccountEmail(db: D1Database, id: number, email: string): Promise<void> {
+	await db.prepare("UPDATE accounts SET email = ?, updated_at = datetime('now') WHERE id = ?").bind(email, id).run();
+}
+
+export async function updateAccount(db: D1Database, id: number, chatId: string, label: string | null): Promise<void> {
+	await db.prepare("UPDATE accounts SET chat_id = ?, label = ?, updated_at = datetime('now') WHERE id = ?").bind(chatId, label, id).run();
 }

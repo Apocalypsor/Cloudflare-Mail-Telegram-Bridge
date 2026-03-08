@@ -1,21 +1,16 @@
 import { GOOGLE_OAUTH_TOKEN_URL } from '../constants';
 import type { Account, Env } from '../types';
-import { getAllAccounts, updateHistoryId } from '../db/accounts';
+import { getAllAccounts } from '../db/accounts';
+import { getCachedAccessToken, getHistoryId, putCachedAccessToken, putHistoryId } from '../db/kv';
 import type { GoogleTokenResponse } from './oauth';
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
-
-/** 每个账号的 access_token KV 缓存键 */
-function kvAccessTokenKey(accountId: number): string {
-	return `access_token:${accountId}`;
-}
 
 // ─── OAuth2 ──────────────────────────────────────────────────────────────────
 
 /** 用 refresh_token 换 access_token，带 KV 缓存（按账号隔离） */
 export async function getAccessToken(env: Env, account: Account): Promise<string> {
-	const cacheKey = kvAccessTokenKey(account.id);
-	const cached = await env.EMAIL_KV.get(cacheKey);
+	const cached = await getCachedAccessToken(env, account.id);
 	if (cached) return cached;
 
 	if (!account.refresh_token) {
@@ -42,9 +37,7 @@ export async function getAccessToken(env: Env, account: Account): Promise<string
 		throw new Error('Token response missing access_token or expires_in');
 	}
 	// 缓存到 KV，TTL 比实际过期提前 120 秒
-	await env.EMAIL_KV.put(cacheKey, data.access_token, {
-		expirationTtl: Math.max(data.expires_in - 120, 60),
-	});
+	await putCachedAccessToken(env, account.id, data.access_token, Math.max(data.expires_in - 120, 60));
 
 	return data.access_token;
 }
@@ -98,9 +91,10 @@ export async function renewWatch(env: Env, account: Account): Promise<void> {
 	});
 	console.log(`Gmail watch renewed for ${account.email}, historyId:`, result.historyId, 'expiration:', result.expiration);
 
-	// 如果 D1 里还没有 historyId，用 watch 返回的初始化
-	if (!account.history_id) {
-		await updateHistoryId(env.DB, account.id, String(result.historyId));
+	// 如果 KV 里还没有 historyId，用 watch 返回的初始化
+	const existing = await getHistoryId(env, account.id);
+	if (!existing) {
+		await putHistoryId(env, account.id, String(result.historyId));
 	}
 }
 
@@ -118,17 +112,16 @@ export async function renewWatchAll(env: Env): Promise<void> {
 
 // ─── History / 新邮件拉取 ────────────────────────────────────────────────────
 
-/** 拉取自 account.history_id 以来的新 INBOX 消息 ID 列表 */
+/** 拉取自上次 historyId 以来的新 INBOX 消息 ID 列表 */
 export async function fetchNewMessageIds(token: string, env: Env, account: Account): Promise<string[]> {
-	if (!account.history_id) return [];
+	const storedHistoryId = await getHistoryId(env, account.id);
+	if (!storedHistoryId) return [];
 
-	// D1 可能将纯数字字符串读回为 number，确保是整数字符串
-	const startHistoryId = String(parseInt(String(account.history_id), 10));
 	const messageIds = new Set<string>();
 	let pageToken: string | undefined;
 
 	do {
-		let path = `/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&labelId=INBOX`;
+		let path = `/users/me/history?startHistoryId=${storedHistoryId}&historyTypes=messageAdded&labelId=INBOX`;
 		if (pageToken) path += `&pageToken=${pageToken}`;
 
 		let history: any;
@@ -139,7 +132,7 @@ export async function fetchNewMessageIds(token: string, env: Env, account: Accou
 				// historyId 过老，重新同步
 				console.warn(`historyId expired for ${account.email}, resetting`);
 				const profile = await gmailGet(token, '/users/me/profile');
-				await updateHistoryId(env.DB, account.id, String(profile.historyId));
+				await putHistoryId(env, account.id, String(profile.historyId));
 				return [];
 			}
 			throw err;
@@ -160,7 +153,7 @@ export async function fetchNewMessageIds(token: string, env: Env, account: Accou
 		pageToken = history.nextPageToken;
 		// 更新为最新 historyId
 		if (history.historyId) {
-			await updateHistoryId(env.DB, account.id, String(history.historyId));
+			await putHistoryId(env, account.id, String(history.historyId));
 		}
 	} while (pageToken);
 

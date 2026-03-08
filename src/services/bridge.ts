@@ -3,7 +3,8 @@ import { KV_PROCESSED_PREFIX, MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE, PROCES
 import { formatBody } from '../lib/format';
 import { escapeMdV2 } from '../lib/markdown-v2';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
-import { getAccountByEmail, getAccountById, updateHistoryId } from '../db/accounts';
+import { getAccountByEmail, getAccountById } from '../db/accounts';
+import { getHistoryId, putHistoryId } from '../db/kv';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
 import { summarizeEmail } from './ollama';
 import { getTelegramToken } from './secrets';
@@ -38,8 +39,9 @@ export async function processSyncNotification(sync: Extract<QueueMessage, { type
 
 	const token = await getAccessToken(env, account);
 
-	if (!account.history_id) {
-		await updateHistoryId(env.DB, account.id, sync.historyId);
+	const storedHistoryId = await getHistoryId(env, account.id);
+	if (!storedHistoryId) {
+		await putHistoryId(env, account.id, sync.historyId);
 		console.log(`Initialized historyId for ${account.email}:`, sync.historyId);
 		return;
 	}

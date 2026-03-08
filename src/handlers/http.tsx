@@ -10,7 +10,8 @@ import {
 import { DashboardPage, HomePage, PreviewPage } from '../components/home';
 import { OAuthCallbackPage, OAuthErrorPage, OAuthSetupPage } from '../components/oauth';
 import { enqueueSyncNotification } from '../services/bridge';
-import { createAccount, deleteAccount, getAllAccounts, getAccountById } from '../db/accounts';
+import { createAccount, deleteAccount, getAllAccounts, getAccountById, updateAccount } from '../db/accounts';
+import { clearAccountCache, clearAllKV, deleteHistoryId } from '../db/kv';
 import { renewWatch, renewWatchAll, stopWatch } from '../services/gmail';
 import { convertPreview } from '../services/home';
 import { getOAuthPageProps, processOAuthCallback, startGoogleOAuth } from '../services/oauth';
@@ -64,23 +65,38 @@ app.post(ROUTE_GMAIL_WATCH, requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
 // ─── Account management ─────────────────────────────────────────────────────
 app.post('/accounts', requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
 	const form = await c.req.formData();
-	const email = form.get('email');
 	const chatId = form.get('chat_id');
 	const label = form.get('label');
 
-	if (typeof email !== 'string' || !email.trim() || typeof chatId !== 'string' || !chatId.trim()) {
+	if (typeof chatId !== 'string' || !chatId.trim()) {
 		const accounts = await getAllAccounts(c.env.DB);
-		return c.html(<DashboardPage secret={c.env.GMAIL_WATCH_SECRET} accounts={accounts} error="Email 和 Chat ID 不能为空" />);
+		return c.html(<DashboardPage secret={c.env.GMAIL_WATCH_SECRET} accounts={accounts} error="Chat ID 不能为空" />);
 	}
 
 	try {
-		await createAccount(c.env.DB, email.trim(), chatId.trim(), typeof label === 'string' && label.trim() ? label.trim() : undefined);
+		await createAccount(c.env.DB, chatId.trim(), typeof label === 'string' && label.trim() ? label.trim() : undefined);
 	} catch (err: any) {
 		const accounts = await getAllAccounts(c.env.DB);
-		const errorMsg = err.message?.includes('UNIQUE') ? '该 Email 已存在' : err.message;
-		return c.html(<DashboardPage secret={c.env.GMAIL_WATCH_SECRET} accounts={accounts} error={errorMsg} />);
+		return c.html(<DashboardPage secret={c.env.GMAIL_WATCH_SECRET} accounts={accounts} error={err.message} />);
 	}
 
+	return c.redirect(`/?secret=${encodeURIComponent(c.env.GMAIL_WATCH_SECRET)}`);
+});
+
+app.post('/accounts/:id/edit', requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
+	const id = parseInt(c.req.param('id'), 10);
+	const form = await c.req.formData();
+	const chatId = form.get('chat_id');
+	const label = form.get('label');
+
+	if (typeof chatId !== 'string' || !chatId.trim()) {
+		return c.text('Chat ID 不能为空', 400);
+	}
+
+	const account = await getAccountById(c.env.DB, id);
+	if (!account) return c.text('Account not found', 404);
+
+	await updateAccount(c.env.DB, id, chatId.trim(), typeof label === 'string' && label.trim() ? label.trim() : null);
 	return c.redirect(`/?secret=${encodeURIComponent(c.env.GMAIL_WATCH_SECRET)}`);
 });
 
@@ -94,8 +110,19 @@ app.post('/accounts/:id/delete', requireSecret('GMAIL_WATCH_SECRET'), async (c) 
 			console.warn(`Failed to stop watch for ${account.email}:`, err);
 		}
 	}
-	await deleteAccount(c.env.DB, id);
+	await Promise.all([deleteAccount(c.env.DB, id), deleteHistoryId(c.env, id)]);
 	return c.text('OK');
+});
+
+app.post('/accounts/:id/clear-cache', requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
+	const id = parseInt(c.req.param('id'), 10);
+	await clearAccountCache(c.env, id);
+	return c.text(`Cache cleared for account ${id}`);
+});
+
+app.post('/clear-all-kv', requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
+	const deleted = await clearAllKV(c.env);
+	return c.text(`Deleted ${deleted} KV keys`);
 });
 
 app.post('/accounts/:id/watch', requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
@@ -119,7 +146,7 @@ app.get(ROUTE_OAUTH_GOOGLE, requireSecret('GMAIL_WATCH_SECRET'), async (c) => {
 	const account = await getAccountById(c.env.DB, accountId);
 	if (!account) return c.text('Account not found', 404);
 
-	const props = getOAuthPageProps(c.req.raw, c.env, account.id, account.email);
+	const props = getOAuthPageProps(c.req.raw, c.env, account.id, account.email || `Account #${account.id}`);
 	return c.html(<OAuthSetupPage {...props} />);
 });
 
