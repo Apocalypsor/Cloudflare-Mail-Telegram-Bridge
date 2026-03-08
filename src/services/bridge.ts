@@ -72,8 +72,10 @@ async function processGmailMessage(token: string, messageId: string, env: Env, w
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const charLimit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 
-	const ollamaUrl = env.OLLAMA_URL;
-	const shouldSummarize = !!ollamaUrl;
+	const llmUrl = env.LLM_API_URL;
+	const llmKey = env.LLM_API_KEY;
+	const llmModel = env.LLM_MODEL;
+	const shouldSummarize = !!(llmUrl && llmKey && llmModel);
 
 	const overhead = header.length + 40;
 	const bodyBudget = Math.max(charLimit - overhead, 100);
@@ -98,8 +100,7 @@ async function processGmailMessage(token: string, messageId: string, env: Env, w
 	waitUntil(
 		(async () => {
 			try {
-				const model = env.OLLAMA_MODEL || 'qwen3.5:latest';
-				const summary = await summarizeEmail(ollamaUrl, model, subject, rawBody);
+				const summary = await summarizeEmail(llmUrl, llmKey, llmModel, subject, rawBody);
 
 				const summaryBody = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${escapeMdV2(summary)}`;
 				const finalText = header + summaryBody;

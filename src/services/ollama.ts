@@ -1,4 +1,4 @@
-/** 使用 Ollama 对邮件正文进行 AI 摘要 */
+/** 使用 OpenAI compatible API 对邮件正文进行 AI 摘要 */
 
 const MAX_BODY_CHARS = 4000;
 
@@ -11,8 +11,8 @@ function stripLinks(text: string): string {
 	return out;
 }
 
-/** 调用 Ollama /api/generate 接口，返回摘要文本 */
-export async function summarizeEmail(ollamaUrl: string, model: string, subject: string, rawBody: string): Promise<string> {
+/** 调用 OpenAI compatible /v1/chat/completions 接口，返回摘要文本 */
+export async function summarizeEmail(baseUrl: string, apiKey: string, model: string, subject: string, rawBody: string): Promise<string> {
 	const stripped = stripLinks(rawBody);
 	const body = stripped.length > MAX_BODY_CHARS ? stripped.slice(0, MAX_BODY_CHARS) + '...' : stripped;
 	const prompt =
@@ -25,16 +25,24 @@ export async function summarizeEmail(ollamaUrl: string, model: string, subject: 
 		`Subject: ${subject}\n\n` +
 		`Body:\n${body}`;
 
-	const resp = await fetch(`${ollamaUrl}/api/generate`, {
+	const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+	const resp = await fetch(url, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ model, prompt, stream: false, think: false }),
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${apiKey}`,
+		},
+		body: JSON.stringify({
+			model,
+			messages: [{ role: 'user', content: prompt }],
+			stream: false,
+		}),
 	});
 
 	if (!resp.ok) {
-		throw new Error(`Ollama ${resp.status}: ${await resp.text()}`);
+		throw new Error(`LLM API ${resp.status}: ${await resp.text()}`);
 	}
 
-	const data = (await resp.json()) as { response: string };
-	return data.response.trim();
+	const data = (await resp.json()) as { choices: Array<{ message: { content: string } }> };
+	return data.choices[0].message.content.trim();
 }

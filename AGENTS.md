@@ -32,3 +32,10 @@ https://developers.cloudflare.com/workers/runtime-apis/nodejs/
 
 Retrieve API references and limits from:
 `/kv/` · `/r2/` · `/d1/` · `/durable-objects/` · `/queues/` · `/vectorize/` · `/workers-ai/` · `/agents/`
+
+## Documentation Maintenance
+
+After making significant changes (new features, architectural refactors, route changes, dependency changes), update:
+
+1. **AGENTS.md** — Keep commands, conventions, and project-specific notes current.
+2. **README.md** — Update project description, setup instructions, route documentation, and tech stack as needed. Create it if it doesn't exist.
