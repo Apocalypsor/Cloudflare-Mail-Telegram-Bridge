@@ -3,9 +3,9 @@ import { KV_PROCESSED_PREFIX, MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE, PROCES
 import { getAccountByEmail, getAccountById } from '../db/accounts';
 import { getHistoryId, putHistoryId } from '../db/kv';
 import { getMessageMapping, putMessageMapping } from '../db/message-map';
-import { formatBody, toTelegramMdV2 } from '../lib/format';
-import { escapeMdV2, findLongestValidMdV2Prefix } from '../lib/markdown-v2';
-import { extractVerificationCode } from '../lib/verification';
+import { formatBody, toTelegramMdV2 } from '../utils/format';
+import { escapeMdV2, findLongestValidMdV2Prefix } from '../utils/markdown-v2';
+import { extractVerificationCode } from '../utils/verification';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
 import { generateTags, summarizeEmail } from './llm';

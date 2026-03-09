@@ -1,4 +1,4 @@
-import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../constants';
+import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../handlers/hono/routes';
 import type { Account } from '../types';
 import { BackLink, Card, Layout } from './layout';
 

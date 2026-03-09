@@ -1,4 +1,4 @@
-import app from './handlers/http';
+import app from './handlers/hono';
 import { handleQueueBatch } from './handlers/queue';
 import { renewWatchAll } from './services/gmail';
 import { reportErrorToObservability } from './services/observability';

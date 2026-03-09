@@ -1,10 +1,5 @@
-import {
-	GOOGLE_OAUTH_TOKEN_URL,
-	KV_OAUTH_STATE_PREFIX,
-	ROUTE_GMAIL_WATCH,
-	ROUTE_OAUTH_GOOGLE_CALLBACK,
-	ROUTE_OAUTH_GOOGLE_START,
-} from '../constants';
+import { GOOGLE_OAUTH_TOKEN_URL, KV_OAUTH_STATE_PREFIX } from '../constants';
+import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from '../handlers/hono/routes';
 import type { Env } from '../types';
 import { getAccountById, updateAccountEmail, updateRefreshToken } from '../db/accounts';
 import { putCachedAccessToken } from '../db/kv';
