@@ -9,28 +9,41 @@ import { ROUTE_MAIL } from './routes';
 
 const mail = new Hono<{ Bindings: Env }>();
 
-/** 从 Gmail API 获取邮件的 HTML 正文 */
-async function fetchMailHtml(accessToken: string, gmailMessageId: string): Promise<string | null> {
+/** 从 Gmail API 获取邮件正文，优先 HTML，fallback 到纯文本 */
+async function fetchMailContent(accessToken: string, gmailMessageId: string): Promise<string | null> {
 	const msg = await gmailGet(accessToken, `/users/me/messages/${gmailMessageId}?format=full`);
-	return extractHtmlFromPayload(msg.payload);
+	const html = extractPartByMime(msg.payload, 'text/html');
+	if (html) return html;
+
+	// 没有 HTML 部分，用纯文本包裹成基础 HTML 页面
+	const plain = extractPartByMime(msg.payload, 'text/plain');
+	if (plain) return wrapPlainText(plain);
+
+	return null;
 }
 
-/** 递归提取 payload 中的 text/html 部分 */
-function extractHtmlFromPayload(payload: any): string | null {
+/** 递归提取 payload 中指定 MIME 类型的内容 */
+function extractPartByMime(payload: any, mimeType: string): string | null {
 	if (!payload) return null;
 
-	if (payload.mimeType === 'text/html' && payload.body?.data) {
+	if (payload.mimeType === mimeType && payload.body?.data) {
 		return decodeBase64Url(payload.body.data);
 	}
 
 	if (payload.parts) {
 		for (const part of payload.parts) {
-			const html = extractHtmlFromPayload(part);
-			if (html) return html;
+			const content = extractPartByMime(part, mimeType);
+			if (content) return content;
 		}
 	}
 
 	return null;
+}
+
+/** 将纯文本包裹成可读的 HTML 页面 */
+function wrapPlainText(text: string): string {
+	const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:monospace;white-space:pre-wrap;word-break:break-word;max-width:800px;margin:2em auto;padding:0 1em;line-height:1.5;color:#333}</style></head><body>${escaped}</body></html>`;
 }
 
 function decodeBase64Url(b64url: string): string {
@@ -64,9 +77,9 @@ mail.get(ROUTE_MAIL, async (c) => {
 	if (!account || !account.refresh_token) return c.text('Account not authorized', 403);
 
 	const accessToken = await getAccessToken(c.env, account);
-	const html = await fetchMailHtml(accessToken, gmailMessageId);
+	const html = await fetchMailContent(accessToken, gmailMessageId);
 
-	if (!html) return c.text('No HTML content in this email', 404);
+	if (!html) return c.text('No content in this email', 404);
 
 	// 缓存到 KV（7 天）
 	await putCachedMailHtml(c.env, gmailMessageId, html);
