@@ -10,7 +10,7 @@ import { generateMailToken } from '../utils/hash';
 import { escapeMdV2 } from '../utils/markdown-v2';
 import { base64urlToArrayBuffer } from '../utils/base64url';
 import { fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
-import { extractVerificationCode, generateTags, summarizeEmail } from './llm';
+import { extractLinks, extractVerificationCode, generateTags, summarizeEmail } from './llm';
 import { reportErrorToObservability } from './observability';
 import {
 	editMessageCaption,
@@ -227,8 +227,9 @@ async function processGmailMessage(
 				}
 
 				// 第二步：无验证码 → 生成摘要 + 标签
+				const links = extractLinks(plainBody);
 				const [summary, tags] = await Promise.all([
-					summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody),
+					summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody, links),
 					generateTags(llmUrl, llmKey, llmModel, subject, plainBody).catch((err) => {
 						reportErrorToObservability(env, 'llm.tags_failed', err, { subject });
 						return [] as string[];
