@@ -208,10 +208,18 @@ npm run cf-typegen # 根据 wrangler.jsonc 重新生成 TypeScript 类型
 ```text
 src/
   index.ts             # Worker 入口（fetch/queue/scheduled 分发）
-  constants.ts         # 路由/TTL/时间格式等常量
+  constants.ts         # TTL/时间格式等常量
   types.ts             # 类型定义：Env, Account, QueueMessage, etc.
   handlers/
-    http.tsx           # Hono 路由、中间件、JSX 页面渲染、账号管理
+    hono/
+      index.tsx        # Hono app 入口：error handler、favicon、home/dashboard、挂载子路由
+      routes.ts        # 路由路径常量
+      middleware.ts    # 共享中间件（requireSecret）
+      telegram.tsx     # Telegram webhook 路由
+      gmail.tsx        # Gmail push + watch 路由
+      accounts.tsx     # 账号 CRUD 路由
+      oauth.tsx        # Google OAuth 路由
+      preview.tsx      # HTML 预览路由
     queue.ts           # Queue consumer（重试/ack/retry）
   components/
     layout.tsx         # 共享 Layout、Card、BackLink 组件 (Tailwind CSS)
@@ -238,9 +246,10 @@ src/
     oauth.ts           # OAuth 流程逻辑（按账号的 token 交换、state 管理）
     observability.ts   # 错误结构化日志 + Observability Hub
     telegram.ts        # Telegram 发送/编辑：text、attachments、caption、reply_markup
-  lib/
+  utils/
     format.ts          # 邮件正文格式化：HTML→Markdown→Telegram MarkdownV2
     markdown-v2.ts     # MarkdownV2 转义与最长合法前缀解析
+    verification.ts    # 验证码提取
 migrations/
   0001_create_accounts.sql  # D1 数据库迁移：创建 accounts 表
   0002_email_nullable.sql   # D1 数据库迁移：email 字段改为可空
@@ -250,18 +259,18 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 
 ## 环境变量
 
-| Secret / 变量              | 说明                                        |
-| -------------------------- | ------------------------------------------- |
-| `TG_TOKEN`                 | Secret Store 绑定：`TELEGRAM_TOKEN`         |
-| `GMAIL_CLIENT_ID`          | Google OAuth2 Client ID（所有账号共享）     |
-| `GMAIL_CLIENT_SECRET`      | Google OAuth2 Client Secret（所有账号共享） |
-| `GMAIL_PUBSUB_TOPIC`       | Pub/Sub topic 全名（所有账号共享）          |
-| `GMAIL_PUSH_SECRET`        | 自定义密钥，附加在 push URL 中用于验证      |
-| `GMAIL_WATCH_SECRET`       | 自定义密钥，用于保护管理页面和 watch 端点   |
-| `TELEGRAM_WEBHOOK_SECRET`  | 自定义密钥，用于验证 Telegram webhook       |
-| `LLM_API_URL`              | OpenAI compatible API base URL（可选）      |
-| `LLM_API_KEY`              | LLM API key（可选）                         |
-| `LLM_MODEL`                | LLM 模型名称（可选）                        |
+| Secret / 变量             | 说明                                        |
+| ------------------------- | ------------------------------------------- |
+| `TG_TOKEN`                | Secret Store 绑定：`TELEGRAM_TOKEN`         |
+| `GMAIL_CLIENT_ID`         | Google OAuth2 Client ID（所有账号共享）     |
+| `GMAIL_CLIENT_SECRET`     | Google OAuth2 Client Secret（所有账号共享） |
+| `GMAIL_PUBSUB_TOPIC`      | Pub/Sub topic 全名（所有账号共享）          |
+| `GMAIL_PUSH_SECRET`       | 自定义密钥，附加在 push URL 中用于验证      |
+| `GMAIL_WATCH_SECRET`      | 自定义密钥，用于保护管理页面和 watch 端点   |
+| `TELEGRAM_WEBHOOK_SECRET` | 自定义密钥，用于验证 Telegram webhook       |
+| `LLM_API_URL`             | OpenAI compatible API base URL（可选）      |
+| `LLM_API_KEY`             | LLM API key（可选）                         |
+| `LLM_MODEL`               | LLM 模型名称（可选）                        |
 
 每个 Gmail 账号的 `refresh_token`、`chat_id`、`history_id` 存储在 D1 数据库的 `accounts` 表中，通过 Web Dashboard 管理。
 
