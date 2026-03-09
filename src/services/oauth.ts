@@ -11,7 +11,7 @@ import { putCachedAccessToken } from '../db/kv';
 import { renewWatch } from './gmail';
 
 const GOOGLE_OAUTH_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 export type GoogleTokenResponse = {
@@ -62,7 +62,7 @@ export async function startGoogleOAuth(request: Request, env: Env, accountId: nu
 	authUrl.searchParams.set('client_id', env.GMAIL_CLIENT_ID);
 	authUrl.searchParams.set('redirect_uri', redirectUri);
 	authUrl.searchParams.set('response_type', 'code');
-	authUrl.searchParams.set('scope', GMAIL_READONLY_SCOPE);
+	authUrl.searchParams.set('scope', GMAIL_MODIFY_SCOPE);
 	authUrl.searchParams.set('access_type', 'offline');
 	authUrl.searchParams.set('prompt', 'consent');
 	authUrl.searchParams.set('include_granted_scopes', 'true');
@@ -196,7 +196,7 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 	return {
 		ok: true,
 		refreshToken,
-		scope: tokenData.scope || GMAIL_READONLY_SCOPE,
+		scope: tokenData.scope || GMAIL_MODIFY_SCOPE,
 		expiresIn: tokenData.expires_in,
 		watchUrl: getWatchUrl(requestUrl.origin, env.GMAIL_WATCH_SECRET).toString(),
 		secret: env.GMAIL_WATCH_SECRET,
