@@ -4,6 +4,7 @@ import { getAccountByEmail, getAccountById } from '../db/accounts';
 import { getHistoryId, putHistoryId } from '../db/kv';
 import { formatBody, toTelegramMdV2 } from '../lib/format';
 import { escapeMdV2, findLongestValidMdV2Prefix } from '../lib/markdown-v2';
+import { extractVerificationCode } from '../lib/verification';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
 import { summarizeEmail } from './llm';
@@ -134,18 +135,20 @@ async function processGmailMessage(
 
 	const subject = email.subject || '无主题';
 	const recipient = account.email || `Account #${account.id}`;
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
+	const verifyCode = extractVerificationCode(email.text || email.subject || '');
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, verifyCode);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const charLimit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 
 	const llmUrl = env.LLM_API_URL;
 	const llmKey = env.LLM_API_KEY;
 	const llmModel = env.LLM_MODEL;
-	const shouldSummarize = !!(llmUrl && llmKey && llmModel);
+	const shouldSummarize = !!(llmUrl && llmKey && llmModel) && !verifyCode;
 
 	const overhead = header.length + 40;
 	const bodyBudget = Math.max(charLimit - overhead, 100);
-	const body = formatBody(email.text, email.html, bodyBudget);
+	const formattedBody = formatBody(email.text, email.html, bodyBudget);
+	const body = wrapExpandableQuote(formattedBody);
 	const text = header + body;
 
 	// 发送原始消息
@@ -159,28 +162,27 @@ async function processGmailMessage(
 	if (!shouldSummarize) return;
 
 	// 发送后调用 LLM 生成摘要，仅处理文字正文
-	const rawBody = email.text || '';
-	if (!rawBody.trim()) return;
+	const plainBody = email.text || '';
+	if (!plainBody.trim()) return;
 
 	// 用 waitUntil 异步执行，不阻塞队列 ack
 	waitUntil(
 		(async () => {
 			try {
-				const summary = await summarizeEmail(llmUrl, llmKey, llmModel, subject, rawBody);
+				const summary = await summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody);
 
 				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${escapeMdV2(summary)}\n\n${escapeMdV2('✉️ 邮件正文')}\n\n`;
 				const limit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
-				// 摘要插在 header 和正文之间，正文保留，安全截断 MarkdownV2
-				const finalText = header + summarySection + body;
+				// 先在原始正文上截断，再包裹引用块
+				const prefix = header + summarySection;
 				const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
-				let capped: string;
-				if (finalText.length <= limit) {
-					capped = finalText;
-				} else {
-					const budget = limit - truncatedHint.length;
-					const validEnd = findLongestValidMdV2Prefix(finalText.slice(0, budget));
-					capped = finalText.slice(0, validEnd) + truncatedHint;
+				const quoteBudget = limit - prefix.length - truncatedHint.length - 10;
+				let cappedBody = formattedBody;
+				if (prefix.length + formattedBody.length > limit) {
+					const validEnd = findLongestValidMdV2Prefix(formattedBody.slice(0, quoteBudget));
+					cappedBody = formattedBody.slice(0, validEnd);
 				}
+				const capped = prefix + wrapExpandableQuote(cappedBody) + (cappedBody.length < formattedBody.length ? truncatedHint : '');
 
 				if (hasAttachments) {
 					await editMessageCaption(tgToken, chatId, sentMessageId, capped);
@@ -195,14 +197,24 @@ async function processGmailMessage(
 	);
 }
 
-function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string): string {
+/** 将文本包裹为 Telegram 可展开引用块（expandable blockquote） */
+function wrapExpandableQuote(text: string): string {
+	if (!text) return '';
+	const lines = text.split('\n');
+	return lines.map((line, i) => (i === 0 ? `**>${line}` : `>${line}`)).join('\n') + '||';
+}
+
+function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string, verifyCode?: string | null): string {
 	const date = new Date().toLocaleString(MESSAGE_DATE_LOCALE, { timeZone: MESSAGE_DATE_TIMEZONE });
-	return [
+	const lines = [
 		`*发件人:*  ${escapeMdV2(`${fromName} <${fromAddress}>`)}`,
 		`*收件人:*  ${escapeMdV2(recipient)}`,
 		`*时  间:*  ${escapeMdV2(date)}`,
 		`*主  题:*  ${escapeMdV2(subject)}`,
-		``,
-		``,
-	].join('\n');
+	];
+	if (verifyCode) {
+		lines.push(`*验证码:*  \`${escapeMdV2(verifyCode)}\``);
+	}
+	lines.push('', '');
+	return lines.join('\n');
 }
