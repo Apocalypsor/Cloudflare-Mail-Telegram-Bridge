@@ -16,7 +16,7 @@
 ## 工作原理
 
 1. Gmail 检测到收件箱中有新邮件，通过 Google Cloud Pub/Sub 发送推送通知。
-2. Pub/Sub 向 Worker 的 `/gmail/push` 端点发送 HTTP POST 请求。
+2. Pub/Sub 向 Worker 的 `/api/gmail/push` 端点发送 HTTP POST 请求。
 3. Worker 根据通知中的 `emailAddress` **在 D1 数据库中查找对应账号**。
 4. 找到账号后，Pub/Sub 通知入 **Cloudflare Queue** 的 `sync` 消息（携带 `accountId`）。
 5. `sync` 消息调用 Gmail API `history.list` 拉取新消息 ID，再批量投递 `message` 消息到同一个 Queue。
@@ -89,7 +89,7 @@ gcloud pubsub topics add-iam-policy-binding gmail-push \
 # 部署 Worker 后，创建 push subscription（URL 中替换为你的 Worker 域名和密钥）
 gcloud pubsub subscriptions create gmail-push-sub \
   --topic=gmail-push \
-  --push-endpoint="https://YOUR_WORKER_DOMAIN/gmail/push?secret=YOUR_PUSH_SECRET" \
+  --push-endpoint="https://YOUR_WORKER_DOMAIN/api/gmail/push?secret=YOUR_PUSH_SECRET" \
   --ack-deadline=30
 ```
 
@@ -175,7 +175,7 @@ npm run deploy   # 自动先运行 build:css 生成 Tailwind CSS，再部署
 curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://YOUR_WORKER_DOMAIN/telegram/webhook?secret=YOUR_TELEGRAM_WEBHOOK_SECRET",
+    "url": "https://YOUR_WORKER_DOMAIN/api/telegram/webhook?secret=YOUR_TELEGRAM_WEBHOOK_SECRET",
     "allowed_updates": ["message", "callback_query", "message_reaction", "message_reaction_count"]
   }'
 ```
@@ -291,27 +291,34 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 
 管理页面通过 **Telegram Login Widget** 登录，使用 session cookie 鉴权（标注 🔒 的路由）。
 
+**页面路由（GET / HTML）：**
+
 | 方法 | 路径                             | 鉴权     | 说明                                 |
 | ---- | -------------------------------- | -------- | ------------------------------------ |
 | GET  | `/`                              | -        | 登录页（Telegram Login）/ Dashboard  |
 | GET  | `/auth/telegram`                 | -        | Telegram Login 回调（验证+创建会话） |
 | GET  | `/logout`                        | -        | 登出（清除 session cookie）          |
 | GET  | `/favicon.png`                   | -        | Favicon                              |
-| POST | `/accounts`                      | Session  | 添加 Gmail 账号                      |
-| POST | `/accounts/:id/edit`             | Session  | 编辑 Gmail 账号                      |
-| POST | `/accounts/:id/delete`           | Session  | 删除 Gmail 账号                      |
-| POST | `/accounts/:id/watch`            | Session  | 为指定账号续订 watch                 |
-| POST | `/accounts/:id/clear-cache`      | Session  | 清除指定账号的 KV 缓存               |
-| POST | `/telegram/webhook?secret=XXX`   | Secret   | Telegram Bot webhook                 |
-| POST | `/gmail/push?secret=XXX`         | Secret   | Pub/Sub push 回调                    |
-| POST | `/gmail/watch`                   | Session  | 为所有账号续订 watch                 |
-| POST | `/clear-all-kv`                  | Session  | 清除所有 KV 数据                     |
 | GET  | `/preview`                       | Session  | HTML→Telegram MarkdownV2 预览        |
-| POST | `/preview`                       | Session  | 预览转换 API                         |
 | GET  | `/mail/:id?t=HMAC_TOKEN`         | HMAC     | 查看邮件原文 HTML                    |
 | GET  | `/oauth/google?account=ID`       | Session  | 指定账号的 OAuth 授权说明页          |
 | GET  | `/oauth/google/start?account=ID` | Session  | 发起指定账号的 Google OAuth          |
 | GET  | `/oauth/google/callback`         | KV state | OAuth 回调                           |
+
+**API 路由（POST，均以 `/api` 开头）：**
+
+| 方法 | 路径                                 | 鉴权    | 说明                   |
+| ---- | ------------------------------------ | ------- | ---------------------- |
+| POST | `/api/accounts`                      | Session | 添加 Gmail 账号        |
+| POST | `/api/accounts/:id/edit`             | Session | 编辑 Gmail 账号        |
+| POST | `/api/accounts/:id/delete`           | Session | 删除 Gmail 账号        |
+| POST | `/api/accounts/:id/watch`            | Session | 为指定账号续订 watch   |
+| POST | `/api/accounts/:id/clear-cache`      | Session | 清除指定账号的 KV 缓存 |
+| POST | `/api/gmail/watch`                   | Admin   | 为所有账号续订 watch   |
+| POST | `/api/clear-all-kv`                  | Admin   | 清除所有 KV 数据       |
+| POST | `/api/preview`                       | Session | 预览转换 API           |
+| POST | `/api/telegram/webhook?secret=XXX`   | Secret  | Telegram Bot webhook   |
+| POST | `/api/gmail/push?secret=XXX`         | Secret  | Pub/Sub push 回调      |
 
 ## Telegram 消息格式
 

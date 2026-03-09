@@ -1,4 +1,4 @@
-import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../handlers/hono/routes';
+import { ROUTE_ACCOUNTS, ROUTE_CLEAR_ALL_KV, ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE, ROUTE_PREVIEW, ROUTE_PREVIEW_API } from '../handlers/hono/routes';
 import type { Account, TelegramUser } from '../types';
 import { BackLink, Card, Layout } from './layout';
 
@@ -70,7 +70,7 @@ if (clearAllKvBtn) clearAllKvBtn.addEventListener('click', async function () {
   var btn = this;
   btn.disabled = true; btn.textContent = '清空中…';
   try {
-    var r = await fetch('/clear-all-kv', { method: 'POST' });
+    var r = await fetch('${ROUTE_CLEAR_ALL_KV}', { method: 'POST' });
     showResult(await r.text(), r.ok);
   } catch { showResult('网络错误', false); }
   finally { btn.disabled = false; btn.textContent = '清空全局 KV 缓存'; }
@@ -81,7 +81,7 @@ document.querySelectorAll('.watch-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true; this.textContent = '…';
     try {
-      var r = await fetch('/accounts/' + id + '/watch', { method: 'POST' });
+      var r = await fetch('/api/accounts/' + id + '/watch', { method: 'POST' });
       showResult(await r.text(), r.ok);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; this.textContent = 'Watch'; }
@@ -94,7 +94,7 @@ document.querySelectorAll('.clear-cache-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true; this.textContent = '…';
     try {
-      var r = await fetch('/accounts/' + id + '/clear-cache', { method: 'POST' });
+      var r = await fetch('/api/accounts/' + id + '/clear-cache', { method: 'POST' });
       showResult(await r.text(), r.ok);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; this.textContent = '清除缓存'; }
@@ -107,7 +107,7 @@ document.querySelectorAll('.delete-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true;
     try {
-      var r = await fetch('/accounts/' + id + '/delete', { method: 'POST' });
+      var r = await fetch('/api/accounts/' + id + '/delete', { method: 'POST' });
       if (r.ok) location.reload();
       else showResult(await r.text(), false);
     } catch { showResult('网络错误', false); }
@@ -213,7 +213,7 @@ export function DashboardPage({ accounts, error, isAdmin, users = [], userId }: 
 								<form
 									id={`edit-${acc.id}`}
 									method="post"
-									action={`/accounts/${acc.id}/edit`}
+									action={`/api/accounts/${acc.id}/edit`}
 									class="p-3 bg-slate-900 border border-blue-600 rounded-lg space-y-3 mt-1"
 									style="display:none"
 								>
@@ -260,7 +260,7 @@ export function DashboardPage({ accounts, error, isAdmin, users = [], userId }: 
 				{/* ── 添加账号 ─────────────────────────────────────────── */}
 				<h2 class="text-lg font-semibold text-slate-100 mt-5 mb-2">Add Account</h2>
 				<p class="text-xs text-slate-500 mb-2">添加后通过 OAuth 授权，邮箱地址将自动从 Gmail API 获取。</p>
-				<form method="post" action="/accounts" class="space-y-3">
+				<form method="post" action={ROUTE_ACCOUNTS} class="space-y-3">
 					<div class={`grid grid-cols-1 ${isAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
 						<div>
 							<label class="block text-xs text-slate-400 mb-1">Telegram Chat ID *</label>
@@ -305,7 +305,7 @@ export function DashboardPage({ accounts, error, isAdmin, users = [], userId }: 
 					)}
 					<a
 						class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg text-center transition-colors text-sm"
-						href="/preview"
+						href={ROUTE_PREVIEW}
 					>
 						HTML → Telegram 预览
 					</a>
@@ -335,7 +335,7 @@ document.getElementById('convert-btn').addEventListener('click', async function 
   if (!html.trim()) return;
   btn.disabled = true; btn.textContent = '转换中…';
   try {
-    var r = await fetch('/preview', {
+    var r = await fetch('${ROUTE_PREVIEW_API}', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ html: html }),
