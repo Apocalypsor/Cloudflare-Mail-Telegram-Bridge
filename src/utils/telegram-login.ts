@@ -3,6 +3,8 @@
  * https://core.telegram.org/widgets/login#checking-authorization
  */
 
+import { timingSafeEqual } from './hash';
+
 export interface TelegramLoginData {
 	id: number;
 	first_name: string;
@@ -37,7 +39,7 @@ export async function verifyTelegramLogin(botToken: string, data: TelegramLoginD
 		.map((b) => b.toString(16).padStart(2, '0'))
 		.join('');
 
-	return computed === data.hash;
+	return timingSafeEqual(computed, data.hash);
 }
 
 /** 从 URL query params 解析 Telegram Login 数据 */

@@ -24,9 +24,9 @@ accounts.post(ROUTE_ACCOUNTS, requireSession(), async (c) => {
 	const isAdmin = c.get('isAdmin');
 	const userId = c.get('userId');
 
-	if (typeof chatId !== 'string' || !chatId.trim()) {
+	if (typeof chatId !== 'string' || !chatId.trim() || !/^-?\d+$/.test(chatId.trim())) {
 		const [visible, allUsers] = await Promise.all([getVisibleAccounts(c.env.DB, userId, isAdmin), isAdmin ? getAllUsers(c.env.DB) : []]);
-		return c.html(<DashboardPage accounts={visible} isAdmin={isAdmin} users={allUsers} userId={userId} error="Chat ID 不能为空" />);
+		return c.html(<DashboardPage accounts={visible} isAdmin={isAdmin} users={allUsers} userId={userId} error="Chat ID 必须为数字" />);
 	}
 
 	// Admin 可指定 owner，普通用户自动绑定自己
@@ -55,8 +55,8 @@ accounts.post(ROUTE_ACCOUNTS_EDIT, requireSession(), async (c) => {
 	const chatId = form.get('chat_id');
 	const label = form.get('label');
 
-	if (typeof chatId !== 'string' || !chatId.trim()) {
-		return c.text('Chat ID 不能为空', 400);
+	if (typeof chatId !== 'string' || !chatId.trim() || !/^-?\d+$/.test(chatId.trim())) {
+		return c.text('Chat ID 必须为数字', 400);
 	}
 
 	const account = await getAuthorizedAccount(c.env.DB, id, c.get('userId'), c.get('isAdmin'));

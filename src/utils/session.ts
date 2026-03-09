@@ -1,4 +1,5 @@
 import { SESSION_COOKIE, SESSION_TTL } from '../constants';
+import { timingSafeEqual } from './hash';
 
 interface SessionPayload {
 	/** Telegram user ID */
@@ -32,7 +33,7 @@ export async function verifySessionToken(secret: string, token: string): Promise
 	const b64 = token.slice(0, dot);
 	const sig = token.slice(dot + 1);
 	const expected = await hmacSign(secret, b64);
-	if (sig !== expected) return null;
+	if (!timingSafeEqual(sig, expected)) return null;
 
 	try {
 		const payload: SessionPayload = JSON.parse(atob(b64));
