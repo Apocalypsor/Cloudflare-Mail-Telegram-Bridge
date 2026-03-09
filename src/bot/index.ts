@@ -1,6 +1,7 @@
 import { Bot } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import { BOT_INFO_TTL, KV_BOT_INFO_KEY } from '../constants';
+import { approveUser, getUserByTelegramId, rejectUser } from '../db/users';
 import { reportErrorToObservability } from '../services/observability';
 import type { Env } from '../types';
 import { registerReactionHandler } from './handlers/reaction';
@@ -28,9 +29,42 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 		await reportErrorToObservability(env, 'bot.handler_error', err.error);
 	});
 
-	bot.command('start', (ctx) => {
+	bot.command('start', async (ctx) => {
 		const url = env.WORKER_URL?.replace(/\/$/, '') || '';
+		const telegramId = String(ctx.from?.id);
+		const user = await getUserByTelegramId(env.DB, telegramId);
+		if (user && user.approved === 0) {
+			return ctx.reply('您的账号正在等待管理员审批，审批通过后会收到通知。');
+		}
 		return ctx.reply(`欢迎使用 Telemail！请前往 ${url} 管理邮箱`);
+	});
+
+	// 管理员审批 inline 按钮回调
+	bot.callbackQuery(/^(approve|reject):(\d+)$/, async (ctx) => {
+		if (String(ctx.from.id) !== env.ADMIN_TELEGRAM_ID) {
+			return ctx.answerCallbackQuery({ text: '无权操作' });
+		}
+		const [, action, targetId] = ctx.match!;
+		const user = await getUserByTelegramId(env.DB, targetId);
+		if (!user) {
+			return ctx.answerCallbackQuery({ text: '用户不存在' });
+		}
+
+		if (action === 'approve') {
+			await approveUser(env.DB, targetId);
+			const url = env.WORKER_URL?.replace(/\/$/, '') || '';
+			await ctx.editMessageText(`✅ 已批准: ${user.first_name}${user.last_name ? ` ${user.last_name}` : ''} (${targetId})`);
+			try {
+				await ctx.api.sendMessage(targetId, `✅ 您的账号已被管理员批准！请前往 ${url} 开始使用。`);
+			} catch { /* user may have blocked bot */ }
+		} else {
+			await rejectUser(env.DB, targetId);
+			await ctx.editMessageText(`❌ 已拒绝: ${user.first_name}${user.last_name ? ` ${user.last_name}` : ''} (${targetId})`);
+			try {
+				await ctx.api.sendMessage(targetId, '❌ 您的注册申请未通过审批。');
+			} catch { /* user may have blocked bot */ }
+		}
+		return ctx.answerCallbackQuery();
 	});
 
 	registerReactionHandler(bot, env);

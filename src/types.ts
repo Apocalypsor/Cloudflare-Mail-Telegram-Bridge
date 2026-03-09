@@ -30,6 +30,7 @@ export interface TelegramUser {
 	last_name: string | null;
 	username: string | null;
 	photo_url: string | null;
+	approved: number;
 	last_login_at: string;
 	created_at: string;
 }

@@ -21,12 +21,14 @@ function extractTelegramDescription(payload: unknown): string {
 }
 
 /** 发送纯文本消息（不使用 parse_mode），返回 message_id */
-export async function sendPlainTextMessage(token: string, chatId: string, text: string): Promise<number> {
+export async function sendPlainTextMessage(token: string, chatId: string, text: string, replyMarkup?: unknown): Promise<number> {
 	const url = `https://api.telegram.org/bot${token}/sendMessage`;
+	const body: Record<string, unknown> = { chat_id: chatId, text };
+	if (replyMarkup) body.reply_markup = replyMarkup;
 	const resp = await fetch(url, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ chat_id: chatId, text }),
+		body: JSON.stringify(body),
 	});
 	const data = (await resp.json()) as { ok: boolean; result?: { message_id: number }; description?: string };
 	if (!resp.ok) {

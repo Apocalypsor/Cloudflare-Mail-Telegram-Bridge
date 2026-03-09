@@ -50,6 +50,23 @@ export function HomePage({ botUsername, error }: { botUsername: string; error?: 
 	);
 }
 
+export function PendingApprovalPage() {
+	return (
+		<Layout title="等待审批 — Telemail">
+			<Card class="max-w-md text-center">
+				<h1 class="text-2xl font-bold text-slate-100 mb-3">等待管理员审批</h1>
+				<p class="text-sm text-slate-400 mb-4">您的账号正在等待管理员审批，审批通过后即可使用。</p>
+				<p class="text-xs text-slate-500">审批通过后您将收到 Telegram 通知。</p>
+				<div class="mt-4">
+					<a href="/logout" class="px-3 py-1.5 bg-slate-700 hover:bg-red-700 text-slate-200 text-sm font-medium rounded-lg transition-colors">
+						登出
+					</a>
+				</div>
+			</Card>
+		</Layout>
+	);
+}
+
 function dashboardScript() {
 	return `
 var res = document.getElementById('action-result');
