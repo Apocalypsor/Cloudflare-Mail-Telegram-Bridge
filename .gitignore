@@ -165,3 +165,6 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# Generated Tailwind CSS
+src/assets/tailwind.ts

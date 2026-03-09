@@ -48,7 +48,7 @@ app.get('/auth/telegram', async (c) => {
 		return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} error="无效的登录数据" />, 400);
 	}
 
-	const valid = await verifyTelegramLogin(c.env.TELEGRAM_TOKEN, data);
+	const valid = await verifyTelegramLogin(c.env.TELEGRAM_BOT_TOKEN, data);
 	if (!valid) {
 		return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} error="登录验证失败" />, 403);
 	}

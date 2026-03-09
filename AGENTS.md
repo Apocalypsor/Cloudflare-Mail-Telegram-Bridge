@@ -11,13 +11,16 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 
 ## Commands
 
-| Command               | Purpose                   |
-| --------------------- | ------------------------- |
-| `npx wrangler dev`    | Local development         |
-| `npx wrangler deploy` | Deploy to Cloudflare      |
-| `npx wrangler types`  | Generate TypeScript types |
+| Command               | Purpose                                          |
+| --------------------- | ------------------------------------------------ |
+| `npm run dev`         | Build CSS + local development                    |
+| `npm run deploy`      | Build CSS + deploy to Cloudflare                 |
+| `npm run build:css`   | Generate Tailwind CSS (src/assets/tailwind.ts)   |
+| `npm test`            | Run tests (vitest)                               |
+| `npx wrangler types`  | Generate TypeScript types from wrangler.jsonc    |
 
 Run `wrangler types` after changing bindings in wrangler.jsonc.
+Run `npm run build:css` after changing Tailwind classes in components (auto-runs with dev/deploy).
 
 ## Node.js Compatibility
 

@@ -137,7 +137,7 @@ async function processGmailMessage(
 	env: Env,
 	waitUntil: (p: Promise<unknown>) => void,
 ): Promise<void> {
-	const tgToken = env.TELEGRAM_TOKEN;
+	const tgToken = env.TELEGRAM_BOT_TOKEN;
 	const chatId = account.chat_id;
 
 	const msg = await gmailGet(token, `/users/me/messages/${messageId}?format=raw`);

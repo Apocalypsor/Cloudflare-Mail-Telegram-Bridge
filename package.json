@@ -3,14 +3,16 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
+		"build:css": "node scripts/build-css.mjs",
+		"deploy": "npm run build:css && wrangler deploy",
+		"dev": "npm run build:css && wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest",
 		"cf-typegen": "wrangler types"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
+		"@tailwindcss/cli": "^4.2.1",
 		"@types/node": "^25.3.0",
 		"@types/turndown": "^5.0.6",
 		"typescript": "^5.5.2",

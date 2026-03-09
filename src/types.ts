@@ -26,7 +26,7 @@ export interface Env {
 	/** Worker 名称（用于日志/告警） */
 	WORKER_NAME: string;
 	/** Telegram Bot Token（环境变量 / wrangler secret） */
-	TELEGRAM_TOKEN: string;
+	TELEGRAM_BOT_TOKEN: string;
 	/** Google OAuth2 Client ID */
 	GMAIL_CLIENT_ID: string;
 	/** Google OAuth2 Client Secret */

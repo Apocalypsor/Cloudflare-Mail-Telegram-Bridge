@@ -15,7 +15,7 @@ export async function getBotInfo(env: Env): Promise<UserFromGetMe> {
 	const cached = await env.EMAIL_KV.get(KV_BOT_INFO_KEY);
 	if (cached) return JSON.parse(cached);
 
-	const resp = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/getMe`);
+	const resp = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getMe`);
 	if (!resp.ok) throw new Error(`getMe failed: ${resp.status} ${await resp.text()}`);
 	const data = (await resp.json()) as { result: UserFromGetMe };
 	await env.EMAIL_KV.put(KV_BOT_INFO_KEY, JSON.stringify(data.result), { expirationTtl: BOT_INFO_TTL });
@@ -24,7 +24,7 @@ export async function getBotInfo(env: Env): Promise<UserFromGetMe> {
 
 /** 创建 grammY Bot 实例（仅用于 webhook 接收端） */
 export function createBot(env: Env, botInfo: UserFromGetMe) {
-	const bot = new Bot(env.TELEGRAM_TOKEN, { botInfo });
+	const bot = new Bot(env.TELEGRAM_BOT_TOKEN, { botInfo });
 
 	bot.catch(async (err) => {
 		await reportErrorToObservability(env, 'bot.handler_error', err.error);

@@ -9,15 +9,12 @@ export function HomePage({ botUsername, error }: { botUsername: string; error?: 
 				<h1 class="text-2xl font-bold text-slate-100 mb-3">Telemail</h1>
 				<p class="text-sm text-slate-400">请使用 Telegram 登录</p>
 				{error && <p class="text-sm text-red-400 mt-3">{error}</p>}
-				<div class="mt-4 flex justify-center">
-					<script
-						async
-						src="https://telegram.org/js/telegram-widget.js?22"
-						data-telegram-login={botUsername}
-						data-size="large"
-						data-auth-url="/auth/telegram"
-					/>
-				</div>
+				<div
+					class="mt-4 flex justify-center"
+					dangerouslySetInnerHTML={{
+						__html: `<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${botUsername}" data-size="large" data-auth-url="/auth/telegram"></script>`,
+					}}
+				/>
 			</Card>
 		</Layout>
 	);
