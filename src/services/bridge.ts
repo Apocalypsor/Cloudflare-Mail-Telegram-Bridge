@@ -5,10 +5,9 @@ import { getHistoryId, putHistoryId } from '../db/kv';
 import { getMessageMapping, putMessageMapping } from '../db/message-map';
 import { formatBody, toTelegramMdV2 } from '../utils/format';
 import { escapeMdV2, findLongestValidMdV2Prefix } from '../utils/markdown-v2';
-import { extractVerificationCode } from '../utils/verification';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
 import { base64urlToArrayBuffer, fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
-import { generateTags, summarizeEmail } from './llm';
+import { extractVerificationCode, generateTags, summarizeEmail } from './llm';
 import { STAR_KEYBOARD, STARRED_KEYBOARD, starKeyboardWithMailUrl, starredKeyboardWithMailUrl } from '../bot';
 import { generateMailToken } from '../utils/hash';
 import { reportErrorToObservability } from './observability';
@@ -139,7 +138,6 @@ async function processGmailMessage(
 
 	const subject = email.subject || '无主题';
 	const recipient = account.email || `Account #${account.id}`;
-	const verifyCode = extractVerificationCode(email.text || email.subject || '');
 	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const charLimit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
@@ -147,15 +145,12 @@ async function processGmailMessage(
 	const llmUrl = env.LLM_API_URL;
 	const llmKey = env.LLM_API_KEY;
 	const llmModel = env.LLM_MODEL;
-	const shouldSummarize = !!(llmUrl && llmKey && llmModel) && !verifyCode;
+	const hasLlm = !!(llmUrl && llmKey && llmModel);
 
-	const codeSection = verifyCode ? `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n` : '';
-	const fixedOverhead = header.length + codeSection.length;
-	// 引用块每行加 1-3 字符前缀 + 末尾 ||，按原文 1/3 行数估算
-	const bodyBudget = Math.max(Math.floor((charLimit - fixedOverhead) * 0.9), 100);
+	// 初始消息不含验证码（由 LLM 异步提取）
+	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
 	const formattedBody = formatBody(email.text, email.html, bodyBudget);
-	const body = codeSection + wrapExpandableQuote(formattedBody);
-	const text = header + body;
+	const text = header + wrapExpandableQuote(formattedBody);
 
 	// 发送原始消息
 	let sentMessageId: number;
@@ -183,16 +178,40 @@ async function processGmailMessage(
 	}
 	await setReplyMarkup(tgToken, chatId, sentMessageId, keyboard);
 
-	if (!shouldSummarize) return;
+	if (!hasLlm) return;
 
-	// 发送后调用 LLM 生成摘要，仅处理文字正文
 	const plainBody = email.text || '';
 	if (!plainBody.trim()) return;
 
-	// 用 waitUntil 异步执行，不阻塞队列 ack
+	// 用 waitUntil 异步执行 LLM：先提取验证码，找到则显示验证码，否则生成摘要
 	waitUntil(
 		(async () => {
 			try {
+				// 第一步：尝试用 LLM 提取验证码
+				const verifyCode = await extractVerificationCode(llmUrl, llmKey, llmModel, subject, plainBody).catch((err) => {
+					reportErrorToObservability(env, 'llm.verify_code_failed', err, { subject });
+					return null;
+				});
+
+				const mapping = await getMessageMapping(env.DB, chatId, sentMessageId);
+				const editKeyboard = mapping?.starred
+					? (mailUrl ? starredKeyboardWithMailUrl(mailUrl) : STARRED_KEYBOARD)
+					: (mailUrl ? starKeyboardWithMailUrl(mailUrl) : STAR_KEYBOARD);
+
+				if (verifyCode) {
+					// 找到验证码 → 编辑消息加上验证码，不做摘要
+					const codeSection = `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n`;
+					const capped = header + codeSection + wrapExpandableQuote(formattedBody);
+					if (hasAttachments) {
+						await editMessageCaption(tgToken, chatId, sentMessageId, capped, editKeyboard);
+					} else {
+						await editTextMessage(tgToken, chatId, sentMessageId, capped, editKeyboard);
+					}
+					console.log(`Verification code extracted: ${verifyCode}`);
+					return;
+				}
+
+				// 第二步：无验证码 → 生成摘要 + 标签
 				const [summary, tags] = await Promise.all([
 					summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody),
 					generateTags(llmUrl, llmKey, llmModel, subject, plainBody).catch((err) => {
@@ -205,7 +224,6 @@ async function processGmailMessage(
 					tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
 				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}\n\n${escapeMdV2('✉️ 邮件正文')}\n\n`;
 				const limit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
-				// 先在原始正文上截断，再包裹引用块
 				const prefix = header + summarySection;
 				const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
 				const quoteBudget = Math.floor((limit - prefix.length - truncatedHint.length - tagsLine.length) * 0.9);
@@ -220,11 +238,6 @@ async function processGmailMessage(
 					(cappedBody.length < formattedBody.length ? truncatedHint : '') +
 					tagsLine;
 
-				// 查询当前星标状态，在 edit 时一并传入 reply_markup（避免按钮闪烁）
-				const mapping = await getMessageMapping(env.DB, chatId, sentMessageId);
-				const editKeyboard = mapping?.starred
-					? (mailUrl ? starredKeyboardWithMailUrl(mailUrl) : STARRED_KEYBOARD)
-					: (mailUrl ? starKeyboardWithMailUrl(mailUrl) : STAR_KEYBOARD);
 				if (hasAttachments) {
 					await editMessageCaption(tgToken, chatId, sentMessageId, capped, editKeyboard);
 				} else {
