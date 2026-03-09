@@ -3,8 +3,9 @@ import { getAccountById } from '../../db/accounts';
 import { getMessageMapping, updateStarred } from '../../db/message-map';
 import { addStar, getAccessToken, removeStar } from '../../services/gmail';
 import { reportErrorToObservability } from '../../services/observability';
-import { STAR_KEYBOARD, STARRED_KEYBOARD } from '../keyboards';
+import { STAR_KEYBOARD, STARRED_KEYBOARD, starKeyboardWithMailUrl, starredKeyboardWithMailUrl } from '../keyboards';
 import type { Env } from '../../types';
+import { generateMailToken } from '../../utils/hash';
 
 /** 星标/取消星标 inline button callback */
 export function registerStarHandler(bot: Bot, env: Env) {
@@ -29,7 +30,13 @@ export function registerStarHandler(bot: Bot, env: Env) {
 			const token = await getAccessToken(env, account);
 			await addStar(token, mapping.gmail_message_id);
 			await updateStarred(env.DB, chatId, msg.message_id, true);
-			await ctx.editMessageReplyMarkup({ reply_markup: STARRED_KEYBOARD });
+			let keyboard = STARRED_KEYBOARD;
+			if (env.WORKER_URL) {
+				const mailToken = await generateMailToken(env.ADMIN_SECRET, mapping.gmail_message_id, chatId);
+				const mailUrl = `${env.WORKER_URL.replace(/\/$/, '')}/mail/${mapping.gmail_message_id}?t=${mailToken}`;
+				keyboard = starredKeyboardWithMailUrl(mailUrl);
+			}
+			await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
 			await ctx.answerCallbackQuery({ text: '⭐ 已加星标' });
 			console.log(`Starred: gmail=${mapping.gmail_message_id}`);
 		} catch (err) {
@@ -59,7 +66,13 @@ export function registerStarHandler(bot: Bot, env: Env) {
 			const token = await getAccessToken(env, account);
 			await removeStar(token, mapping.gmail_message_id);
 			await updateStarred(env.DB, chatId, msg.message_id, false);
-			await ctx.editMessageReplyMarkup({ reply_markup: STAR_KEYBOARD });
+			let keyboard = STAR_KEYBOARD;
+			if (env.WORKER_URL) {
+				const mailToken = await generateMailToken(env.ADMIN_SECRET, mapping.gmail_message_id, chatId);
+				const mailUrl = `${env.WORKER_URL.replace(/\/$/, '')}/mail/${mapping.gmail_message_id}?t=${mailToken}`;
+				keyboard = starKeyboardWithMailUrl(mailUrl);
+			}
+			await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
 			await ctx.answerCallbackQuery({ text: '已取消星标' });
 			console.log(`Unstarred: gmail=${mapping.gmail_message_id}`);
 		} catch (err) {

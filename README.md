@@ -27,10 +27,11 @@
    - **多个附件** → `sendMediaGroup`，标题放在第一个文件上
 9. （可选）如果配置了 LLM API，会异步生成 AI 摘要和标签，编辑原消息替换正文为摘要。
 10. 每条消息附带 ⭐ **星标按钮**（inline keyboard），点击可在 Gmail 中加/取消星标。
-11. 在频道/群组中对消息添加 **emoji reaction** 可自动将对应 Gmail 邮件标记为已读。
-12. 消息发送前会按 `messageId` 做幂等去重，避免重复投递到 Telegram。
-13. 处理失败时 Queue 自动重试（最多 3 次）；达到上限后消息丢弃。
-14. Cron Trigger 每 6 天自动为**所有已授权账号**续订 Gmail watch（watch 7 天后过期）。
+11. （可选）配置 `WORKER_URL` 后，每条消息附带 📧 **查看原文**按钮，点击可在浏览器中查看邮件原始 HTML。链接使用 HMAC-SHA256 签名防遍历，HTML 内容缓存 7 天。
+12. 在频道/群组中对消息添加 **emoji reaction** 可自动将对应 Gmail 邮件标记为已读。
+13. 消息发送前会按 `messageId` 做幂等去重，避免重复投递到 Telegram。
+14. 处理失败时 Queue 自动重试（最多 3 次）；达到上限后消息丢弃。
+15. Cron Trigger 每 6 天自动为**所有已授权账号**续订 Gmail watch（watch 7 天后过期）。
 
 正文会自动截断以适应 Telegram 的字符限制（纯文本消息 4096 字符，附件标题 1024 字符）。
 
@@ -143,7 +144,7 @@ npx wrangler secret put GMAIL_CLIENT_ID      # Google OAuth2 Client ID
 npx wrangler secret put GMAIL_CLIENT_SECRET  # Google OAuth2 Client Secret
 npx wrangler secret put GMAIL_PUBSUB_TOPIC   # 例如 projects/my-project/topics/gmail-push
 npx wrangler secret put GMAIL_PUSH_SECRET    # 自定义密钥，用于验证 Pub/Sub push
-npx wrangler secret put GMAIL_WATCH_SECRET   # 自定义密钥，用于保护管理页面和 watch 端点
+npx wrangler secret put ADMIN_SECRET   # 自定义密钥，用于保护管理页面和 watch 端点
 npx wrangler secret put TELEGRAM_WEBHOOK_SECRET  # 自定义密钥，用于验证 Telegram webhook
 ```
 
@@ -161,13 +162,23 @@ npx wrangler secret put LLM_MODEL      # 模型名称（例如 gpt-4o-mini）
 
 三个变量都配置后，新邮件发送到 Telegram 后会异步生成摘要并编辑原消息。
 
-### 6. 部署
+### 6. 查看邮件原文（可选）
+
+配置 `WORKER_URL` 后，Telegram 消息会附带"📧 查看原文"按钮，点击可在浏览器中查看邮件原始 HTML：
+
+```sh
+npx wrangler secret put WORKER_URL  # Worker 对外 URL，例如 https://gmail-tg-bridge.xxx.workers.dev
+```
+
+链接使用 HMAC-SHA256（基于 `ADMIN_SECRET` + `messageId` + `chatId`）签名，防止未授权遍历。HTML 内容缓存在 KV 中，7 天后自动过期。
+
+### 7. 部署
 
 ```sh
 npm run deploy
 ```
 
-### 7. 设置 Telegram Webhook
+### 8. 设置 Telegram Webhook
 
 部署完成后，设置 Telegram Bot 的 webhook 指向 Worker：
 
@@ -186,7 +197,7 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook" \
 
 > **注意**：如果邮件转发到**频道**，Bot 需要被设为频道管理员才能接收 reaction 事件。
 
-### 8. 添加 Gmail 账号
+### 9. 添加 Gmail 账号
 
 1. 打开 `https://YOUR_WORKER_DOMAIN/?secret=YOUR_WATCH_SECRET` 进入 Dashboard
 2. 在 "Add Account" 表单中填写 Gmail 地址和 Telegram Chat ID，点击"添加账号"
@@ -208,10 +219,19 @@ npm run cf-typegen # 根据 wrangler.jsonc 重新生成 TypeScript 类型
 ```text
 src/
   index.ts             # Worker 入口（fetch/queue/scheduled 分发）
-  constants.ts         # 路由/TTL/时间格式等常量
+  constants.ts         # TTL/时间格式等常量
   types.ts             # 类型定义：Env, Account, QueueMessage, etc.
   handlers/
-    http.tsx           # Hono 路由、中间件、JSX 页面渲染、账号管理
+    hono/
+      index.tsx        # Hono app 入口：error handler、favicon、home/dashboard、挂载子路由
+      routes.ts        # 路由路径常量
+      middleware.ts    # 共享中间件（requireSecret）
+      telegram.tsx     # Telegram webhook 路由
+      gmail.tsx        # Gmail push + watch 路由
+      accounts.tsx     # 账号 CRUD 路由
+      oauth.tsx        # Google OAuth 路由
+      preview.tsx      # HTML 预览路由
+      mail.tsx         # 邮件原文查看路由（HMAC 验证 + KV 缓存）
     queue.ts           # Queue consumer（重试/ack/retry）
   components/
     layout.tsx         # 共享 Layout、Card、BackLink 组件 (Tailwind CSS)
@@ -238,9 +258,11 @@ src/
     oauth.ts           # OAuth 流程逻辑（按账号的 token 交换、state 管理）
     observability.ts   # 错误结构化日志 + Observability Hub
     telegram.ts        # Telegram 发送/编辑：text、attachments、caption、reply_markup
-  lib/
+  utils/
     format.ts          # 邮件正文格式化：HTML→Markdown→Telegram MarkdownV2
     markdown-v2.ts     # MarkdownV2 转义与最长合法前缀解析
+    verification.ts    # 验证码提取
+    hash.ts            # HMAC-SHA256 token 生成/验证（邮件原文链接）
 migrations/
   0001_create_accounts.sql  # D1 数据库迁移：创建 accounts 表
   0002_email_nullable.sql   # D1 数据库迁移：email 字段改为可空
@@ -262,6 +284,19 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 | `LLM_API_URL`             | OpenAI compatible API base URL（可选）      |
 | `LLM_API_KEY`             | LLM API key（可选）                         |
 | `LLM_MODEL`               | LLM 模型名称（可选）                        |
+| Secret / 变量             | 说明                                        |
+| ------------------------- | ------------------------------------------- |
+| `TG_TOKEN`                | Secret Store 绑定：`TELEGRAM_TOKEN`         |
+| `GMAIL_CLIENT_ID`         | Google OAuth2 Client ID（所有账号共享）     |
+| `GMAIL_CLIENT_SECRET`     | Google OAuth2 Client Secret（所有账号共享） |
+| `GMAIL_PUBSUB_TOPIC`      | Pub/Sub topic 全名（所有账号共享）          |
+| `GMAIL_PUSH_SECRET`       | 自定义密钥，附加在 push URL 中用于验证      |
+| `ADMIN_SECRET`            | 自定义密钥，用于保护管理页面和 watch 端点   |
+| `TELEGRAM_WEBHOOK_SECRET` | 自定义密钥，用于验证 Telegram webhook       |
+| `LLM_API_URL`             | OpenAI compatible API base URL（可选）      |
+| `LLM_API_KEY`             | LLM API key（可选）                         |
+| `LLM_MODEL`               | LLM 模型名称（可选）                        |
+| `WORKER_URL`              | Worker 对外 URL（可选，启用"查看原文"按钮） |
 
 每个 Gmail 账号的 `refresh_token`、`chat_id`、`history_id` 存储在 D1 数据库的 `accounts` 表中，通过 Web Dashboard 管理。
 
@@ -283,6 +318,7 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 | POST | `/clear-all-kv?secret=XXX`                  | 清除所有 KV 数据               |
 | GET  | `/preview?secret=XXX`                       | HTML→Telegram MarkdownV2 预览  |
 | POST | `/preview?secret=XXX`                       | 预览转换 API                   |
+| GET  | `/mail/:id?t=HMAC_TOKEN`                    | 查看邮件原文 HTML（HMAC 验证） |
 | GET  | `/oauth/google?secret=XXX&account=ID`       | 指定账号的 OAuth 授权说明页    |
 | GET  | `/oauth/google/start?secret=XXX&account=ID` | 发起指定账号的 Google OAuth    |
 | GET  | `/oauth/google/callback`                    | OAuth 回调                     |

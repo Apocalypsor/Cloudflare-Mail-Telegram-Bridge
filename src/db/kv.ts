@@ -1,3 +1,4 @@
+import { MAIL_HTML_CACHE_TTL } from '../constants';
 import type { Env } from '../types';
 
 // ─── Key helpers ────────────────────────────────────────────────────────────
@@ -38,6 +39,22 @@ export async function putCachedAccessToken(env: Env, accountId: number, token: s
 
 export async function deleteCachedAccessToken(env: Env, accountId: number): Promise<void> {
 	await env.EMAIL_KV.delete(kvAccessTokenKey(accountId));
+}
+
+// ─── Mail HTML Cache ────────────────────────────────────────────────────────
+
+function kvMailHtmlKey(gmailMessageId: string): string {
+	return `mail_html:${gmailMessageId}`;
+}
+
+export async function getCachedMailHtml(env: Env, gmailMessageId: string): Promise<string | null> {
+	return env.EMAIL_KV.get(kvMailHtmlKey(gmailMessageId));
+}
+
+export async function putCachedMailHtml(env: Env, gmailMessageId: string, html: string): Promise<void> {
+	await env.EMAIL_KV.put(kvMailHtmlKey(gmailMessageId), html, {
+		expirationTtl: MAIL_HTML_CACHE_TTL,
+	});
 }
 
 // ─── Clear Cache ────────────────────────────────────────────────────────────

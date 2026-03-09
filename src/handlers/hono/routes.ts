@@ -1,0 +1,14 @@
+export const ROUTE_TELEGRAM_WEBHOOK = '/telegram/webhook';
+export const ROUTE_GMAIL_PUSH = '/gmail/push';
+export const ROUTE_GMAIL_WATCH = '/gmail/watch';
+export const ROUTE_OAUTH_GOOGLE = '/oauth/google';
+export const ROUTE_OAUTH_GOOGLE_START = '/oauth/google/start';
+export const ROUTE_OAUTH_GOOGLE_CALLBACK = '/oauth/google/callback';
+export const ROUTE_PREVIEW = '/preview';
+export const ROUTE_ACCOUNTS = '/accounts';
+export const ROUTE_ACCOUNTS_EDIT = '/accounts/:id/edit';
+export const ROUTE_ACCOUNTS_DELETE = '/accounts/:id/delete';
+export const ROUTE_ACCOUNTS_CLEAR_CACHE = '/accounts/:id/clear-cache';
+export const ROUTE_ACCOUNTS_WATCH = '/accounts/:id/watch';
+export const ROUTE_CLEAR_ALL_KV = '/clear-all-kv';
+export const ROUTE_MAIL = '/mail/:id';

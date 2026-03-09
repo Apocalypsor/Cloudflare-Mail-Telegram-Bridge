@@ -24,6 +24,14 @@ export async function getMessageMapping(db: D1Database, chatId: string, tgMessag
 		.first<MessageMapping>();
 }
 
+/** 根据 Gmail 消息 ID 查找映射（用于邮件原文查看） */
+export async function getMessageMappingByGmailId(db: D1Database, gmailMessageId: string): Promise<MessageMapping | null> {
+	return db
+		.prepare('SELECT * FROM message_map WHERE gmail_message_id = ? LIMIT 1')
+		.bind(gmailMessageId)
+		.first<MessageMapping>();
+}
+
 /** 更新星标状态 */
 export async function updateStarred(db: D1Database, chatId: string, tgMessageId: number, starred: boolean): Promise<void> {
 	await db

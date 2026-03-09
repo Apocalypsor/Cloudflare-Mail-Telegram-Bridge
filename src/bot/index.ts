@@ -5,7 +5,7 @@ import { reportErrorToObservability } from '../services/observability';
 import { registerReactionHandler } from './handlers/reaction';
 import { registerStarHandler } from './handlers/star';
 
-export { STAR_KEYBOARD, STARRED_KEYBOARD } from './keyboards';
+export { STAR_KEYBOARD, STARRED_KEYBOARD, starKeyboardWithMailUrl, starredKeyboardWithMailUrl } from './keyboards';
 
 const KV_BOT_INFO_KEY = 'telegram:bot_info';
 const BOT_INFO_TTL = 86400 * 30; // 30 days

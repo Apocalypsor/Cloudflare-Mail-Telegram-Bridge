@@ -35,8 +35,8 @@ export interface Env {
 	GMAIL_PUBSUB_TOPIC: string;
 	/** URL 中的共享密钥，校验 Pub/Sub push 来源 */
 	GMAIL_PUSH_SECRET: string;
-	/** 手动触发 watch 的共享密钥 */
-	GMAIL_WATCH_SECRET: string;
+	/** 管理密钥，用于保护管理页面、watch 端点和邮件查看链接签名 */
+	ADMIN_SECRET: string;
 	/** KV 命名空间（access_token 缓存、消息去重、OAuth state） */
 	EMAIL_KV: KVNamespace;
 	/** D1 数据库（多账号信息） */
@@ -53,6 +53,8 @@ export interface Env {
 	LLM_MODEL?: string;
 	/** Telegram Webhook Secret（校验 webhook 来源） */
 	TELEGRAM_WEBHOOK_SECRET: string;
+	/** Worker 对外访问 URL，例如 https://gmail-tg-bridge.xxx.workers.dev（用于生成邮件查看链接） */
+	WORKER_URL?: string;
 }
 
 /** 队列消息体 */

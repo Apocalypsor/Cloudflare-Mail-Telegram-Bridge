@@ -1,4 +1,4 @@
-import { formatBody } from '../lib/format';
+import { formatBody } from '../utils/format';
 
 export function convertPreview(html: string): { result: string; length: number } {
 	const result = formatBody(undefined, html, 4000);

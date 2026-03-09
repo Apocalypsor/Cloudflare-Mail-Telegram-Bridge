@@ -1,4 +1,4 @@
-import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../constants';
+import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../handlers/hono/routes';
 import type { Account } from '../types';
 import { BackLink, Card, Layout } from './layout';
 
@@ -17,7 +17,7 @@ export function HomePage({ error }: { error?: string }) {
 						id="secret"
 						name="secret"
 						type="password"
-						placeholder="GMAIL_WATCH_SECRET"
+						placeholder="ADMIN_SECRET"
 						required
 						autofocus
 						class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm outline-none focus:border-blue-500 transition-colors"

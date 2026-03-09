@@ -58,6 +58,31 @@ export async function summarizeEmail(baseUrl: string, apiKey: string, model: str
 	return callLLM(baseUrl, apiKey, model, prompt);
 }
 
+/** 调用 LLM 提取验证码，返回纯验证码字符串或 null */
+export async function extractVerificationCode(
+	baseUrl: string,
+	apiKey: string,
+	model: string,
+	subject: string,
+	rawBody: string,
+): Promise<string | null> {
+	const body = prepareBody(rawBody);
+	const prompt =
+		`Does the following email contain a verification code, OTP, passcode, identification code, security code, or similar one-time code?\n` +
+		`Rules:\n` +
+		`- If yes, output ONLY the code itself (digits/letters), nothing else\n` +
+		`- If no, output exactly: NONE\n` +
+		`- Do not include any explanation, prefix, or extra text\n\n` +
+		`Subject: ${subject}\n\n` +
+		`Body:\n${body}`;
+
+	const result = await callLLM(baseUrl, apiKey, model, prompt);
+	const cleaned = result.replace(/[`\s]/g, '');
+	if (!cleaned || cleaned.toUpperCase() === 'NONE') return null;
+	if (/^[A-Za-z0-9\-]{4,12}$/.test(cleaned)) return cleaned;
+	return null;
+}
+
 /** 调用 LLM 为邮件生成 3-5 个标签 */
 export async function generateTags(baseUrl: string, apiKey: string, model: string, subject: string, rawBody: string): Promise<string[]> {
 	const body = prepareBody(rawBody);

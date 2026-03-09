@@ -19,6 +19,7 @@ const KEYWORDS = [
 	'one[- ]?time (?:pass)?code',
 	'activation code',
 	'auth(?:entication)? code',
+	'identification code',
 	'login code',
 	'passcode',
 	'OTP',
