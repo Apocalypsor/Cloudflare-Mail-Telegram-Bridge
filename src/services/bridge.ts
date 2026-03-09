@@ -136,7 +136,7 @@ async function processGmailMessage(
 	const subject = email.subject || '无主题';
 	const recipient = account.email || `Account #${account.id}`;
 	const verifyCode = extractVerificationCode(email.text || email.subject || '');
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, verifyCode);
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const charLimit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 
@@ -148,7 +148,8 @@ async function processGmailMessage(
 	const overhead = header.length + 40;
 	const bodyBudget = Math.max(charLimit - overhead, 100);
 	const formattedBody = formatBody(email.text, email.html, bodyBudget);
-	const body = wrapExpandableQuote(formattedBody);
+	const codeSection = verifyCode ? `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n` : '';
+	const body = codeSection + wrapExpandableQuote(formattedBody);
 	const text = header + body;
 
 	// 发送原始消息
@@ -204,17 +205,14 @@ function wrapExpandableQuote(text: string): string {
 	return lines.map((line, i) => (i === 0 ? `**>${line}` : `>${line}`)).join('\n') + '||';
 }
 
-function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string, verifyCode?: string | null): string {
+function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string): string {
 	const date = new Date().toLocaleString(MESSAGE_DATE_LOCALE, { timeZone: MESSAGE_DATE_TIMEZONE });
-	const lines = [
+	return [
 		`*发件人:*  ${escapeMdV2(`${fromName} <${fromAddress}>`)}`,
 		`*收件人:*  ${escapeMdV2(recipient)}`,
 		`*时  间:*  ${escapeMdV2(date)}`,
 		`*主  题:*  ${escapeMdV2(subject)}`,
-	];
-	if (verifyCode) {
-		lines.push(`*验证码:*  \`${escapeMdV2(verifyCode)}\``);
-	}
-	lines.push('', '');
-	return lines.join('\n');
+		``,
+		``,
+	].join('\n');
 }
