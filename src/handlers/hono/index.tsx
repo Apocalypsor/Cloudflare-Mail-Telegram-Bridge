@@ -4,6 +4,8 @@ import { DashboardPage, HomePage } from '../../components/home';
 import { getAllAccounts } from '../../db/accounts';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Env } from '../../types';
+import { clearSessionCookieHeader, createSessionToken, getSessionTokenFromCookie, sessionCookieHeader, verifySessionToken } from '../../utils/session';
+import { parseTelegramLoginParams, verifyTelegramLogin } from '../../utils/telegram-login';
 import accounts from './accounts';
 import gmail from './gmail';
 import mail from './mail';
@@ -39,23 +41,44 @@ app.route('', oauth);
 app.route('', preview);
 app.route('', mail);
 
-// ─── Home / Dashboard ───────────────────────────────────────────────────────
-app.post('/', async (c) => {
-	const form = await c.req.formData();
-	const secret = form.get('secret');
-	if (typeof secret !== 'string' || secret !== c.env.ADMIN_SECRET) {
-		return c.html(<HomePage error="密钥错误，请重试" />, 403);
+// ─── Telegram Login callback ────────────────────────────────────────────────
+app.get('/auth/telegram', async (c) => {
+	const data = parseTelegramLoginParams(new URL(c.req.url).searchParams);
+	if (!data) {
+		return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} error="无效的登录数据" />, 400);
 	}
-	const allAccounts = await getAllAccounts(c.env.DB);
-	return c.html(<DashboardPage secret={secret} accounts={allAccounts} />);
+
+	const valid = await verifyTelegramLogin(c.env.TELEGRAM_TOKEN, data);
+	if (!valid) {
+		return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} error="登录验证失败" />, 403);
+	}
+
+	if (String(data.id) !== c.env.ADMIN_TELEGRAM_ID) {
+		return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} error="您没有管理员权限" />, 403);
+	}
+
+	const token = await createSessionToken(c.env.ADMIN_SECRET, data.id);
+	c.header('Set-Cookie', sessionCookieHeader(token));
+	return c.redirect('/');
 });
 
+// ─── Logout ─────────────────────────────────────────────────────────────────
+app.get('/logout', (c) => {
+	c.header('Set-Cookie', clearSessionCookieHeader());
+	return c.redirect('/');
+});
+
+// ─── Home / Dashboard ───────────────────────────────────────────────────────
 app.get('/', async (c) => {
-	if (c.req.query('secret') === c.env.ADMIN_SECRET) {
-		const allAccounts = await getAllAccounts(c.env.DB);
-		return c.html(<DashboardPage secret={c.env.ADMIN_SECRET} accounts={allAccounts} />);
+	const sessionToken = getSessionTokenFromCookie(c.req.header('cookie'));
+	if (sessionToken) {
+		const uid = await verifySessionToken(c.env.ADMIN_SECRET, sessionToken);
+		if (uid) {
+			const allAccounts = await getAllAccounts(c.env.DB);
+			return c.html(<DashboardPage accounts={allAccounts} />);
+		}
 	}
-	return c.html(<HomePage />);
+	return c.html(<HomePage botUsername={c.env.TELEGRAM_BOT_USERNAME} />);
 });
 
 export default app;

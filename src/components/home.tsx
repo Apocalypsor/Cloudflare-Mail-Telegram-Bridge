@@ -2,38 +2,28 @@ import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE } from '../handlers/hono/routes';
 import type { Account } from '../types';
 import { BackLink, Card, Layout } from './layout';
 
-export function HomePage({ error }: { error?: string }) {
+export function HomePage({ botUsername, error }: { botUsername: string; error?: string }) {
 	return (
 		<Layout title="Telemail">
 			<Card class="max-w-md">
 				<h1 class="text-2xl font-bold text-slate-100 mb-3">Telemail</h1>
-				<p class="text-sm text-slate-400">请输入密钥以继续</p>
+				<p class="text-sm text-slate-400">请使用 Telegram 登录</p>
 				{error && <p class="text-sm text-red-400 mt-3">{error}</p>}
-				<form method="post" action="/" class="mt-4 space-y-3">
-					<label for="secret" class="block text-sm text-slate-400">
-						Secret
-					</label>
-					<input
-						id="secret"
-						name="secret"
-						type="password"
-						placeholder="ADMIN_SECRET"
-						required
-						autofocus
-						class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm outline-none focus:border-blue-500 transition-colors"
+				<div class="mt-4 flex justify-center">
+					<script
+						async
+						src="https://telegram.org/js/telegram-widget.js?22"
+						data-telegram-login={botUsername}
+						data-size="large"
+						data-auth-url="/auth/telegram"
 					/>
-					<button type="submit" class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition-colors">
-						进入
-					</button>
-				</form>
+				</div>
 			</Card>
 		</Layout>
 	);
 }
 
-function dashboardScript(secret: string) {
-	const watchAllUrl = `${ROUTE_GMAIL_WATCH}?secret=${encodeURIComponent(secret)}`;
-	const esc = encodeURIComponent(secret);
+function dashboardScript() {
 	return `
 var res = document.getElementById('action-result');
 function showResult(text, ok) {
@@ -47,7 +37,7 @@ document.getElementById('watch-all-btn').addEventListener('click', async functio
   var btn = this;
   btn.disabled = true; btn.textContent = '请求中…';
   try {
-    var r = await fetch('${watchAllUrl}', { method: 'POST' });
+    var r = await fetch('${ROUTE_GMAIL_WATCH}', { method: 'POST' });
     showResult(await r.text(), r.ok);
   } catch { showResult('网络错误', false); }
   finally { btn.disabled = false; btn.textContent = 'Renew All Watches'; }
@@ -58,7 +48,7 @@ document.getElementById('clear-all-kv-btn').addEventListener('click', async func
   var btn = this;
   btn.disabled = true; btn.textContent = '清空中…';
   try {
-    var r = await fetch('/clear-all-kv?secret=${esc}', { method: 'POST' });
+    var r = await fetch('/clear-all-kv', { method: 'POST' });
     showResult(await r.text(), r.ok);
   } catch { showResult('网络错误', false); }
   finally { btn.disabled = false; btn.textContent = '清空全局 KV 缓存'; }
@@ -69,7 +59,7 @@ document.querySelectorAll('.watch-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true; this.textContent = '…';
     try {
-      var r = await fetch('/accounts/' + id + '/watch?secret=${esc}', { method: 'POST' });
+      var r = await fetch('/accounts/' + id + '/watch', { method: 'POST' });
       showResult(await r.text(), r.ok);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; this.textContent = 'Watch'; }
@@ -82,7 +72,7 @@ document.querySelectorAll('.clear-cache-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true; this.textContent = '…';
     try {
-      var r = await fetch('/accounts/' + id + '/clear-cache?secret=${esc}', { method: 'POST' });
+      var r = await fetch('/accounts/' + id + '/clear-cache', { method: 'POST' });
       showResult(await r.text(), r.ok);
     } catch { showResult('网络错误', false); }
     finally { this.disabled = false; this.textContent = '清除缓存'; }
@@ -95,7 +85,7 @@ document.querySelectorAll('.delete-btn').forEach(function (btn) {
     var id = this.dataset.id;
     this.disabled = true;
     try {
-      var r = await fetch('/accounts/' + id + '/delete?secret=${esc}', { method: 'POST' });
+      var r = await fetch('/accounts/' + id + '/delete', { method: 'POST' });
       if (r.ok) location.reload();
       else showResult(await r.text(), false);
     } catch { showResult('网络错误', false); }
@@ -129,13 +119,16 @@ function accountDisplayName(acc: Account): string {
 	return acc.label || `Account #${acc.id}`;
 }
 
-export function DashboardPage({ secret, accounts, error }: { secret: string; accounts: Account[]; error?: string }) {
-	const esc = (s: string) => encodeURIComponent(s);
-
+export function DashboardPage({ accounts, error }: { accounts: Account[]; error?: string }) {
 	return (
 		<Layout title="Dashboard — Telemail">
 			<Card class="max-w-4xl">
-				<h1 class="text-2xl font-bold text-slate-100 mb-1">Dashboard</h1>
+				<div class="flex items-center justify-between mb-1">
+					<h1 class="text-2xl font-bold text-slate-100">Dashboard</h1>
+					<a href="/logout" class="text-xs text-slate-400 hover:text-red-400 transition-colors">
+						登出
+					</a>
+				</div>
 				<p class="text-sm text-slate-400 mb-4">管理 Gmail 账号和 Telegram 转发</p>
 
 				{error && <p class="text-sm text-red-400 mb-3 p-3 bg-red-900/30 rounded-lg">{error}</p>}
@@ -166,7 +159,7 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 										</span>
 										<a
 											class="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-											href={`${ROUTE_OAUTH_GOOGLE}?secret=${esc(secret)}&account=${acc.id}`}
+											href={`${ROUTE_OAUTH_GOOGLE}?account=${acc.id}`}
 										>
 											{acc.refresh_token ? '重新授权' : '授权'}
 										</a>
@@ -190,7 +183,7 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 								<form
 									id={`edit-${acc.id}`}
 									method="post"
-									action={`/accounts/${acc.id}/edit?secret=${esc(secret)}`}
+									action={`/accounts/${acc.id}/edit`}
 									class="p-3 bg-slate-900 border border-blue-600 rounded-lg space-y-3 mt-1"
 									style="display:none"
 								>
@@ -231,7 +224,7 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 				{/* ── 添加账号 ─────────────────────────────────────────── */}
 				<h2 class="text-lg font-semibold text-slate-100 mt-5 mb-2">Add Account</h2>
 				<p class="text-xs text-slate-500 mb-2">添加后通过 OAuth 授权，邮箱地址将自动从 Gmail API 获取。</p>
-				<form method="post" action={`/accounts?secret=${esc(secret)}`} class="space-y-3">
+				<form method="post" action="/accounts" class="space-y-3">
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 						<div>
 							<label class="block text-xs text-slate-400 mb-1">Telegram Chat ID *</label>
@@ -267,7 +260,7 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 					</button>
 					<a
 						class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg text-center transition-colors text-sm"
-						href={`/preview?secret=${esc(secret)}`}
+						href="/preview"
 					>
 						HTML → Telegram 预览
 					</a>
@@ -282,13 +275,12 @@ export function DashboardPage({ secret, accounts, error }: { secret: string; acc
 
 				<div id="action-result" class="hidden" />
 			</Card>
-			<script dangerouslySetInnerHTML={{ __html: dashboardScript(secret) }} />
+			<script dangerouslySetInnerHTML={{ __html: dashboardScript() }} />
 		</Layout>
 	);
 }
 
-function previewScript(secret: string) {
-	const url = `/preview?secret=${encodeURIComponent(secret)}`;
+function previewScript() {
 	return `
 document.getElementById('convert-btn').addEventListener('click', async function () {
   var btn = this;
@@ -296,7 +288,7 @@ document.getElementById('convert-btn').addEventListener('click', async function 
   if (!html.trim()) return;
   btn.disabled = true; btn.textContent = '转换中…';
   try {
-    var r = await fetch('${url}', {
+    var r = await fetch('/preview', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ html: html }),
@@ -310,7 +302,7 @@ document.getElementById('convert-btn').addEventListener('click', async function 
 });`;
 }
 
-export function PreviewPage({ secret }: { secret: string }) {
+export function PreviewPage() {
 	return (
 		<Layout title="HTML Preview — Telemail">
 			<Card class="max-w-5xl">
@@ -345,9 +337,9 @@ export function PreviewPage({ secret }: { secret: string }) {
 					转换
 				</button>
 				<div id="meta" class="mt-2 text-xs text-slate-400" />
-				<BackLink secret={secret} />
+				<BackLink />
 			</Card>
-			<script dangerouslySetInnerHTML={{ __html: previewScript(secret) }} />
+			<script dangerouslySetInnerHTML={{ __html: previewScript() }} />
 		</Layout>
 	);
 }

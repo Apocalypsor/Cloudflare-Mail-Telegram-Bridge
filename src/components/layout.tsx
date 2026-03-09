@@ -15,10 +15,10 @@ export function Layout({ title, children }: { title: string; children: Child }) 
 	);
 }
 
-export function BackLink({ secret }: { secret: string }) {
+export function BackLink() {
 	return (
 		<p class="mt-5">
-			<a href={`/?secret=${encodeURIComponent(secret)}`} class="text-blue-400 hover:text-blue-300 text-sm">
+			<a href="/" class="text-blue-400 hover:text-blue-300 text-sm">
 				&larr; 返回主页
 			</a>
 		</p>

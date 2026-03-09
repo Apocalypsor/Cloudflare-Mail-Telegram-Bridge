@@ -1,5 +1,5 @@
 import { GOOGLE_OAUTH_TOKEN_URL, KV_OAUTH_STATE_PREFIX } from '../constants';
-import { ROUTE_GMAIL_WATCH, ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from '../handlers/hono/routes';
+import { ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from '../handlers/hono/routes';
 import type { Env } from '../types';
 import { getAccountById, updateAccountEmail, updateRefreshToken } from '../db/accounts';
 import { putCachedAccessToken } from '../db/kv';
@@ -23,23 +23,14 @@ function getCallbackUrl(origin: string): string {
 	return new URL(ROUTE_OAUTH_GOOGLE_CALLBACK, origin).toString();
 }
 
-function getWatchUrl(origin: string, secret: string): URL {
-	const url = new URL(ROUTE_GMAIL_WATCH, origin);
-	url.searchParams.set('secret', secret);
-	return url;
-}
-
-export function getOAuthPageProps(request: Request, env: Env, accountId: number, accountEmail: string) {
+export function getOAuthPageProps(request: Request, accountId: number, accountEmail: string) {
 	const origin = new URL(request.url).origin;
 	const startUrl = new URL(ROUTE_OAUTH_GOOGLE_START, origin);
-	startUrl.searchParams.set('secret', env.ADMIN_SECRET);
 	startUrl.searchParams.set('account', String(accountId));
 
 	return {
 		startUrl: startUrl.toString(),
 		callbackUrl: getCallbackUrl(origin),
-		watchUrl: getWatchUrl(origin, env.ADMIN_SECRET).toString(),
-		secret: env.ADMIN_SECRET,
 		accountEmail,
 	};
 }
@@ -67,8 +58,8 @@ export async function startGoogleOAuth(request: Request, env: Env, accountId: nu
 }
 
 export type OAuthCallbackResult =
-	| { ok: true; refreshToken: string | undefined; scope: string; expiresIn: number | undefined; watchUrl: string; secret: string; accountEmail: string }
-	| { ok: false; title: string; detail: string; secret: string; status: number };
+	| { ok: true; refreshToken: string | undefined; scope: string; expiresIn: number | undefined; accountEmail: string }
+	| { ok: false; title: string; detail: string; status: number };
 
 export async function processOAuthCallback(request: Request, env: Env): Promise<OAuthCallbackResult> {
 	const requestUrl = new URL(request.url);
@@ -81,7 +72,6 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 			ok: false,
 			title: 'Google OAuth 授权失败',
 			detail: requestUrl.searchParams.get('error_description') || oauthError,
-			secret: env.ADMIN_SECRET,
 			status: 400,
 		};
 	}
@@ -91,7 +81,6 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 			ok: false,
 			title: '参数缺失',
 			detail: '回调中没有 code 或 state。',
-			secret: env.ADMIN_SECRET,
 			status: 400,
 		};
 	}
@@ -103,7 +92,6 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 			ok: false,
 			title: 'state 无效',
 			detail: '授权会话已过期或不匹配，请重新发起授权。',
-			secret: env.ADMIN_SECRET,
 			status: 400,
 		};
 	}
@@ -141,7 +129,6 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 			ok: false,
 			title: 'Token 交换失败',
 			detail: rawBody || `${tokenResp.status} ${tokenResp.statusText}`,
-			secret: env.ADMIN_SECRET,
 			status: tokenResp.status,
 		};
 	}
@@ -193,8 +180,6 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 		refreshToken,
 		scope: tokenData.scope || GMAIL_MODIFY_SCOPE,
 		expiresIn: tokenData.expires_in,
-		watchUrl: getWatchUrl(requestUrl.origin, env.ADMIN_SECRET).toString(),
-		secret: env.ADMIN_SECRET,
 		accountEmail,
 	};
 }

@@ -35,8 +35,12 @@ export interface Env {
 	GMAIL_PUBSUB_TOPIC: string;
 	/** URL 中的共享密钥，校验 Pub/Sub push 来源 */
 	GMAIL_PUSH_SECRET: string;
-	/** 管理密钥，用于保护管理页面、watch 端点和邮件查看链接签名 */
+	/** 管理密钥，用于 HMAC 签名（邮件查看链接、session cookie） */
 	ADMIN_SECRET: string;
+	/** Telegram 管理员 user ID，用于 Telegram Login 鉴权 */
+	ADMIN_TELEGRAM_ID: string;
+	/** Telegram Bot 用户名（不含 @），用于 Login Widget */
+	TELEGRAM_BOT_USERNAME: string;
 	/** KV 命名空间（access_token 缓存、消息去重、OAuth state） */
 	EMAIL_KV: KVNamespace;
 	/** D1 数据库（多账号信息） */

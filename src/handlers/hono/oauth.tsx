@@ -4,21 +4,21 @@ import { OAuthCallbackPage, OAuthErrorPage, OAuthSetupPage } from '../../compone
 import { getAccountById } from '../../db/accounts';
 import { getOAuthPageProps, processOAuthCallback, startGoogleOAuth } from '../../services/oauth';
 import type { Env } from '../../types';
-import { requireSecret } from './middleware';
+import { requireSession } from './middleware';
 import { ROUTE_OAUTH_GOOGLE, ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from './routes';
 
 const oauth = new Hono<{ Bindings: Env }>();
 
-oauth.get(ROUTE_OAUTH_GOOGLE, requireSecret('ADMIN_SECRET'), async (c) => {
+oauth.get(ROUTE_OAUTH_GOOGLE, requireSession(), async (c) => {
 	const accountId = parseInt(c.req.query('account') || '0', 10);
 	const account = await getAccountById(c.env.DB, accountId);
 	if (!account) return c.text('Account not found', 404);
 
-	const props = getOAuthPageProps(c.req.raw, c.env, account.id, account.email || `Account #${account.id}`);
+	const props = getOAuthPageProps(c.req.raw, account.id, account.email || `Account #${account.id}`);
 	return c.html(<OAuthSetupPage {...props} />);
 });
 
-oauth.get(ROUTE_OAUTH_GOOGLE_START, requireSecret('ADMIN_SECRET'), async (c) => {
+oauth.get(ROUTE_OAUTH_GOOGLE_START, requireSession(), async (c) => {
 	const accountId = parseInt(c.req.query('account') || '0', 10);
 	const account = await getAccountById(c.env.DB, accountId);
 	if (!account) return c.text('Account not found', 404);
@@ -30,7 +30,7 @@ oauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 	const result = await processOAuthCallback(c.req.raw, c.env);
 	if (!result.ok) {
 		return c.html(
-			<OAuthErrorPage title={result.title} detail={result.detail} secret={result.secret} />,
+			<OAuthErrorPage title={result.title} detail={result.detail} />,
 			result.status as ContentfulStatusCode,
 		);
 	}
@@ -39,8 +39,6 @@ oauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 			refreshToken={result.refreshToken}
 			scope={result.scope}
 			expiresIn={result.expiresIn}
-			watchUrl={result.watchUrl}
-			secret={result.secret}
 			accountEmail={result.accountEmail}
 		/>,
 	);
