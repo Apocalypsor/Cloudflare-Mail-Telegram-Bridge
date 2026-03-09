@@ -222,21 +222,8 @@ async function processGmailMessage(
 
 				const tagsLine =
 					tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
-				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}\n\n${escapeMdV2('✉️ 邮件正文')}\n\n`;
-				const limit = hasAttachments ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
-				const prefix = header + summarySection;
-				const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
-				const quoteBudget = Math.floor((limit - prefix.length - truncatedHint.length - tagsLine.length) * 0.9);
-				let cappedBody = formattedBody;
-				if (prefix.length + formattedBody.length + tagsLine.length > limit) {
-					const validEnd = findLongestValidMdV2Prefix(formattedBody.slice(0, quoteBudget));
-					cappedBody = formattedBody.slice(0, validEnd);
-				}
-				const capped =
-					prefix +
-					wrapExpandableQuote(cappedBody) +
-					(cappedBody.length < formattedBody.length ? truncatedHint : '') +
-					tagsLine;
+				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}`;
+				const capped = header + summarySection + tagsLine;
 
 				if (hasAttachments) {
 					await editMessageCaption(tgToken, chatId, sentMessageId, capped, editKeyboard);
