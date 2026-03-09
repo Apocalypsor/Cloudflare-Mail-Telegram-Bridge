@@ -145,10 +145,11 @@ async function processGmailMessage(
 	const llmModel = env.LLM_MODEL;
 	const shouldSummarize = !!(llmUrl && llmKey && llmModel) && !verifyCode;
 
-	const overhead = header.length + 40;
-	const bodyBudget = Math.max(charLimit - overhead, 100);
-	const formattedBody = formatBody(email.text, email.html, bodyBudget);
 	const codeSection = verifyCode ? `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n` : '';
+	const fixedOverhead = header.length + codeSection.length;
+	// 引用块每行加 1-3 字符前缀 + 末尾 ||，按原文 1/3 行数估算
+	const bodyBudget = Math.max(Math.floor((charLimit - fixedOverhead) * 0.9), 100);
+	const formattedBody = formatBody(email.text, email.html, bodyBudget);
 	const body = codeSection + wrapExpandableQuote(formattedBody);
 	const text = header + body;
 
@@ -177,7 +178,7 @@ async function processGmailMessage(
 				// 先在原始正文上截断，再包裹引用块
 				const prefix = header + summarySection;
 				const truncatedHint = `\n\n${toTelegramMdV2('*… 正文过长，已截断 …*')}`;
-				const quoteBudget = limit - prefix.length - truncatedHint.length - 10;
+				const quoteBudget = Math.floor((limit - prefix.length - truncatedHint.length) * 0.9);
 				let cappedBody = formattedBody;
 				if (prefix.length + formattedBody.length > limit) {
 					const validEnd = findLongestValidMdV2Prefix(formattedBody.slice(0, quoteBudget));
