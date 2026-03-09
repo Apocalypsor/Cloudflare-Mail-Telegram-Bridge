@@ -154,7 +154,7 @@ export function DashboardPage({ accounts, error, isAdmin, users = [], userId }: 
 			<Card class="max-w-4xl">
 				<div class="flex items-center justify-between mb-1">
 					<h1 class="text-2xl font-bold text-slate-100">Dashboard</h1>
-					<a href="/logout" class="text-xs text-slate-400 hover:text-red-400 transition-colors">
+					<a href="/logout" class="px-3 py-1.5 bg-slate-700 hover:bg-red-700 text-slate-200 text-sm font-medium rounded-lg transition-colors">
 						登出
 					</a>
 				</div>
