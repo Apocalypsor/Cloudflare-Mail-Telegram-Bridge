@@ -194,57 +194,65 @@ src/
     layout.tsx         # 共享 Layout、Card、BackLink 组件 (Tailwind CSS)
     home.tsx           # 首页、Dashboard（账号管理）、HTML 预览页
     oauth.tsx          # OAuth 授权页、回调结果页、错误页
+  assets/
+    favicon.ts         # Base64 编码的 favicon
   db/
     accounts.ts        # D1 数据库 CRUD（accounts 表）
+    kv.ts              # KV 辅助函数（access_token 缓存、去重、history_id）
+    secrets.ts         # Secret Store 读取（TG_TOKEN）
   services/
     bridge.ts          # Gmail→Telegram 业务流程编排（多账号 sync/message/AI 摘要）
     gmail.ts           # Gmail OAuth2 + REST API + watch + history（按账号隔离）
     home.ts            # 预览页业务逻辑（HTML→MarkdownV2 转换）
+    llm.ts             # OpenAI compatible API 调用（AI 摘要）
     oauth.ts           # OAuth 流程逻辑（按账号的 token 交换、state 管理）
-    ollama.ts          # OpenAI compatible API 调用（AI 摘要）
-    telegram.ts        # Telegram 发送/编辑：text、attachments、caption
-    secrets.ts         # Secret Store 读取（TG_TOKEN）
     observability.ts   # 错误结构化日志 + Telegram 告警
+    telegram.ts        # Telegram 发送/编辑：text、attachments、caption
   lib/
     format.ts          # 邮件正文格式化：HTML→Markdown→Telegram MarkdownV2
     markdown-v2.ts     # MarkdownV2 转义与最长合法前缀解析
 migrations/
   0001_create_accounts.sql  # D1 数据库迁移：创建 accounts 表
+  0002_email_nullable.sql   # D1 数据库迁移：email 字段改为可空
 wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 ```
 
 ## 环境变量
 
-| Secret / 变量         | 说明                                           |
-| --------------------- | ---------------------------------------------- |
-| `TG_TOKEN`            | Secret Store 绑定：`TELEGRAM_TOKEN`            |
-| `GMAIL_CLIENT_ID`     | Google OAuth2 Client ID（所有账号共享）         |
-| `GMAIL_CLIENT_SECRET` | Google OAuth2 Client Secret（所有账号共享）     |
-| `GMAIL_PUBSUB_TOPIC`  | Pub/Sub topic 全名（所有账号共享）              |
-| `GMAIL_PUSH_SECRET`   | 自定义密钥，附加在 push URL 中用于验证         |
-| `GMAIL_WATCH_SECRET`  | 自定义密钥，用于保护管理页面和 watch 端点      |
-| `LLM_API_URL`         | OpenAI compatible API base URL（可选）         |
-| `LLM_API_KEY`         | LLM API key（可选）                            |
-| `LLM_MODEL`           | LLM 模型名称（可选）                           |
+| Secret / 变量         | 说明                                        |
+| --------------------- | ------------------------------------------- |
+| `TG_TOKEN`            | Secret Store 绑定：`TELEGRAM_TOKEN`         |
+| `GMAIL_CLIENT_ID`     | Google OAuth2 Client ID（所有账号共享）     |
+| `GMAIL_CLIENT_SECRET` | Google OAuth2 Client Secret（所有账号共享） |
+| `GMAIL_PUBSUB_TOPIC`  | Pub/Sub topic 全名（所有账号共享）          |
+| `GMAIL_PUSH_SECRET`   | 自定义密钥，附加在 push URL 中用于验证      |
+| `GMAIL_WATCH_SECRET`  | 自定义密钥，用于保护管理页面和 watch 端点   |
+| `LLM_API_URL`         | OpenAI compatible API base URL（可选）      |
+| `LLM_API_KEY`         | LLM API key（可选）                         |
+| `LLM_MODEL`           | LLM 模型名称（可选）                        |
 
 每个 Gmail 账号的 `refresh_token`、`chat_id`、`history_id` 存储在 D1 数据库的 `accounts` 表中，通过 Web Dashboard 管理。
 
 ## API 端点
 
-| 方法 | 路径                                         | 说明                          |
-| ---- | -------------------------------------------- | ----------------------------- |
-| GET  | `/`                                          | 登录页 / Dashboard（账号管理）|
-| POST | `/`                                          | 密钥登录                      |
-| POST | `/accounts?secret=XXX`                       | 添加 Gmail 账号               |
-| POST | `/accounts/:id/delete?secret=XXX`            | 删除 Gmail 账号               |
-| POST | `/accounts/:id/watch?secret=XXX`             | 为指定账号续订 watch          |
-| POST | `/gmail/push?secret=XXX`                     | Pub/Sub push 回调             |
-| POST | `/gmail/watch?secret=XXX`                    | 为所有账号续订 watch          |
-| GET  | `/preview?secret=XXX`                        | HTML→Telegram MarkdownV2 预览 |
-| POST | `/preview?secret=XXX`                        | 预览转换 API                  |
-| GET  | `/oauth/google?secret=XXX&account=ID`        | 指定账号的 OAuth 授权说明页   |
-| GET  | `/oauth/google/start?secret=XXX&account=ID`  | 发起指定账号的 Google OAuth   |
-| GET  | `/oauth/google/callback`                     | OAuth 回调                    |
+| 方法 | 路径                                        | 说明                           |
+| ---- | ------------------------------------------- | ------------------------------ |
+| GET  | `/`                                         | 登录页 / Dashboard（账号管理） |
+| POST | `/`                                         | 密钥登录                       |
+| GET  | `/favicon.png`                              | Favicon                        |
+| POST | `/accounts?secret=XXX`                      | 添加 Gmail 账号                |
+| POST | `/accounts/:id/edit?secret=XXX`             | 编辑 Gmail 账号                |
+| POST | `/accounts/:id/delete?secret=XXX`           | 删除 Gmail 账号                |
+| POST | `/accounts/:id/watch?secret=XXX`            | 为指定账号续订 watch           |
+| POST | `/accounts/:id/clear-cache?secret=XXX`      | 清除指定账号的 KV 缓存         |
+| POST | `/gmail/push?secret=XXX`                    | Pub/Sub push 回调              |
+| POST | `/gmail/watch?secret=XXX`                   | 为所有账号续订 watch           |
+| POST | `/clear-all-kv?secret=XXX`                  | 清除所有 KV 数据               |
+| GET  | `/preview?secret=XXX`                       | HTML→Telegram MarkdownV2 预览  |
+| POST | `/preview?secret=XXX`                       | 预览转换 API                   |
+| GET  | `/oauth/google?secret=XXX&account=ID`       | 指定账号的 OAuth 授权说明页    |
+| GET  | `/oauth/google/start?secret=XXX&account=ID` | 发起指定账号的 Google OAuth    |
+| GET  | `/oauth/google/callback`                    | OAuth 回调                     |
 
 ## Telegram 消息格式
 
