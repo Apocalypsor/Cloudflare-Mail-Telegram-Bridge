@@ -1,15 +1,21 @@
 import PostalMime from 'postal-mime';
 import { STAR_KEYBOARD, starKeyboardWithMailUrl, STARRED_KEYBOARD, starredKeyboardWithMailUrl } from '../bot';
-import { DIRECT_PROCESS_THRESHOLD, KV_PROCESSED_PREFIX, MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE, PROCESSED_TTL_SECONDS } from '../constants';
+import {
+	DIRECT_PROCESS_THRESHOLD,
+	KV_PROCESSED_PREFIX,
+	MESSAGE_DATE_LOCALE,
+	MESSAGE_DATE_TIMEZONE,
+	PROCESSED_TTL_SECONDS,
+} from '../constants';
 import { getAccountByEmail, getAccountById } from '../db/accounts';
 import { deleteFailedEmail, getAllFailedEmails, putFailedEmail, type FailedEmail } from '../db/failed-emails';
 import { getHistoryId, putHistoryId } from '../db/kv';
 import { getMessageMapping, putMessageMapping } from '../db/message-map';
 import type { Account, Env, GmailNotification, PubSubPushBody, QueueMessage } from '../types';
-import { formatBody, toTelegramMdV2 } from '../utils/format';
+import { base64urlToArrayBuffer } from '../utils/base64url';
+import { formatBody, htmlToMarkdown, toTelegramMdV2 } from '../utils/format';
 import { generateMailToken } from '../utils/hash';
 import { escapeMdV2 } from '../utils/markdown-v2';
-import { base64urlToArrayBuffer } from '../utils/base64url';
 import { fetchNewMessageIds, getAccessToken, gmailGet } from './gmail';
 import { extractLinks, extractVerificationCode, generateTags, summarizeEmail } from './llm';
 import { reportErrorToObservability } from './observability';
@@ -127,6 +133,93 @@ export async function processMessageNotification(
 	});
 }
 
+// ---------------------------------------------------------------------------
+// 共享 helper
+// ---------------------------------------------------------------------------
+
+/** 从邮件中提取正文文本，text/plain 优先，fallback 到 HTML → Markdown */
+function getEmailPlainBody(email: { text?: string; html?: string }): string {
+	if (email.text?.trim()) return email.text;
+	if (email.html) {
+		try {
+			return htmlToMarkdown(email.html);
+		} catch {
+			return '';
+		}
+	}
+	return '';
+}
+
+/** 根据消息映射和环境构建编辑用键盘 */
+async function resolveEditKeyboard(env: Env, chatId: string, tgMessageId: number, gmailMessageId: string): Promise<unknown> {
+	const mapping = await getMessageMapping(env.DB, chatId, tgMessageId);
+	const starred = !!mapping?.starred;
+	if (env.WORKER_URL) {
+		const mailToken = await generateMailToken(env.ADMIN_SECRET, gmailMessageId, chatId);
+		const mailUrl = `${env.WORKER_URL.replace(/\/$/, '')}/mail/${gmailMessageId}?t=${mailToken}`;
+		return starred ? starredKeyboardWithMailUrl(mailUrl) : starKeyboardWithMailUrl(mailUrl);
+	}
+	return starred ? STARRED_KEYBOARD : STAR_KEYBOARD;
+}
+
+interface LlmEditContext {
+	env: Env;
+	tgToken: string;
+	chatId: string;
+	tgMessageId: number;
+	isCaption: boolean;
+	header: string;
+	subject: string;
+	plainBody: string;
+	/** 用于验证码场景：编辑后保留可展开引用正文 */
+	formattedBody?: string;
+	keyboard: unknown;
+}
+
+/** 核心 LLM 处理：提取验证码 → 生成摘要 + 标签 → 编辑 Telegram 消息 */
+async function runLlmProcessing(ctx: LlmEditContext): Promise<void> {
+	const { env } = ctx;
+	const llmUrl = env.LLM_API_URL!;
+	const llmKey = env.LLM_API_KEY!;
+	const llmModel = env.LLM_MODEL!;
+
+	const editMessage = (newText: string) =>
+		ctx.isCaption
+			? editMessageCaption(ctx.tgToken, ctx.chatId, ctx.tgMessageId, newText, ctx.keyboard)
+			: editTextMessage(ctx.tgToken, ctx.chatId, ctx.tgMessageId, newText, ctx.keyboard);
+
+	// 第一步：尝试用 LLM 提取验证码
+	const verifyCode = await extractVerificationCode(llmUrl, llmKey, llmModel, ctx.subject, ctx.plainBody).catch((err) => {
+		reportErrorToObservability(env, 'llm.verify_code_failed', err, { subject: ctx.subject });
+		return null;
+	});
+
+	if (verifyCode && ctx.formattedBody) {
+		const codeSection = `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n`;
+		await editMessage(ctx.header + codeSection + wrapExpandableQuote(ctx.formattedBody));
+		console.log(`Verification code extracted: ${verifyCode}`);
+		return;
+	}
+
+	// 第二步：无验证码 → 生成摘要 + 标签
+	const links = extractLinks(ctx.plainBody);
+	const [summary, tags] = await Promise.all([
+		summarizeEmail(llmUrl, llmKey, llmModel, ctx.subject, ctx.plainBody, links),
+		generateTags(llmUrl, llmKey, llmModel, ctx.subject, ctx.plainBody).catch((err) => {
+			reportErrorToObservability(env, 'llm.tags_failed', err, { subject: ctx.subject });
+			return [] as string[];
+		}),
+	]);
+
+	const tagsLine = tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
+	const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}`;
+	await editMessage(ctx.header + summarySection + tagsLine);
+}
+
+// ---------------------------------------------------------------------------
+// 邮件处理
+// ---------------------------------------------------------------------------
+
 /** 获取单封 Gmail 邮件（raw 格式），解析并发送到账号对应的 Telegram chat */
 async function processGmailMessage(
 	token: string,
@@ -189,54 +282,26 @@ async function processGmailMessage(
 
 	if (!hasLlm) return;
 
-	const plainBody = email.text || '';
+	const plainBody = getEmailPlainBody(email);
 	if (!plainBody.trim()) return;
 
 	// 用 waitUntil 异步执行 LLM：先提取验证码，找到则显示验证码，否则生成摘要
 	waitUntil(
 		(async () => {
 			try {
-				// 第一步：尝试用 LLM 提取验证码
-				const verifyCode = await extractVerificationCode(llmUrl, llmKey, llmModel, subject, plainBody).catch((err) => {
-					reportErrorToObservability(env, 'llm.verify_code_failed', err, { subject });
-					return null;
+				const editKeyboard = await resolveEditKeyboard(env, chatId, sentMessageId, messageId);
+				await runLlmProcessing({
+					env,
+					tgToken,
+					chatId,
+					tgMessageId: sentMessageId,
+					isCaption: hasSingleAttachment,
+					header,
+					subject,
+					plainBody,
+					formattedBody,
+					keyboard: editKeyboard,
 				});
-
-				const mapping = await getMessageMapping(env.DB, chatId, sentMessageId);
-				const editKeyboard = mapping?.starred
-					? mailUrl
-						? starredKeyboardWithMailUrl(mailUrl)
-						: STARRED_KEYBOARD
-					: mailUrl
-						? starKeyboardWithMailUrl(mailUrl)
-						: STAR_KEYBOARD;
-
-				const editSentMessage = (newText: string) =>
-					hasSingleAttachment
-						? editMessageCaption(tgToken, chatId, sentMessageId, newText, editKeyboard)
-						: editTextMessage(tgToken, chatId, sentMessageId, newText, editKeyboard);
-
-				if (verifyCode) {
-					// 找到验证码 → 编辑消息加上验证码，不做摘要
-					const codeSection = `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n`;
-					await editSentMessage(header + codeSection + wrapExpandableQuote(formattedBody));
-					console.log(`Verification code extracted: ${verifyCode}`);
-					return;
-				}
-
-				// 第二步：无验证码 → 生成摘要 + 标签
-				const links = extractLinks(plainBody);
-				const [summary, tags] = await Promise.all([
-					summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody, links),
-					generateTags(llmUrl, llmKey, llmModel, subject, plainBody).catch((err) => {
-						reportErrorToObservability(env, 'llm.tags_failed', err, { subject });
-						return [] as string[];
-					}),
-				]);
-
-				const tagsLine = tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
-				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}`;
-				await editSentMessage(header + summarySection + tagsLine);
 			} catch (err) {
 				await reportErrorToObservability(env, 'llm.summary_failed', err, { subject });
 				await putFailedEmail(env.DB, {
@@ -292,12 +357,7 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	const account = await getAccountById(env.DB, failed.account_id);
 	if (!account) throw new Error(`Account ${failed.account_id} not found`);
 
-	const tgToken = env.TELEGRAM_BOT_TOKEN;
-	const chatId = failed.tg_chat_id;
-	const llmUrl = env.LLM_API_URL;
-	const llmKey = env.LLM_API_KEY;
-	const llmModel = env.LLM_MODEL;
-	if (!llmUrl || !llmKey || !llmModel) throw new Error('LLM not configured');
+	if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL) throw new Error('LLM not configured');
 
 	// 重新从 Gmail 获取邮件
 	const token = await getAccessToken(env, account);
@@ -306,47 +366,29 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	const parser = new PostalMime();
 	const email = await parser.parse(rawEmail);
 
-	const subject = email.subject || '无主题';
-	const plainBody = email.text || '';
+	const plainBody = getEmailPlainBody(email);
 	if (!plainBody.trim()) {
 		await deleteFailedEmail(env.DB, failed.id);
 		return;
 	}
 
+	const subject = email.subject || '无主题';
 	const recipient = account.email || `Account #${account.id}`;
 	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
+	const keyboard = await resolveEditKeyboard(env, failed.tg_chat_id, failed.tg_message_id, failed.gmail_message_id);
 
-	// 构建 keyboard
-	const mapping = await getMessageMapping(env.DB, chatId, failed.tg_message_id);
-	let keyboard: unknown = STAR_KEYBOARD;
-	let mailUrl: string | undefined;
-	if (env.WORKER_URL) {
-		const mailToken = await generateMailToken(env.ADMIN_SECRET, failed.gmail_message_id, chatId);
-		mailUrl = `${env.WORKER_URL.replace(/\/$/, '')}/mail/${failed.gmail_message_id}?t=${mailToken}`;
-		keyboard = mapping?.starred
-			? starredKeyboardWithMailUrl(mailUrl)
-			: starKeyboardWithMailUrl(mailUrl);
-	} else if (mapping?.starred) {
-		keyboard = STARRED_KEYBOARD;
-	}
+	await runLlmProcessing({
+		env,
+		tgToken: env.TELEGRAM_BOT_TOKEN,
+		chatId: failed.tg_chat_id,
+		tgMessageId: failed.tg_message_id,
+		isCaption: !!failed.is_caption,
+		header,
+		subject,
+		plainBody,
+		keyboard,
+	});
 
-	const editSentMessage = (newText: string) =>
-		failed.is_caption
-			? editMessageCaption(tgToken, chatId, failed.tg_message_id, newText, keyboard)
-			: editTextMessage(tgToken, chatId, failed.tg_message_id, newText, keyboard);
-
-	// LLM 处理
-	const links = extractLinks(plainBody);
-	const [summary, tags] = await Promise.all([
-		summarizeEmail(llmUrl, llmKey, llmModel, subject, plainBody, links),
-		generateTags(llmUrl, llmKey, llmModel, subject, plainBody).catch(() => [] as string[]),
-	]);
-
-	const tagsLine = tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
-	const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}`;
-	await editSentMessage(header + summarySection + tagsLine);
-
-	// 成功 → 删除失败记录
 	await deleteFailedEmail(env.DB, failed.id);
 }
 

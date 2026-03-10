@@ -18,7 +18,7 @@ turndown.addRule('stripImages', {
 	},
 });
 
-function htmlToMarkdown(html: string): string {
+export function htmlToMarkdown(html: string): string {
 	const { document } = parseHTML(html);
 	for (const node of document.querySelectorAll('head, style, script')) {
 		node.remove();
