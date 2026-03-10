@@ -1,6 +1,7 @@
-import { Api, InlineKeyboard } from 'grammy';
+import { Api } from 'grammy';
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { accountDetailKeyboard, accountDetailText } from '../../bot/formatters';
 import { OAuthCallbackPage, OAuthErrorPage, OAuthSetupPage } from '../../components/oauth';
 import { getAccountById } from '../../db/accounts';
 import { getOAuthPageProps, processOAuthCallback, startGoogleOAuth } from '../../services/oauth';
@@ -45,21 +46,10 @@ oauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 			const { chatId, messageId } = JSON.parse(botMsgRaw) as { chatId: string; messageId: number };
 			const account = await getAccountById(c.env.DB, result.accountId);
 			if (account) {
-				const status = account.refresh_token ? '✅ 已授权' : '❌ 未授权';
-				const text = `📧 账号详情 #${account.id}\n\n邮箱: ${result.accountEmail}\nChat ID: ${account.chat_id}\n标签: ${account.label || '(无)'}\n状态: ${status}`;
-				const authLabel = account.refresh_token ? '🔑 重新授权' : '🔑 授权';
-				const kb = new InlineKeyboard()
-					.text(authLabel, `acc:${account.id}:auth`);
-				if (account.refresh_token) kb.text('🔄 Watch', `acc:${account.id}:w`);
-				kb.row()
-					.text('✏️ 编辑', `acc:${account.id}:edit`)
-					.text('🗑 清除缓存', `acc:${account.id}:cc`)
-					.row()
-					.text('❌ 删除', `acc:${account.id}:del`)
-					.row()
-					.text('« 返回账号列表', 'accs');
 				const api = new Api(c.env.TELEGRAM_BOT_TOKEN);
-				await api.editMessageText(chatId, messageId, text, { reply_markup: kb });
+				await api.editMessageText(chatId, messageId, accountDetailText(account), {
+					reply_markup: accountDetailKeyboard(account),
+				});
 			}
 		} catch {
 			/* best-effort: don't break OAuth success page */

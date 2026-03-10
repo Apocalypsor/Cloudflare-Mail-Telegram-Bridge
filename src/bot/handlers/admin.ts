@@ -5,11 +5,9 @@ import { approveUser, getAllUsers, rejectUser } from '../../db/users';
 import { renewWatchAll } from '../../services/gmail';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Env, TelegramUser } from '../../types';
+import { isAdmin } from '../auth';
+import { formatUserName } from '../formatters';
 import { clearBotState } from '../state';
-
-function isAdmin(userId: string, env: Env): boolean {
-	return userId === env.ADMIN_TELEGRAM_ID;
-}
 
 function userListText(users: TelegramUser[]): string {
 	if (users.length === 0) return '👥 暂无用户';
@@ -17,7 +15,7 @@ function userListText(users: TelegramUser[]): string {
 	let text = `👥 用户列表 (${users.length})\n\n`;
 	for (const u of users) {
 		const status = u.approved === 1 ? '✅' : '⏳';
-		const name = u.first_name + (u.last_name ? ` ${u.last_name}` : '');
+		const name = formatUserName(u);
 		const username = u.username ? ` @${u.username}` : '';
 		text += `${status} ${name}${username}\n   ID: ${u.telegram_id}\n`;
 	}
@@ -27,7 +25,7 @@ function userListText(users: TelegramUser[]): string {
 function userListKeyboard(users: TelegramUser[]): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const u of users) {
-		const name = u.first_name + (u.last_name ? ` ${u.last_name}` : '');
+		const name = formatUserName(u);
 		if (u.approved === 1) {
 			kb.text(`✅ ${name}`, `u:${u.telegram_id}:info`).text('撤回', `u:${u.telegram_id}:r`);
 		} else {

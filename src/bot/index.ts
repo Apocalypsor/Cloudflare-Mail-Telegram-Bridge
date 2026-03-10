@@ -6,8 +6,9 @@ import { approveUser, getAllUsers, getUserByTelegramId, rejectUser, upsertUser }
 import { reportErrorToObservability } from '../services/observability';
 import { sendPlainTextMessage } from '../services/telegram';
 import type { Env } from '../types';
-import { accountListKeyboard } from './handlers/accounts';
-import { registerAccountHandlers } from './handlers/accounts';
+import { isAdmin } from './auth';
+import { formatUserName } from './formatters';
+import { accountListKeyboard, registerAccountHandlers } from './handlers/accounts';
 import { registerAdminHandlers } from './handlers/admin';
 import { registerInputHandler } from './handlers/input';
 import { registerReactionHandler } from './handlers/reaction';
@@ -46,7 +47,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	// ─── /start: 主入口，自动注册用户 ────────────────────────────────────────
 	bot.command('start', async (ctx) => {
 		const telegramId = String(ctx.from?.id);
-		const admin = telegramId === env.ADMIN_TELEGRAM_ID;
+		const admin = isAdmin(telegramId, env);
 		let user = await getUserByTelegramId(env.DB, telegramId);
 
 		// 首次使用：自动注册用户
@@ -64,7 +65,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 
 			// 通知管理员（非管理员注册时）
 			if (!admin) {
-				const displayName = ctx.from?.first_name + (ctx.from?.last_name ? ` ${ctx.from.last_name}` : '');
+				const displayName = formatUserName({ first_name: ctx.from?.first_name || 'Unknown', last_name: ctx.from?.last_name });
 				const username = ctx.from?.username ? ` (@${ctx.from.username})` : '';
 				try {
 					await sendPlainTextMessage(
@@ -97,7 +98,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	// ─── /accounts: 快速查看账号列表 ────────────────────────────────────────
 	bot.command('accounts', async (ctx) => {
 		const userId = String(ctx.from?.id);
-		const admin = userId === env.ADMIN_TELEGRAM_ID;
+		const admin = isAdmin(userId, env);
 
 		if (!admin) {
 			const user = await getUserByTelegramId(env.DB, userId);
@@ -114,7 +115,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	// ─── /users: 快速查看用户列表（管理员） ──────────────────────────────────
 	bot.command('users', async (ctx) => {
 		const userId = String(ctx.from?.id);
-		if (userId !== env.ADMIN_TELEGRAM_ID) {
+		if (!isAdmin(userId, env)) {
 			return ctx.reply('⛔ 仅管理员可用');
 		}
 
@@ -126,7 +127,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 		let text = `👥 用户列表 (${users.length})\n\n`;
 		for (const u of users) {
 			const status = u.approved === 1 ? '✅' : '⏳';
-			const name = u.first_name + (u.last_name ? ` ${u.last_name}` : '');
+			const name = formatUserName(u);
 			const username = u.username ? ` @${u.username}` : '';
 			text += `${status} ${name}${username}\n   ID: ${u.telegram_id}\n`;
 		}
@@ -136,14 +137,14 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	// ─── Main menu callback ────────────────────────────────────────────────
 	bot.callbackQuery('menu', async (ctx) => {
 		const userId = String(ctx.from.id);
-		const admin = userId === env.ADMIN_TELEGRAM_ID;
+		const admin = isAdmin(userId, env);
 		await ctx.editMessageText('📬 Telemail 管理面板', { reply_markup: mainMenuKeyboard(admin) });
 		await ctx.answerCallbackQuery();
 	});
 
 	// ─── 管理员审批 inline 按钮回调（来自通知消息） ────────────────────────
 	bot.callbackQuery(/^(approve|reject):(\d+)$/, async (ctx) => {
-		if (String(ctx.from.id) !== env.ADMIN_TELEGRAM_ID) {
+		if (!isAdmin(String(ctx.from.id), env)) {
 			return ctx.answerCallbackQuery({ text: '无权操作' });
 		}
 		const [, action, targetId] = ctx.match!;
@@ -154,7 +155,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 
 		if (action === 'approve') {
 			await approveUser(env.DB, targetId);
-			await ctx.editMessageText(`✅ 已批准: ${user.first_name}${user.last_name ? ` ${user.last_name}` : ''} (${targetId})`);
+			await ctx.editMessageText(`✅ 已批准: ${formatUserName(user)} (${targetId})`);
 			try {
 				await ctx.api.sendMessage(targetId, '✅ 您的账号已被管理员批准！发送 /start 开始使用。');
 			} catch {
@@ -162,7 +163,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 			}
 		} else {
 			await rejectUser(env.DB, targetId);
-			await ctx.editMessageText(`❌ 已拒绝: ${user.first_name}${user.last_name ? ` ${user.last_name}` : ''} (${targetId})`);
+			await ctx.editMessageText(`❌ 已拒绝: ${formatUserName(user)} (${targetId})`);
 			try {
 				await ctx.api.sendMessage(targetId, '❌ 您的注册申请未通过审批。');
 			} catch {

@@ -2,11 +2,8 @@ import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import { createAccount, getAuthorizedAccount, updateAccount } from '../../db/accounts';
 import type { Env } from '../../types';
+import { isAdmin } from '../auth';
 import { clearBotState, getBotState, setBotState } from '../state';
-
-function isAdmin(userId: string, env: Env): boolean {
-	return userId === env.ADMIN_TELEGRAM_ID;
-}
 
 /**
  * 处理文本消息输入（用于添加/编辑账号的多步骤交互）。

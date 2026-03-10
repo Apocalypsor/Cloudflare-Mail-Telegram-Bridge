@@ -8,11 +8,9 @@ import { renewWatch, stopWatch } from '../../services/gmail';
 import { generateOAuthUrl } from '../../services/oauth';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Account, Env } from '../../types';
+import { isAdmin } from '../auth';
+import { accountDetailKeyboard, accountDetailText, formatUserName } from '../formatters';
 import { clearBotState, getBotState, setBotState } from '../state';
-
-function isAdmin(userId: string, env: Env): boolean {
-	return userId === env.ADMIN_TELEGRAM_ID;
-}
 
 export function accountListKeyboard(accounts: Account[]): InlineKeyboard {
 	const kb = new InlineKeyboard();
@@ -24,33 +22,6 @@ export function accountListKeyboard(accounts: Account[]): InlineKeyboard {
 	kb.text('➕ 添加账号', 'add').row();
 	kb.text('« 返回', 'menu');
 	return kb;
-}
-
-function accountDetailKeyboard(account: Account): InlineKeyboard {
-	const kb = new InlineKeyboard();
-	const authLabel = account.refresh_token ? '🔑 重新授权' : '🔑 授权';
-	kb.text(authLabel, `acc:${account.id}:auth`);
-	if (account.refresh_token) {
-		kb.text('🔄 Watch', `acc:${account.id}:w`);
-	}
-	kb.row();
-	kb.text('✏️ 编辑', `acc:${account.id}:edit`);
-	kb.text('🗑 清除缓存', `acc:${account.id}:cc`);
-	kb.row();
-	kb.text('❌ 删除', `acc:${account.id}:del`);
-	kb.row();
-	kb.text('« 返回账号列表', 'accs');
-	return kb;
-}
-
-function accountDetailText(account: Account): string {
-	const status = account.refresh_token ? '✅ 已授权' : '❌ 未授权';
-	let text = `📧 账号详情 #${account.id}\n\n`;
-	text += `邮箱: ${account.email || '(未设置)'}\n`;
-	text += `Chat ID: ${account.chat_id}\n`;
-	text += `标签: ${account.label || '(无)'}\n`;
-	text += `状态: ${status}`;
-	return text;
 }
 
 export function registerAccountHandlers(bot: Bot, env: Env) {
@@ -286,7 +257,7 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		const users = await getAllUsers(env.DB);
 		const kb = new InlineKeyboard();
 		for (const u of users) {
-			const name = u.first_name + (u.last_name ? ` ${u.last_name}` : '');
+			const name = formatUserName(u);
 			const current = u.telegram_id === account.telegram_user_id ? ' (当前)' : '';
 			kb.text(`${name}${current}`, `edown:${accountId}:${u.telegram_id}`).row();
 		}
