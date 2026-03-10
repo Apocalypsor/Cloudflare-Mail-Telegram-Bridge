@@ -68,7 +68,8 @@ export async function gmailPost(token: string, path: string, body: Record<string
 		const text = await resp.text();
 		throw Object.assign(new Error(`Gmail API ${resp.status}: ${text}`), { status: resp.status });
 	}
-	return resp.json();
+	const text = await resp.text();
+	return text ? JSON.parse(text) : null;
 }
 
 // ─── Message actions ─────────────────────────────────────────────────────────
@@ -110,6 +111,9 @@ export async function renewWatch(env: Env, account: Account): Promise<void> {
 		topicName: env.GMAIL_PUBSUB_TOPIC,
 		labelIds: ['INBOX'],
 	});
+	if (!result?.historyId) {
+		throw new Error(`Gmail watch returned no historyId for ${account.email}`);
+	}
 	console.log(`Gmail watch renewed for ${account.email}, historyId:`, result.historyId, 'expiration:', result.expiration);
 
 	// 如果 KV 里还没有 historyId，用 watch 返回的初始化
