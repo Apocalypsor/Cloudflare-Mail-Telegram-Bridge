@@ -278,9 +278,9 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
 			const kb = new InlineKeyboard().text('查看账号', `acc:${account.id}`).text('账号列表', 'accs');
 			await ctx.editMessageText(`✅ 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}`, { reply_markup: kb });
-		} catch (err: any) {
+		} catch (err) {
 			await clearBotState(env, userId);
-			await ctx.editMessageText(`❌ 创建失败: ${err.message}`);
+			await ctx.editMessageText(`❌ 创建失败: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		await ctx.answerCallbackQuery();
 	});

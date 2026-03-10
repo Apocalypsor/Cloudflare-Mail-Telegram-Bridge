@@ -149,11 +149,11 @@ export async function fetchNewMessageIds(token: string, env: Env, account: Accou
 		let path = `/users/me/history?startHistoryId=${storedHistoryId}&historyTypes=messageAdded&labelId=INBOX`;
 		if (pageToken) path += `&pageToken=${pageToken}`;
 
-		let history: any;
+		let history: Record<string, any>;
 		try {
 			history = await gmailGet(token, path);
-		} catch (err: any) {
-			if (err.status === 404) {
+		} catch (err) {
+			if (err instanceof Error && (err as any).status === 404) {
 				// historyId 过老，重新同步
 				console.warn(`historyId expired for ${account.email}, resetting`);
 				const profile = await gmailGet(token, '/users/me/profile');

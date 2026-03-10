@@ -210,15 +210,15 @@ async function processGmailMessage(
 						? starKeyboardWithMailUrl(mailUrl)
 						: STAR_KEYBOARD;
 
+				const editSentMessage = (newText: string) =>
+					hasSingleAttachment
+						? editMessageCaption(tgToken, chatId, sentMessageId, newText, editKeyboard)
+						: editTextMessage(tgToken, chatId, sentMessageId, newText, editKeyboard);
+
 				if (verifyCode) {
 					// 找到验证码 → 编辑消息加上验证码，不做摘要
 					const codeSection = `*🔒 验证码:*  \`${escapeMdV2(verifyCode)}\`\n\n`;
-					const capped = header + codeSection + wrapExpandableQuote(formattedBody);
-					if (hasSingleAttachment) {
-						await editMessageCaption(tgToken, chatId, sentMessageId, capped, editKeyboard);
-					} else {
-						await editTextMessage(tgToken, chatId, sentMessageId, capped, editKeyboard);
-					}
+					await editSentMessage(header + codeSection + wrapExpandableQuote(formattedBody));
 					console.log(`Verification code extracted: ${verifyCode}`);
 					return;
 				}
@@ -235,13 +235,7 @@ async function processGmailMessage(
 
 				const tagsLine = tags.length > 0 ? `\n\n${tags.map((t) => `\\#${escapeMdV2(t.replace(/\s+/g, '_'))}`).join('  ')}` : '';
 				const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(summary)}`;
-				const capped = header + summarySection + tagsLine;
-
-				if (hasSingleAttachment) {
-					await editMessageCaption(tgToken, chatId, sentMessageId, capped, editKeyboard);
-				} else {
-					await editTextMessage(tgToken, chatId, sentMessageId, capped, editKeyboard);
-				}
+				await editSentMessage(header + summarySection + tagsLine);
 			} catch (err) {
 				await reportErrorToObservability(env, 'llm.summary_failed', err, { subject });
 			}

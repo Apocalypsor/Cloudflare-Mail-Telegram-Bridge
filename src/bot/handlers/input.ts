@@ -39,9 +39,9 @@ export function registerInputHandler(bot: Bot, env: Env) {
 					await ctx.reply(`✅ 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}${label ? `\n标签: ${label}` : ''}`, {
 						reply_markup: kb,
 					});
-				} catch (err: any) {
+				} catch (err) {
 					await clearBotState(env, userId);
-					await ctx.reply(`❌ 创建失败: ${err.message}`);
+					await ctx.reply(`❌ 创建失败: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
 		}
@@ -64,9 +64,9 @@ export function registerInputHandler(bot: Bot, env: Env) {
 				await clearBotState(env, userId);
 				const kb = new InlineKeyboard().text('查看账号', `acc:${state.accountId}`).text('账号列表', 'accs');
 				await ctx.reply(`✅ Chat ID 已更新为 ${text}`, { reply_markup: kb });
-			} catch (err: any) {
+			} catch (err) {
 				await clearBotState(env, userId);
-				await ctx.reply(`❌ 更新失败: ${err.message}`);
+				await ctx.reply(`❌ 更新失败: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
 
@@ -84,9 +84,9 @@ export function registerInputHandler(bot: Bot, env: Env) {
 				await clearBotState(env, userId);
 				const kb = new InlineKeyboard().text('查看账号', `acc:${state.accountId}`).text('账号列表', 'accs');
 				await ctx.reply(`✅ 标签已更新为「${text}」`, { reply_markup: kb });
-			} catch (err: any) {
+			} catch (err) {
 				await clearBotState(env, userId);
-				await ctx.reply(`❌ 更新失败: ${err.message}`);
+				await ctx.reply(`❌ 更新失败: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
 	});

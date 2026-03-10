@@ -57,9 +57,11 @@ async function tgPost<T = unknown>(url: string, payload: Record<string, unknown>
 }
 
 /** 发送纯文字消息，返回 message_id */
-export async function sendTextMessage(token: string, chatId: string, text: string): Promise<number> {
+export async function sendTextMessage(token: string, chatId: string, text: string, replyMarkup?: unknown): Promise<number> {
 	const url = `https://api.telegram.org/bot${token}/sendMessage`;
-	const data = await tgPost<{ message_id: number }>(url, { chat_id: chatId, text, parse_mode: 'MarkdownV2' }, 'sendMessage');
+	const payload: Record<string, unknown> = { chat_id: chatId, text, parse_mode: 'MarkdownV2' };
+	if (replyMarkup) payload.reply_markup = replyMarkup;
+	const data = await tgPost<{ message_id: number }>(url, payload, 'sendMessage');
 	return data.message_id;
 }
 
@@ -75,15 +77,6 @@ export async function editTextMessage(
 	const payload: Record<string, unknown> = { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' };
 	if (replyMarkup) payload.reply_markup = replyMarkup;
 	await tgPost(url, payload, 'editMessageText');
-}
-
-/** 发送文字消息并附带 reply_markup，返回 message_id */
-async function sendTextMessageWithMarkup(token: string, chatId: string, text: string, replyMarkup?: unknown): Promise<number> {
-	const url = `https://api.telegram.org/bot${token}/sendMessage`;
-	const payload: Record<string, unknown> = { chat_id: chatId, text, parse_mode: 'MarkdownV2' };
-	if (replyMarkup) payload.reply_markup = replyMarkup;
-	const data = await tgPost<{ message_id: number }>(url, payload, 'sendMessage');
-	return data.message_id;
 }
 
 function attToBlob(att: Attachment): Blob {
@@ -143,7 +136,7 @@ export async function sendWithAttachments(token: string, chatId: string, caption
 		} else {
 			// 多附件：先发文字消息（带键盘），再发媒体组作为回复（无 caption）
 			// 这样文字消息有完整 inline keyboard，附件也不会被 caption 拆开
-			const textMsgId = await sendTextMessageWithMarkup(token, chatId, caption, replyMarkup);
+			const textMsgId = await sendTextMessage(token, chatId, caption, replyMarkup);
 
 			const chunks: Attachment[][] = [];
 			for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
@@ -176,15 +169,7 @@ export async function editMessageCaption(
 /** 设置/更新消息的 inline keyboard */
 export async function setReplyMarkup(token: string, chatId: string, messageId: number, replyMarkup: unknown): Promise<void> {
 	const url = `https://api.telegram.org/bot${token}/editMessageReplyMarkup`;
-	const resp = await fetch(url, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: replyMarkup }),
-	});
-	if (!resp.ok) {
-		const err = (await resp.json()) as any;
-		console.error(`TG editMessageReplyMarkup failed: ${err?.description}`);
-	}
+	await tgPost(url, { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup }, 'editMessageReplyMarkup');
 }
 
 async function sendMediaGroupChunk(token: string, chatId: string, caption: string, attachments: Attachment[], replyToMessageId?: number): Promise<number> {

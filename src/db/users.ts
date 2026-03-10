@@ -36,6 +36,15 @@ export async function getAllUsers(db: D1Database): Promise<TelegramUser[]> {
 	return results;
 }
 
+/** 获取除管理员外的所有用户 */
+export async function getNonAdminUsers(db: D1Database, adminTelegramId: string): Promise<TelegramUser[]> {
+	const { results } = await db
+		.prepare('SELECT * FROM users WHERE telegram_id != ? ORDER BY last_login_at DESC')
+		.bind(adminTelegramId)
+		.all<TelegramUser>();
+	return results;
+}
+
 /** 批准用户 */
 export async function approveUser(db: D1Database, telegramId: string): Promise<void> {
 	await db.prepare('UPDATE users SET approved = 1 WHERE telegram_id = ?').bind(telegramId).run();

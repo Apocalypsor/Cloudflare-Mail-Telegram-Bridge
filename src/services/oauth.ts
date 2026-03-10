@@ -58,7 +58,7 @@ export async function startGoogleOAuth(request: Request, env: Env, accountId: nu
 	return Response.redirect(url, 302);
 }
 
-export type OAuthCallbackResult =
+type OAuthCallbackResult =
 	| { ok: true; refreshToken: string | undefined; scope: string; expiresIn: number | undefined; accountEmail: string; accountId: number; ownerTelegramId: string | null }
 	| { ok: false; title: string; detail: string; status: number };
 

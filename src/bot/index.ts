@@ -2,7 +2,7 @@ import { Api, Bot, InlineKeyboard } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import { BOT_INFO_TTL, KV_BOT_INFO_KEY } from '../constants';
 import { getVisibleAccounts } from '../db/accounts';
-import { approveUser, getAllUsers, getUserByTelegramId, rejectUser, upsertUser } from '../db/users';
+import { approveUser, getNonAdminUsers, getUserByTelegramId, rejectUser, upsertUser } from '../db/users';
 import { reportErrorToObservability } from '../services/observability';
 import type { Env } from '../types';
 import { isAdmin } from './auth';
@@ -112,7 +112,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 			return ctx.reply('⛔ 仅管理员可用');
 		}
 
-		const users = (await getAllUsers(env.DB)).filter((u) => u.telegram_id !== env.ADMIN_TELEGRAM_ID);
+		const users = await getNonAdminUsers(env.DB, env.ADMIN_TELEGRAM_ID);
 		return ctx.reply(userListText(users));
 	});
 
