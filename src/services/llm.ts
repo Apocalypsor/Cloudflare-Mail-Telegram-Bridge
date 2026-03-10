@@ -106,14 +106,15 @@ export async function summarizeEmail(
 			: '';
 
 	const prompt =
-		`Extract the key points of the following email in at most 5 concise sentences, using the SAME LANGUAGE as the email.\n` +
+		`Summarize the following email as a bullet-point list (3-6 bullets), using the SAME LANGUAGE as the email.\n` +
 		`Rules:\n` +
+		`- Each bullet starts with "• " and covers one key point\n` +
 		`- Do not use "the user" as subject, no lead-ins like "the email says" or "you received"\n` +
 		`- State directly what happened, what the key data is, and what action is needed\n` +
 		`- If the email contains a verification code, OTP, or activation code, you MUST include the exact code prominently\n` +
 		linkRule +
-		`- You may use Markdown formatting: **bold**, _italic_, \`code\` for codes/numbers, bullet lists\n` +
-		`- Output only the summary, no prefix or explanation\n\n` +
+		`- You may use Markdown formatting: **bold**, _italic_, \`code\` for codes/numbers\n` +
+		`- Output only the bullet list, no prefix or explanation\n\n` +
 		`Subject: ${subject}\n\n` +
 		`Body:\n${body}` +
 		linksSection;
