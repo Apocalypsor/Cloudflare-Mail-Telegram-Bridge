@@ -1,7 +1,6 @@
 import { parseHTML } from 'linkedom';
-import { convert } from 'telegram-markdown-v2';
 import TurndownService from 'turndown';
-import { escapeMdV2, findLongestValidMdV2Prefix } from './markdown-v2';
+import { escapeMdV2, findLongestValidMdV2Prefix, markdownToMdV2 } from './markdown-v2';
 
 /** HTML → Markdown 转换器实例（linkedom DOM + turndown） */
 const turndown = new TurndownService({
@@ -38,7 +37,7 @@ function sanitizeTelegramMdV2(md: string): string {
 /** 标准 Markdown → Telegram MarkdownV2 */
 export function toTelegramMdV2(markdown: string): string {
 	if (!markdown) return '';
-	return convert(markdown).trimEnd();
+	return markdownToMdV2(markdown).trimEnd();
 }
 
 function convertTelegramMdV2Safe(markdown: string): string {

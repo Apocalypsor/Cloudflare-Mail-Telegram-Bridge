@@ -24,7 +24,6 @@
 		"hono": "^4.12.5",
 		"linkedom": "^0.18.12",
 		"postal-mime": "^2.7.3",
-		"telegram-markdown-v2": "^0.0.4",
 		"turndown": "^7.2.2"
 	}
 }
