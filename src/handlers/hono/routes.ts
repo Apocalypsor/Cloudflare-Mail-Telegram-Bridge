@@ -8,6 +8,8 @@ export const ROUTE_ACCOUNTS_DELETE = '/api/accounts/:id/delete';
 export const ROUTE_ACCOUNTS_CLEAR_CACHE = '/api/accounts/:id/clear-cache';
 export const ROUTE_ACCOUNTS_WATCH = '/api/accounts/:id/watch';
 export const ROUTE_CLEAR_ALL_KV = '/api/clear-all-kv';
+export const ROUTE_USERS_APPROVE = '/api/users/:telegramId/approve';
+export const ROUTE_USERS_REJECT = '/api/users/:telegramId/reject';
 export const ROUTE_PREVIEW_API = '/api/preview';
 
 // ── Page routes (GET / HTML) ─────────────────────────────────────────────────

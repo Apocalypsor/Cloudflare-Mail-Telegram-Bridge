@@ -157,6 +157,33 @@ document.querySelectorAll('.edit-cancel').forEach(function (btn) {
     if (row) row.style.display = '';
     if (form) form.style.display = 'none';
   });
+});
+
+document.querySelectorAll('.approve-btn').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    var tid = this.dataset.tid;
+    this.disabled = true; this.textContent = '…';
+    try {
+      var r = await fetch('/api/users/' + tid + '/approve', { method: 'POST' });
+      if (r.ok) location.reload();
+      else showResult(await r.text(), false);
+    } catch { showResult('网络错误', false); }
+    finally { this.disabled = false; this.textContent = '批准'; }
+  });
+});
+
+document.querySelectorAll('.reject-btn').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    if (!confirm('确定要拒绝该用户吗？')) return;
+    var tid = this.dataset.tid;
+    this.disabled = true; this.textContent = '…';
+    try {
+      var r = await fetch('/api/users/' + tid + '/reject', { method: 'POST' });
+      if (r.ok) location.reload();
+      else showResult(await r.text(), false);
+    } catch { showResult('网络错误', false); }
+    finally { this.disabled = false; this.textContent = '拒绝'; }
+  });
 });`;
 }
 
@@ -343,6 +370,46 @@ export function DashboardPage({ accounts, error, isAdmin, users = [], userId }: 
 						</button>
 					)}
 				</div>
+
+				{/* ── 用户管理（管理员可见） ────────────────────────── */}
+				{isAdmin && users.length > 0 && (
+					<div class="mt-6">
+						<h2 class="text-lg font-semibold text-slate-100 mb-2">Users</h2>
+						<div class="space-y-2">
+							{users.map((u) => (
+								<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-900 border border-slate-700 rounded-lg">
+									<div class="min-w-0">
+										<p class="text-sm text-slate-200 font-medium truncate">
+											{u.first_name}{u.last_name ? ` ${u.last_name}` : ''}
+											{u.username && <span class="text-slate-400 ml-1">@{u.username}</span>}
+										</p>
+										<p class="text-xs text-slate-500">
+											ID: {u.telegram_id}
+											<span class="ml-2">最后登录: {u.last_login_at?.replace('T', ' ').slice(0, 16) || '—'}</span>
+										</p>
+									</div>
+									<div class="flex items-center gap-1.5 flex-shrink-0">
+										<span class={`text-xs px-2 py-0.5 rounded ${u.approved === 1 ? 'bg-emerald-900/50 text-emerald-300' : 'bg-amber-900/50 text-amber-300'}`}>
+											{u.approved === 1 ? '已批准' : '待审批'}
+										</span>
+										{u.telegram_id !== userId && (
+											<>
+												{u.approved !== 1 && (
+													<button class="text-xs px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded transition-colors approve-btn" data-tid={u.telegram_id} type="button">
+														批准
+													</button>
+												)}
+												<button class="text-xs px-2 py-1 bg-red-700 hover:bg-red-800 text-white rounded transition-colors reject-btn" data-tid={u.telegram_id} type="button">
+													{u.approved === 1 ? '撤回' : '拒绝'}
+												</button>
+											</>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
 
 				<div id="action-result" class="hidden" />
 			</Card>

@@ -14,6 +14,7 @@ import mail from './mail';
 import oauth from './oauth';
 import preview from './preview';
 import telegram from './telegram';
+import users from './users';
 
 const app = new Hono<AppEnv>();
 
@@ -42,6 +43,7 @@ app.route('', accounts);
 app.route('', oauth);
 app.route('', preview);
 app.route('', mail);
+app.route('', users);
 
 // ─── Telegram Login callback ────────────────────────────────────────────────
 app.get('/auth/telegram', async (c) => {
