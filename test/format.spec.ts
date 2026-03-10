@@ -100,8 +100,14 @@ describe('markdownToMdV2', () => {
 		expect(markdownToMdV2('use `console.log()`')).toBe('use `console.log()`');
 	});
 
-	it('handles fenced code blocks', () => {
+	it('handles fenced code blocks with language', () => {
 		const input = '```js\nconst x = 1;\n```';
+		const expected = '```js\nconst x = 1;\n```';
+		expect(markdownToMdV2(input)).toBe(expected);
+	});
+
+	it('handles fenced code blocks without language', () => {
+		const input = '```\nconst x = 1;\n```';
 		const expected = '```\nconst x = 1;\n```';
 		expect(markdownToMdV2(input)).toBe(expected);
 	});

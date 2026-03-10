@@ -74,14 +74,10 @@ export function markdownToMdV2(md: string): string {
 		s = s.replace(/`([^`]+)`/g, (_, code: string) => ph(`\`${escapeCode(code)}\``));
 
 		// 2. Images ![alt](url) → link (Telegram can't render inline images)
-		s = s.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, alt: string, url: string) =>
-			ph(`[${inline(alt || url)}](${escapeLinkUrl(url)})`),
-		);
+		s = s.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, alt: string, url: string) => ph(`[${inline(alt || url)}](${escapeLinkUrl(url)})`));
 
 		// 3. Links [text](url)
-		s = s.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (_, t: string, u: string) =>
-			ph(`[${inline(t)}](${escapeLinkUrl(u)})`),
-		);
+		s = s.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (_, t: string, u: string) => ph(`[${inline(t)}](${escapeLinkUrl(u)})`));
 
 		// 4. ***: bold + italic
 		s = s.replace(/\*{3}(.+?)\*{3}/g, (_, inner: string) => ph(`*_${inline(inner)}_*`));
@@ -93,14 +89,10 @@ export function markdownToMdV2(md: string): string {
 		s = s.replace(/__(.+?)__/g, (_, inner: string) => ph(`*${inline(inner)}*`));
 
 		// 7. Single *: italic → Telegram _
-		s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, (_, inner: string) =>
-			ph(`_${inline(inner)}_`),
-		);
+		s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, (_, inner: string) => ph(`_${inline(inner)}_`));
 
 		// 8. Single _: italic → Telegram _
-		s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, (_, inner: string) =>
-			ph(`_${inline(inner)}_`),
-		);
+		s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, (_, inner: string) => ph(`_${inline(inner)}_`));
 
 		// 9. ~~: strikethrough → Telegram ~
 		s = s.replace(/~~(.+?)~~/g, (_, inner: string) => ph(`~${inline(inner)}~`));
@@ -130,7 +122,8 @@ export function markdownToMdV2(md: string): string {
 				i++;
 			}
 			if (i < lines.length) i++; // skip closing fence
-			out.push(`\`\`\`\n${codeLines.map(escapeCode).join('\n')}\n\`\`\``);
+			const lang = fenceMatch[2].trim();
+			out.push(`\`\`\`${lang ? escapeCode(lang) : ''}\n${codeLines.map(escapeCode).join('\n')}\n\`\`\``);
 			continue;
 		}
 
