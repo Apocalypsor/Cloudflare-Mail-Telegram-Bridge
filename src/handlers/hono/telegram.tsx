@@ -1,13 +1,15 @@
 import { Hono } from 'hono';
 import { createBot, getBotInfo } from '../../bot';
 import type { AppEnv } from '../../types';
+import { timingSafeEqual } from '../../utils/hash';
 import { ROUTE_TELEGRAM_WEBHOOK } from './routes';
 
 const telegram = new Hono<AppEnv>();
 
 telegram.post(ROUTE_TELEGRAM_WEBHOOK, async (c) => {
 	const secret = c.env.TELEGRAM_WEBHOOK_SECRET;
-	if (!secret || c.req.query('secret') !== secret) {
+	const provided = c.req.query('secret');
+	if (!secret || !provided || !timingSafeEqual(provided, secret)) {
 		return c.text('Forbidden', 403);
 	}
 
