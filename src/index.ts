@@ -1,6 +1,6 @@
 import app from './handlers/hono';
 import { handleQueueBatch } from './handlers/queue';
-import { renewWatchAll } from './services/gmail';
+import { renewWatchAll } from './services/email/gmail';
 import { reportErrorToObservability } from './services/observability';
 import type { Env, QueueMessage } from './types';
 

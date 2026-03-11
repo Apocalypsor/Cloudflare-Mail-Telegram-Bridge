@@ -2,9 +2,10 @@ import { Hono } from 'hono';
 import { FAVICON_BASE64 } from '../../assets/favicon';
 import { reportErrorToObservability } from '../../services/observability';
 import type { AppEnv } from '../../types';
-import gmail from './gmail';
+import gmailOauth from './email/gmail/oauth';
+import gmailPush from './email/gmail/push';
+import imapRoutes from './email/imap/index';
 import mail from './mail';
-import oauth from './oauth';
 import preview from './preview';
 import telegram from './telegram';
 
@@ -30,8 +31,9 @@ app.onError(async (error, c) => {
 
 // ─── Mount sub-routers ──────────────────────────────────────────────────────
 app.route('', telegram);
-app.route('', gmail);
-app.route('', oauth);
+app.route('', gmailPush);
+app.route('', gmailOauth);
+app.route('', imapRoutes);
 app.route('', preview);
 app.route('', mail);
 

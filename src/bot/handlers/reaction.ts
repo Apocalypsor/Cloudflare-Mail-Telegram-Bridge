@@ -1,5 +1,6 @@
 import type { Bot } from 'grammy';
 import { markAsReadByMessage } from '../../services/message-actions';
+import { reportErrorToObservability } from '../../services/observability';
 import type { Env } from '../../types';
 
 /** 任意 emoji reaction → 标记 Gmail 已读（同时支持群组和频道） */
@@ -13,7 +14,9 @@ export function registerReactionHandler(bot: Bot, env: Env) {
 		const hasNewReaction = (ctx.messageReaction.new_reaction || []).length > 0;
 		if (!hasNewReaction) return;
 
-		await markAsReadByMessage(env, chatId, messageId);
+		await markAsReadByMessage(env, chatId, messageId).catch((err) =>
+			reportErrorToObservability(env, 'reaction.mark_read_failed', err, { chatId, messageId }),
+		);
 	});
 
 	// 频道：匿名 reaction（只有数量）
@@ -25,6 +28,8 @@ export function registerReactionHandler(bot: Bot, env: Env) {
 
 		if (totalCount <= 0) return;
 
-		await markAsReadByMessage(env, chatId, messageId);
+		await markAsReadByMessage(env, chatId, messageId).catch((err) =>
+			reportErrorToObservability(env, 'reaction.mark_read_failed', err, { chatId, messageId }),
+		);
 	});
 }

@@ -1,13 +1,16 @@
 import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
+import { Api } from 'grammy';
 import { OAUTH_STATE_TTL_SECONDS } from '../../constants';
 import { createAccount, deleteAccount, getAllAccounts, getAuthorizedAccount, getOwnAccounts, getVisibleAccounts, updateAccount } from '../../db/accounts';
 import { getAllUsers } from '../../db/users';
 import { clearAccountCache, deleteHistoryId } from '../../db/kv';
-import { renewWatch, stopWatch } from '../../services/gmail';
-import { generateOAuthUrl } from '../../services/oauth';
+import { renewWatch, stopWatch } from '../../services/email/gmail';
+import { syncAccounts } from '../../services/email/imap/bridge';
+import { generateOAuthUrl } from '../../services/email/gmail/oauth';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Account, Env } from '../../types';
+import { AccountType } from '../../types';
 import { isAdmin } from '../auth';
 import { accountDetailKeyboard, accountDetailText, formatUserName } from '../formatters';
 import { clearBotState, getBotState, setBotState } from '../state';
@@ -23,7 +26,7 @@ async function resolveAccount(env: Env, fromId: number, accountIdStr: string) {
 export function accountListKeyboard(accounts: Account[], options?: { isAdmin?: boolean; showAll?: boolean }): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const acc of accounts) {
-		const status = acc.refresh_token ? '✅' : '❌';
+		const status = acc.type === AccountType.Imap ? '📬' : acc.refresh_token ? '✅' : '❌';
 		const display = acc.label || acc.email || `#${acc.id}`;
 		kb.text(`${status} ${display}`, `acc:${acc.id}`).row();
 	}
@@ -70,10 +73,11 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// OAuth authorization - generate URL and show as button
+	// OAuth authorization (Gmail only)
 	bot.callbackQuery(/^acc:(\d+):auth$/, async (ctx) => {
 		const { accountId, account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
+		if (account.type === AccountType.Imap) return ctx.answerCallbackQuery({ text: 'IMAP 账号不需要 OAuth 授权' });
 
 		try {
 			const origin = env.WORKER_URL?.replace(/\/$/, '') || '';
@@ -85,7 +89,6 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 				{ reply_markup: kb },
 			);
 
-			// 记录消息坐标，OAuth 回调后更新此消息
 			const msg = ctx.callbackQuery.message;
 			if (msg) {
 				await env.EMAIL_KV.put(
@@ -101,13 +104,11 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// Renew watch
+	// Renew watch (Gmail only)
 	bot.callbackQuery(/^acc:(\d+):w$/, async (ctx) => {
 		const { account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
-		if (!account.refresh_token) {
-			return ctx.answerCallbackQuery({ text: '账号未授权' });
-		}
+		if (!account.refresh_token) return ctx.answerCallbackQuery({ text: '账号未授权' });
 
 		try {
 			await renewWatch(env, account);
@@ -145,16 +146,25 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		const { userId, accountId, admin, account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
 
-		if (account.refresh_token) {
-			try {
-				await stopWatch(env, account);
-			} catch (err) {
-				await reportErrorToObservability(env, 'bot.stop_watch_failed', err, { accountEmail: account.email });
+		if (account.type === AccountType.Imap) {
+			await deleteAccount(env.DB, accountId);
+			// 通知中间件更新连接列表
+			if (env.IMAP_BRIDGE_URL && env.IMAP_BRIDGE_SECRET) {
+				syncAccounts(env).catch((err) => {
+					reportErrorToObservability(env, 'imap.sync_after_delete_failed', err, { accountId });
+				});
 			}
+		} else {
+			if (account.refresh_token) {
+				try {
+					await stopWatch(env, account);
+				} catch (err) {
+					await reportErrorToObservability(env, 'bot.stop_watch_failed', err, { accountEmail: account.email });
+				}
+			}
+			await Promise.all([deleteAccount(env.DB, accountId), deleteHistoryId(env, accountId)]);
 		}
-		await Promise.all([deleteAccount(env.DB, accountId), deleteHistoryId(env, accountId)]);
 
-		// Show updated account list (own accounts)
 		const accounts = admin ? await getOwnAccounts(env.DB, userId) : await getVisibleAccounts(env.DB, userId, false);
 		await ctx.editMessageText(`✅ 账号 #${accountId} 已删除\n\n📧 我的账号 (${accounts.length})`, {
 			reply_markup: accountListKeyboard(accounts, { isAdmin: admin }),
@@ -281,7 +291,7 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// Skip label → create account directly
+	// Skip label → show type selection
 	bot.callbackQuery('skiplabel', async (ctx) => {
 		const userId = String(ctx.from.id);
 		const state = await getBotState(env, userId);
@@ -289,12 +299,34 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 			return ctx.answerCallbackQuery({ text: '操作已过期' });
 		}
 
+		await setBotState(env, userId, { action: 'add', step: 'type', chatId: state.chatId });
+		const kb = new InlineKeyboard()
+			.text('📨 Gmail (OAuth)', 'addtype:gmail')
+			.row()
+			.text('📬 IMAP', 'addtype:imap')
+			.row()
+			.text('❌ 取消', 'accs');
+		await ctx.editMessageText(`➕ 添加账号\n\nChat ID: ${state.chatId}\n\n选择账号类型：`, { reply_markup: kb });
+		await ctx.answerCallbackQuery();
+	});
+
+	// Type selection: Gmail
+	bot.callbackQuery('addtype:gmail', async (ctx) => {
+		const userId = String(ctx.from.id);
+		const state = await getBotState(env, userId);
+		if (!state || state.action !== 'add' || state.step !== 'type') {
+			return ctx.answerCallbackQuery({ text: '操作已过期' });
+		}
+
 		try {
-			const account = await createAccount(env.DB, state.chatId, undefined, userId);
+			const account = await createAccount(env.DB, state.chatId, state.label, userId);
 			await clearBotState(env, userId);
 
 			const kb = new InlineKeyboard().text('查看账号', `acc:${account.id}`).text('账号列表', 'accs');
-			await ctx.editMessageText(`✅ 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}`, { reply_markup: kb });
+			await ctx.editMessageText(
+				`✅ Gmail 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}${state.label ? `\n标签: ${state.label}` : ''}\n\n请点击「查看账号」完成 Google OAuth 授权。`,
+				{ reply_markup: kb },
+			);
 		} catch (err) {
 			await clearBotState(env, userId);
 			await ctx.editMessageText(`❌ 创建失败: ${err instanceof Error ? err.message : String(err)}`);
@@ -302,4 +334,42 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
+	// Type selection: IMAP
+	bot.callbackQuery('addtype:imap', async (ctx) => {
+		const userId = String(ctx.from.id);
+		const state = await getBotState(env, userId);
+		if (!state || state.action !== 'add' || state.step !== 'type') {
+			return ctx.answerCallbackQuery({ text: '操作已过期' });
+		}
+
+		if (!env.IMAP_BRIDGE_URL || !env.IMAP_BRIDGE_SECRET) {
+			return ctx.answerCallbackQuery({ text: '❌ IMAP 中间件未配置，请联系管理员' });
+		}
+
+		await setBotState(env, userId, { action: 'add_imap', step: 'host', chatId: state.chatId, label: state.label });
+		const kb = new InlineKeyboard().text('❌ 取消', 'accs');
+		await ctx.editMessageText(
+			`📬 添加 IMAP 账号\n\nChat ID: ${state.chatId}\n\n请发送 IMAP 服务器地址（如 imap.gmail.com）：`,
+			{ reply_markup: kb },
+		);
+		await ctx.answerCallbackQuery();
+	});
+
+	// IMAP: secure selection (Yes/No inline buttons)
+	bot.callbackQuery(/^imapsecure:(yes|no)$/, async (ctx) => {
+		const userId = String(ctx.from.id);
+		const state = await getBotState(env, userId);
+		if (!state || state.action !== 'add_imap' || state.step !== 'secure') {
+			return ctx.answerCallbackQuery({ text: '操作已过期' });
+		}
+
+		const secure = ctx.match![1] === 'yes';
+		await setBotState(env, userId, { ...state, step: 'user', imapSecure: secure });
+		const kb = new InlineKeyboard().text('❌ 取消', 'accs');
+		await ctx.editMessageText(
+			`📬 添加 IMAP 账号\n\n服务器: ${state.imapHost}:${state.imapPort} ${secure ? '(TLS)' : '(无 TLS)'}\n\n请发送 IMAP 用户名（通常为邮箱地址）：`,
+			{ reply_markup: kb },
+		);
+		await ctx.answerCallbackQuery();
+	});
 }

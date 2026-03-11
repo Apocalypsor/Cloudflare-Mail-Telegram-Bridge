@@ -4,7 +4,7 @@ import { countFailedEmails, deleteAllFailedEmails, deleteFailedEmail, getAllFail
 import { clearAllKV } from '../../db/kv';
 import { approveUser, getNonAdminUsers, rejectUser } from '../../db/users';
 import { retryAllFailedEmails, retryFailedEmail } from '../../services/bridge';
-import { renewWatchAll } from '../../services/gmail';
+import { renewWatchAll } from '../../services/email/gmail';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Env, TelegramUser } from '../../types';
 import { isAdmin } from '../auth';

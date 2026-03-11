@@ -19,3 +19,8 @@ export function base64urlToArrayBuffer(b64url: string): ArrayBuffer {
 export function base64urlToString(b64url: string): string {
 	return new TextDecoder('utf-8').decode(decodeBase64UrlBytes(b64url));
 }
+
+/** 标准 base64 → ArrayBuffer */
+export function base64ToArrayBuffer(b64: string): ArrayBuffer {
+	return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer as ArrayBuffer;
+}

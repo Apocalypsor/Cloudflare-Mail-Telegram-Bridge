@@ -25,8 +25,10 @@ export const TG_MAX_RETRY_AFTER_SECS = 60;
 // ── LLM / 邮件处理 ──────────────────────────────────────────────────────────
 export const MAX_BODY_CHARS = 4000;
 export const MAX_LINKS = 20;
-export const DIRECT_PROCESS_THRESHOLD = 3;
 
+// ── IMAP flags ───────────────────────────────────────────────────────────────
+export const IMAP_FLAG_SEEN = '\\Seen' as const;
+export const IMAP_FLAG_FLAGGED = '\\Flagged' as const;
 
 // ── Display ──────────────────────────────────────────────────────────────────
 export const MESSAGE_DATE_LOCALE = 'zh-CN';

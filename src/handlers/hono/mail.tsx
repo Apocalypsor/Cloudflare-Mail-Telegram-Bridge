@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getAccountById } from '../../db/accounts';
 import { getCachedMailHtml, putCachedMailHtml } from '../../db/kv';
 import { getMessageMappingByGmailId } from '../../db/message-map';
-import { getAccessToken } from '../../services/gmail';
+import { getAccessToken } from '../../services/email/gmail';
 import { fetchMailContent } from '../../services/mail-content';
 import type { AppEnv } from '../../types';
 import { verifyMailToken } from '../../utils/hash';

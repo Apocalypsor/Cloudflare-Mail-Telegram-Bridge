@@ -1,7 +1,8 @@
-import { GMAIL_API, GOOGLE_OAUTH_TOKEN_URL } from '../constants';
-import type { Account, Env } from '../types';
-import { getAllAccounts } from '../db/accounts';
-import { getCachedAccessToken, getHistoryId, putCachedAccessToken, putHistoryId } from '../db/kv';
+import { GMAIL_API, GOOGLE_OAUTH_TOKEN_URL } from '../../../constants';
+import type { Account, Env } from '../../../types';
+import { AccountType } from '../../../types';
+import { getAllAccounts } from '../../../db/accounts';
+import { getCachedAccessToken, getHistoryId, putCachedAccessToken, putHistoryId } from '../../../db/kv';
 import type { GoogleTokenResponse } from './oauth';
 
 // ─── OAuth2 ──────────────────────────────────────────────────────────────────
@@ -123,12 +124,12 @@ export async function renewWatch(env: Env, account: Account): Promise<void> {
 	}
 }
 
-/** 为所有已授权的账号续订 watch */
+/** 为所有已授权的 Gmail 账号续订 watch */
 export async function renewWatchAll(env: Env): Promise<void> {
 	const accounts = await getAllAccounts(env.DB);
 	for (const account of accounts) {
-		if (!account.refresh_token) {
-			console.log(`Skipping watch renewal for ${account.email}: no refresh token`);
+		if (account.type !== AccountType.Gmail || !account.refresh_token) {
+			console.log(`Skipping watch renewal for ${account.email}: not a Gmail account or no refresh token`);
 			continue;
 		}
 		await renewWatch(env, account);
@@ -184,4 +185,3 @@ export async function fetchNewMessageIds(token: string, env: Env, account: Accou
 
 	return [...messageIds];
 }
-

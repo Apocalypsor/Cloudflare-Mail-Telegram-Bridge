@@ -9,6 +9,12 @@ function botStateKey(userId: string): string {
 export type BotInputState =
 	| { action: 'add'; step: 'chat_id' }
 	| { action: 'add'; step: 'label'; chatId: string }
+	| { action: 'add'; step: 'type'; chatId: string; label?: string }
+	| { action: 'add_imap'; step: 'host'; chatId: string; label?: string }
+	| { action: 'add_imap'; step: 'port'; chatId: string; label?: string; imapHost: string }
+	| { action: 'add_imap'; step: 'secure'; chatId: string; label?: string; imapHost: string; imapPort: number }
+	| { action: 'add_imap'; step: 'user'; chatId: string; label?: string; imapHost: string; imapPort: number; imapSecure: boolean }
+	| { action: 'add_imap'; step: 'pass'; chatId: string; label?: string; imapHost: string; imapPort: number; imapSecure: boolean; imapUser: string }
 	| { action: 'edit_chatid'; accountId: number }
 	| { action: 'edit_label'; accountId: number };
 

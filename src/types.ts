@@ -11,14 +11,26 @@ export interface ObservabilityServiceBinding {
 	reportError(payload: ObservabilityErrorPayload | null | undefined): Promise<void>;
 }
 
+export enum AccountType {
+	Gmail = 'gmail',
+	Imap = 'imap',
+}
+
 /** D1 accounts 表记录 */
 export interface Account {
 	id: number;
+	type: AccountType;
 	email: string | null;
 	chat_id: string;
 	refresh_token: string | null;
 	label: string | null;
 	telegram_user_id: string | null;
+	/** IMAP only */
+	imap_host: string | null;
+	imap_port: number | null;
+	imap_secure: number | null; // 0 | 1
+	imap_user: string | null;
+	imap_pass: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -82,21 +94,18 @@ export interface Env {
 	TELEGRAM_WEBHOOK_SECRET: string;
 	/** Worker 对外访问 URL，例如 https://gmail-tg-bridge.xxx.workers.dev（用于生成邮件查看链接） */
 	WORKER_URL?: string;
+	/** IMAP 中间件 URL，例如 https://middleware.example.com */
+	IMAP_BRIDGE_URL?: string;
+	/** IMAP 中间件共享密钥（Bearer token） */
+	IMAP_BRIDGE_SECRET?: string;
 }
 
 /** 队列消息体 */
-export type QueueMessage =
-	| {
-			type: 'sync';
-			accountId: number;
-			pubsubMessageId: string;
-			historyId: string;
-	  }
-	| {
-			type: 'message';
-			accountId: number;
-			messageId: string;
-	  };
+export interface QueueMessage {
+	/** Gmail messageId 或 IMAP UID（字符串形式），出队时按账号类型分支处理 */
+	accountId: number;
+	messageId: string;
+}
 
 /** Pub/Sub push 请求体 */
 export interface PubSubPushBody {

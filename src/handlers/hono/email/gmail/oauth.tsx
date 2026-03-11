@@ -1,16 +1,16 @@
 import { Api } from 'grammy';
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { accountDetailKeyboard, accountDetailText } from '../../bot/formatters';
-import { OAuthCallbackPage, OAuthErrorPage, OAuthSetupPage } from '../../components/oauth';
-import { getAccountById } from '../../db/accounts';
-import { getOAuthPageProps, processOAuthCallback, startGoogleOAuth } from '../../services/oauth';
-import type { AppEnv } from '../../types';
-import { ROUTE_OAUTH_GOOGLE, ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from './routes';
+import { accountDetailKeyboard, accountDetailText } from '../../../../bot/formatters';
+import { OAuthCallbackPage, OAuthErrorPage, OAuthSetupPage } from '../../../../components/oauth';
+import { getAccountById } from '../../../../db/accounts';
+import { getOAuthPageProps, processOAuthCallback, startGoogleOAuth } from '../../../../services/email/gmail/oauth';
+import type { AppEnv } from '../../../../types';
+import { ROUTE_OAUTH_GOOGLE, ROUTE_OAUTH_GOOGLE_CALLBACK, ROUTE_OAUTH_GOOGLE_START } from '../../routes';
 
-const oauth = new Hono<AppEnv>();
+const gmailOauth = new Hono<AppEnv>();
 
-oauth.get(ROUTE_OAUTH_GOOGLE, async (c) => {
+gmailOauth.get(ROUTE_OAUTH_GOOGLE, async (c) => {
 	const accountId = parseInt(c.req.query('account') || '0', 10);
 	if (isNaN(accountId) || accountId <= 0) return c.text('Invalid account ID', 400);
 	const account = await getAccountById(c.env.DB, accountId);
@@ -20,7 +20,7 @@ oauth.get(ROUTE_OAUTH_GOOGLE, async (c) => {
 	return c.html(<OAuthSetupPage {...props} />);
 });
 
-oauth.get(ROUTE_OAUTH_GOOGLE_START, async (c) => {
+gmailOauth.get(ROUTE_OAUTH_GOOGLE_START, async (c) => {
 	const accountId = parseInt(c.req.query('account') || '0', 10);
 	if (isNaN(accountId) || accountId <= 0) return c.text('Invalid account ID', 400);
 	const account = await getAccountById(c.env.DB, accountId);
@@ -29,7 +29,7 @@ oauth.get(ROUTE_OAUTH_GOOGLE_START, async (c) => {
 	return startGoogleOAuth(c.req.raw, c.env, account.id);
 });
 
-oauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
+gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 	const result = await processOAuthCallback(c.req.raw, c.env);
 	if (!result.ok) {
 		return c.html(
@@ -67,4 +67,4 @@ oauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
 	);
 });
 
-export default oauth;
+export default gmailOauth;

@@ -65,3 +65,44 @@ export async function updateAccount(db: D1Database, id: number, chatId: string, 
 		await db.prepare("UPDATE accounts SET chat_id = ?, label = ?, updated_at = datetime('now') WHERE id = ?").bind(chatId, label, id).run();
 	}
 }
+
+/** 获取所有 IMAP 账号（供中间件拉取） */
+export async function getImapAccounts(db: D1Database): Promise<Account[]> {
+	const { results } = await db.prepare("SELECT * FROM accounts WHERE type = 'imap' ORDER BY id").all<Account>();
+	return results;
+}
+
+/** 创建 IMAP 账号 */
+export async function createImapAccount(
+	db: D1Database,
+	params: {
+		chatId: string;
+		label?: string;
+		telegramUserId?: string;
+		email: string;
+		imapHost: string;
+		imapPort: number;
+		imapSecure: number;
+		imapUser: string;
+		imapPass: string;
+	},
+): Promise<Account> {
+	const result = await db
+		.prepare(
+			"INSERT INTO accounts (type, chat_id, label, telegram_user_id, email, imap_host, imap_port, imap_secure, imap_user, imap_pass) VALUES ('imap', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
+		)
+		.bind(
+			params.chatId,
+			params.label ?? null,
+			params.telegramUserId ?? null,
+			params.email,
+			params.imapHost,
+			params.imapPort,
+			params.imapSecure,
+			params.imapUser,
+			params.imapPass,
+		)
+		.first<Account>();
+	if (!result) throw new Error('Failed to create IMAP account');
+	return result;
+}

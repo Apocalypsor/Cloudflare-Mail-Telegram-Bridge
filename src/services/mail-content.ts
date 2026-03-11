@@ -1,5 +1,5 @@
 import { base64urlToString } from '../utils/base64url';
-import { gmailGet } from './gmail';
+import { gmailGet } from './email/gmail';
 
 /** 从 Gmail API 获取邮件正文 HTML，优先 HTML，fallback 到纯文本 */
 export async function fetchMailContent(accessToken: string, gmailMessageId: string): Promise<string | null> {
