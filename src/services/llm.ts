@@ -79,8 +79,10 @@ async function callLLM(baseUrl: string, apiKey: string, model: string, prompt: s
 		throw new Error(`LLM API ${resp.status}: ${await resp.text()}`);
 	}
 
-	const data = (await resp.json()) as { choices: Array<{ message: { content: string } }> };
-	return data.choices[0].message.content.trim();
+	const data = (await resp.json()) as { choices?: Array<{ message: { content: string } }> };
+	const content = data.choices?.[0]?.message?.content;
+	if (!content) throw new Error('LLM API returned no choices');
+	return content.trim();
 }
 
 /** 调用 LLM 生成邮件摘要 */

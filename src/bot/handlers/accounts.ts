@@ -215,7 +215,8 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await clearBotState(env, userId);
 		await updateAccount(env.DB, accountId, account.chat_id, null);
 		const updated = await getAuthorizedAccount(env.DB, accountId, userId, admin);
-		await ctx.editMessageText(accountDetailText(updated!), { reply_markup: accountDetailKeyboard(updated!) });
+		if (!updated) return ctx.answerCallbackQuery({ text: '账号不存在' });
+		await ctx.editMessageText(accountDetailText(updated), { reply_markup: accountDetailKeyboard(updated) });
 		await ctx.answerCallbackQuery({ text: '✅ 标签已清空' });
 	});
 
@@ -255,7 +256,8 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
 		await updateAccount(env.DB, accountId, account.chat_id, account.label, newOwner);
 		const updated = await getAuthorizedAccount(env.DB, accountId, userId, true);
-		await ctx.editMessageText(accountDetailText(updated!), { reply_markup: accountDetailKeyboard(updated!) });
+		if (!updated) return ctx.answerCallbackQuery({ text: '账号不存在' });
+		await ctx.editMessageText(accountDetailText(updated), { reply_markup: accountDetailKeyboard(updated) });
 		await ctx.answerCallbackQuery({ text: `✅ 已分配给 ${newOwner}` });
 	});
 
