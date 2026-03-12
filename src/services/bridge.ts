@@ -31,16 +31,22 @@ function getEmailPlainBody(email: { text?: string; html?: string }): string {
 	return '';
 }
 
-function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string): string {
+function buildTelegramHeader(fromName: string, fromAddress: string, recipient: string, subject: string, accountEmail?: string): string {
 	const date = new Date().toLocaleString(MESSAGE_DATE_LOCALE, { timeZone: MESSAGE_DATE_TIMEZONE });
-	return [
+	const lines = [
 		`*发件人:*  ${escapeMdV2(`${fromName} <${fromAddress}>`)}`,
 		`*收件人:*  ${escapeMdV2(recipient)}`,
+	];
+	if (accountEmail && accountEmail.toLowerCase() !== recipient.toLowerCase()) {
+		lines.push(`*账  号:*  ${escapeMdV2(accountEmail)}`);
+	}
+	lines.push(
 		`*时  间:*  ${escapeMdV2(date)}`,
 		`*主  题:*  ${escapeMdV2(subject)}`,
 		``,
 		``,
-	].join('\n');
+	);
+	return lines.join('\n');
 }
 
 /** 按账号类型拉取原始邮件 */
@@ -78,8 +84,8 @@ export async function deliverEmailToTelegram(
 	const email = await parser.parse(rawEmail);
 
 	const subject = email.subject || '无主题';
-	const recipient = account.email || `Account #${account.id}`;
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
+	const recipient = email.to?.map((t) => (t.name ? `${t.name} <${t.address}>` : t.address)).join(', ') || account.email || `Account #${account.id}`;
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const hasSingleAttachment = hasAttachments && email.attachments!.length === 1;
 	const charLimit = hasSingleAttachment ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
@@ -193,8 +199,8 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	}
 
 	const subject = email.subject || '无主题';
-	const recipient = account.email || `Account #${account.id}`;
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject);
+	const recipient = email.to?.map((t) => (t.name ? `${t.name} <${t.address}>` : t.address)).join(', ') || account.email || `Account #${account.id}`;
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
 	const charLimit = failed.is_caption ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
 	const formattedBody = formatBody(email.text, email.html, bodyBudget);
