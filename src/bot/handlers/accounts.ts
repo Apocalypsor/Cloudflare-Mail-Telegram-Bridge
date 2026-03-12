@@ -150,7 +150,7 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 			await deleteAccount(env.DB, accountId);
 			// 通知中间件更新连接列表
 			if (env.IMAP_BRIDGE_URL && env.IMAP_BRIDGE_SECRET) {
-				syncAccounts(env).catch((err) => {
+				await syncAccounts(env).catch((err) => {
 					reportErrorToObservability(env, 'imap.sync_after_delete_failed', err, { accountId });
 				});
 			}
