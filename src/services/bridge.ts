@@ -84,7 +84,7 @@ export async function deliverEmailToTelegram(
 	const email = await parser.parse(rawEmail);
 
 	const subject = email.subject || '无主题';
-	const recipient = email.to?.map((t) => (t.name ? `${t.name} <${t.address}>` : t.address)).join(', ') || account.email || `Account #${account.id}`;
+	const recipient = email.to?.map((t) => t.address).join(', ') || account.email || `Account #${account.id}`;
 	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const hasSingleAttachment = hasAttachments && email.attachments!.length === 1;
@@ -199,7 +199,7 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	}
 
 	const subject = email.subject || '无主题';
-	const recipient = email.to?.map((t) => (t.name ? `${t.name} <${t.address}>` : t.address)).join(', ') || account.email || `Account #${account.id}`;
+	const recipient = email.to?.map((t) => t.address).join(', ') || account.email || `Account #${account.id}`;
 	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
 	const charLimit = failed.is_caption ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
