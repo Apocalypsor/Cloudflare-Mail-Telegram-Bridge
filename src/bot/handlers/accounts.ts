@@ -15,6 +15,8 @@ import { getAllUsers } from '../../db/users';
 import { renewWatch, stopWatch } from '../../services/email/gmail';
 import { generateOAuthUrl } from '../../services/email/gmail/oauth';
 import { syncAccounts } from '../../services/email/imap/bridge';
+import { renewSubscription, stopSubscription } from '../../services/email/outlook';
+import { generateOAuthUrl as generateMsOAuthUrl } from '../../services/email/outlook/oauth';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Account, Env } from '../../types';
 import { AccountType } from '../../types';
@@ -80,7 +82,7 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// OAuth authorization (Gmail only)
+	// OAuth authorization (Gmail / Outlook)
 	bot.callbackQuery(/^acc:(\d+):auth$/, async (ctx) => {
 		const { accountId, account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
@@ -88,12 +90,15 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
 		try {
 			const origin = env.WORKER_URL?.replace(/\/$/, '') || '';
-			const oauthUrl = await generateOAuthUrl(env, accountId, origin);
+			const isOutlook = account.type === AccountType.Outlook;
+			const oauthUrl = isOutlook ? await generateMsOAuthUrl(env, accountId, origin) : await generateOAuthUrl(env, accountId, origin);
+			const providerName = isOutlook ? 'Microsoft' : 'Google';
 
 			const kb = new InlineKeyboard().url('🔗 点击授权', oauthUrl).row().text('« 返回', `acc:${accountId}`);
-			await ctx.editMessageText(`🔑 Google OAuth 授权\n\n账号: ${account.email || `#${account.id}`}\n\n请点击下方按钮完成 Google 授权：`, {
-				reply_markup: kb,
-			});
+			await ctx.editMessageText(
+				`🔑 ${providerName} OAuth 授权\n\n账号: ${account.email || `#${account.id}`}\n\n请点击下方按钮完成 ${providerName} 授权：`,
+				{ reply_markup: kb },
+			);
 
 			const msg = ctx.callbackQuery.message;
 			if (msg) {
@@ -108,14 +113,18 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// Renew watch (Gmail only)
+	// Renew watch / subscription (Gmail / Outlook)
 	bot.callbackQuery(/^acc:(\d+):w$/, async (ctx) => {
 		const { account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
 		if (!account.refresh_token) return ctx.answerCallbackQuery({ text: '账号未授权' });
 
 		try {
-			await renewWatch(env, account);
+			if (account.type === AccountType.Outlook) {
+				await renewSubscription(env, account);
+			} else {
+				await renewWatch(env, account);
+			}
 			await ctx.answerCallbackQuery({ text: `✅ Watch 已续订: ${account.email}` });
 		} catch (err) {
 			await reportErrorToObservability(env, 'bot.watch_renew_failed', err);
@@ -158,6 +167,15 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 					reportErrorToObservability(env, 'imap.sync_after_delete_failed', err, { accountId });
 				});
 			}
+		} else if (account.type === AccountType.Outlook) {
+			if (account.refresh_token) {
+				try {
+					await stopSubscription(env, account);
+				} catch (err) {
+					await reportErrorToObservability(env, 'bot.stop_subscription_failed', err, { accountEmail: account.email });
+				}
+			}
+			await deleteAccount(env.DB, accountId);
 		} else {
 			if (account.refresh_token) {
 				try {
@@ -265,6 +283,8 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		const kb = new InlineKeyboard()
 			.text('📨 Gmail (OAuth)', 'addtype:gmail')
 			.row()
+			.text('📮 Outlook (OAuth)', 'addtype:outlook')
+			.row()
 			.text('📬 IMAP', 'addtype:imap')
 			.row()
 			.text('❌ 取消', 'accs');
@@ -287,6 +307,35 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 			const kb = new InlineKeyboard().text('查看账号', `acc:${account.id}`).text('账号列表', 'accs');
 			await ctx.editMessageText(
 				`✅ Gmail 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}\n\n请点击「查看账号」完成 Google OAuth 授权。`,
+				{ reply_markup: kb },
+			);
+		} catch (err) {
+			await clearBotState(env, userId);
+			await reportErrorToObservability(env, 'bot.create_account_failed', err);
+			await ctx.editMessageText('❌ 创建失败，请稍后重试');
+		}
+		await ctx.answerCallbackQuery();
+	});
+
+	// Type selection: Outlook
+	bot.callbackQuery('addtype:outlook', async (ctx) => {
+		const userId = String(ctx.from.id);
+		const state = await getBotState(env, userId);
+		if (!state || state.action !== 'add' || state.step !== 'type') {
+			return ctx.answerCallbackQuery({ text: '操作已过期' });
+		}
+
+		if (!env.MS_CLIENT_ID || !env.MS_CLIENT_SECRET) {
+			return ctx.answerCallbackQuery({ text: '❌ Microsoft OAuth 未配置，请联系管理员' });
+		}
+
+		try {
+			const account = await createAccount(env.DB, state.chatId, userId, AccountType.Outlook);
+			await clearBotState(env, userId);
+
+			const kb = new InlineKeyboard().text('查看账号', `acc:${account.id}`).text('账号列表', 'accs');
+			await ctx.editMessageText(
+				`✅ Outlook 账号已创建 #${account.id}\n\nChat ID: ${state.chatId}\n\n请点击「查看账号」完成 Microsoft OAuth 授权。`,
 				{ reply_markup: kb },
 			);
 		} catch (err) {

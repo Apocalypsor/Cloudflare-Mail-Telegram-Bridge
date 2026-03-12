@@ -1,25 +1,31 @@
 import { Card, Layout } from './layout';
 
-export function OAuthSetupPage({ startUrl, callbackUrl, accountEmail }: { startUrl: string; callbackUrl: string; accountEmail: string }) {
+export function OAuthSetupPage({
+	startUrl,
+	callbackUrl,
+	accountEmail,
+	provider = 'Gmail',
+}: {
+	startUrl: string;
+	callbackUrl: string;
+	accountEmail: string;
+	provider?: string;
+}) {
 	return (
-		<Layout title="Gmail OAuth 授权">
+		<Layout title={`${provider} OAuth 授权`}>
 			<Card class="max-w-3xl">
-				<h1 class="text-2xl font-bold text-slate-100 mb-3">Gmail OAuth 授权</h1>
+				<h1 class="text-2xl font-bold text-slate-100 mb-3">{provider} OAuth 授权</h1>
 				<p class="text-sm text-slate-400 leading-relaxed">
-					为账号 <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">{accountEmail}</code> 授权 Gmail 访问权限。 使用当前
-					Worker 的 <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">GMAIL_CLIENT_ID</code> 和{' '}
-					<code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">GMAIL_CLIENT_SECRET</code> 发起 OAuth，然后把{' '}
-					<code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">refresh_token</code> 保存到 D1 数据库。
+					为账号 <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">{accountEmail}</code> 授权 {provider}{' '}
+					访问权限。回调成功后 <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">refresh_token</code>{' '}
+					会自动保存到 D1 数据库。
 				</p>
 				<ol class="mt-3 ml-5 space-y-2 list-decimal text-sm text-slate-400 leading-relaxed">
 					<li>
-						在 Google Cloud OAuth Client 的 <strong class="text-slate-200">Authorized redirect URIs</strong> 添加：
+						在 OAuth 应用的 <strong class="text-slate-200">Redirect URIs</strong> 添加：
 						<code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs break-all">{callbackUrl}</code>
 					</li>
-					<li>
-						点击下方按钮，完成 Google 授权（会请求{' '}
-						<code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">gmail.readonly</code>）。
-					</li>
+					<li>点击下方按钮，完成 {provider} 授权。</li>
 					<li>
 						<strong class="text-slate-200">请确认登录的是 {accountEmail}</strong>，回调成功后 refresh_token 会自动保存。
 					</li>

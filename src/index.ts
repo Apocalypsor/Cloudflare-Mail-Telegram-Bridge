@@ -2,6 +2,7 @@ import app from './handlers/hono';
 import { handleQueueBatch } from './handlers/queue';
 import { renewWatchAll } from './services/email/gmail';
 import { checkImapBridgeHealth } from './services/email/imap/bridge';
+import { renewSubscriptionAll } from './services/email/outlook';
 import { reportErrorToObservability } from './services/observability';
 import type { Env, QueueMessage } from './types';
 
@@ -34,9 +35,14 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
 				}
 			})
 			.catch((error: unknown) => reportErrorToObservability(env, 'scheduled.imap_bridge_health_check_failed', error)),
-		// 仅凌晨：续订 Gmail watch
+		// 仅凌晨：续订 Gmail watch + Outlook subscription
 		isMidnight
 			? renewWatchAll(env).catch((error: unknown) => reportErrorToObservability(env, 'scheduled.watch_renew_failed', error))
+			: Promise.resolve(),
+		isMidnight
+			? renewSubscriptionAll(env).catch((error: unknown) =>
+					reportErrorToObservability(env, 'scheduled.outlook_subscription_renew_failed', error),
+				)
 			: Promise.resolve(),
 	]);
 }

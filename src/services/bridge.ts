@@ -9,6 +9,7 @@ import { formatBody, htmlToMarkdown } from '../utils/format';
 import { escapeMdV2 } from '../utils/markdown-v2';
 import { getAccessToken, gmailGet } from './email/gmail';
 import { fetchImapRawEmail } from './email/imap/bridge';
+import { fetchRawMime, getAccessToken as msGetAccessToken } from './email/outlook';
 import { buildEmailKeyboard, resolveStarredKeyboard } from './keyboard';
 import { runLlmProcessing, wrapExpandableQuote } from './llm-processing';
 import { reportErrorToObservability } from './observability';
@@ -42,8 +43,24 @@ function buildTelegramHeader(fromName: string, fromAddress: string, recipient: s
 	].join('\n');
 }
 
+/** 按账号类型拉取原始邮件 */
+export async function fetchRawEmailByType(account: Account, messageId: string, env: Env): Promise<ArrayBuffer> {
+	if (account.type === AccountType.Imap) {
+		const base64 = await fetchImapRawEmail(env, account.id, messageId);
+		return base64ToArrayBuffer(base64);
+	}
+	if (account.type === AccountType.Outlook) {
+		const token = await msGetAccessToken(env, account);
+		return fetchRawMime(token, messageId);
+	}
+	// Gmail
+	const token = await getAccessToken(env, account);
+	const gmailMsg = await gmailGet(token, `/users/me/messages/${messageId}?format=raw`);
+	return base64urlToArrayBuffer(gmailMsg.raw);
+}
+
 // ---------------------------------------------------------------------------
-// 核心投递（Gmail + IMAP 共用）
+// 核心投递（Gmail + IMAP + Outlook 共用）
 // ---------------------------------------------------------------------------
 
 /** 解析 raw email 并发送到账号对应的 Telegram chat。 */
@@ -146,15 +163,7 @@ export async function processEmailMessage(msg: QueueMessage, env: Env, waitUntil
 		return;
 	}
 
-	let rawEmail: ArrayBuffer;
-	if (account.type === AccountType.Imap) {
-		const base64 = await fetchImapRawEmail(env, account.id, msg.messageId);
-		rawEmail = base64ToArrayBuffer(base64);
-	} else {
-		const token = await getAccessToken(env, account);
-		const gmailMsg = await gmailGet(token, `/users/me/messages/${msg.messageId}?format=raw`);
-		rawEmail = base64urlToArrayBuffer(gmailMsg.raw);
-	}
+	const rawEmail = await fetchRawEmailByType(account, msg.messageId, env);
 
 	await deliverEmailToTelegram(rawEmail, msg.messageId, account, env, waitUntil);
 
@@ -172,16 +181,7 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 
 	if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL) throw new Error('LLM not configured');
 
-	// 按账号类型拉取原始邮件：Gmail 走 API，IMAP 向中间件请求重取
-	let rawEmail: ArrayBuffer;
-	if (account.type === AccountType.Imap) {
-		const base64 = await fetchImapRawEmail(env, account.id, failed.email_message_id);
-		rawEmail = base64ToArrayBuffer(base64);
-	} else {
-		const token = await getAccessToken(env, account);
-		const msg = await gmailGet(token, `/users/me/messages/${failed.email_message_id}?format=raw`);
-		rawEmail = base64urlToArrayBuffer(msg.raw);
-	}
+	const rawEmail = await fetchRawEmailByType(account, failed.email_message_id, env);
 
 	const parser = new PostalMime();
 	const email = await parser.parse(rawEmail);

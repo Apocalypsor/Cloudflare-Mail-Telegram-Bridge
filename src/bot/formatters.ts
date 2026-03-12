@@ -12,7 +12,8 @@ export function accountDetailText(account: Account): string {
 		text += `用户名: ${account.imap_user}`;
 	} else {
 		const status = account.refresh_token ? '✅ 已授权' : '❌ 未授权';
-		text += `类型: 📨 Gmail\n`;
+		const typeName = account.type === AccountType.Outlook ? '📮 Outlook' : '📨 Gmail';
+		text += `类型: ${typeName}\n`;
 		text += `邮箱: ${account.email || '(未设置)'}\n`;
 		text += `Chat ID: ${account.chat_id}\n`;
 		text += `状态: ${status}`;

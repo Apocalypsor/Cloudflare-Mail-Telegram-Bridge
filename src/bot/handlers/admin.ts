@@ -5,6 +5,7 @@ import { clearAllKV } from '../../db/kv';
 import { approveUser, getNonAdminUsers, rejectUser } from '../../db/users';
 import { retryAllFailedEmails, retryFailedEmail } from '../../services/bridge';
 import { renewWatchAll } from '../../services/email/gmail';
+import { renewSubscriptionAll } from '../../services/email/outlook';
 import { reportErrorToObservability } from '../../services/observability';
 import type { Env, TelegramUser } from '../../types';
 import { isAdmin } from '../auth';
@@ -146,7 +147,7 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
 
 		await ctx.answerCallbackQuery({ text: '⏳ 正在续订...' });
 		try {
-			await renewWatchAll(env);
+			await Promise.all([renewWatchAll(env), renewSubscriptionAll(env)]);
 			await ctx.editMessageText('⚙️ 全局操作\n\n✅ 所有 Watch 已续订', { reply_markup: await adminMenuKeyboard(env) });
 		} catch (err) {
 			await reportErrorToObservability(env, 'bot.watch_all_failed', err);

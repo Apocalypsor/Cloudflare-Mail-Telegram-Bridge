@@ -32,6 +32,8 @@ export function registerInputHandler(bot: Bot, env: Env) {
 				const kb = new InlineKeyboard()
 					.text('📨 Gmail (OAuth)', 'addtype:gmail')
 					.row()
+					.text('📮 Outlook (OAuth)', 'addtype:outlook')
+					.row()
 					.text('📬 IMAP', 'addtype:imap')
 					.row()
 					.text('❌ 取消', 'accs');

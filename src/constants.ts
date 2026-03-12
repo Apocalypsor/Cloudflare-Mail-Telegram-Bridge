@@ -4,6 +4,14 @@ export const GOOGLE_OAUTH_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/
 export const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
+// ── Microsoft / Outlook ─────────────────────────────────────────────────────
+export const MS_OAUTH_AUTHORIZE_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+export const MS_OAUTH_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+export const MS_GRAPH_API = 'https://graph.microsoft.com/v1.0';
+export const MS_MAIL_SCOPE = 'offline_access Mail.ReadWrite User.Read';
+/** Graph webhook subscription max lifetime for mail: ~4230 min ≈ 2.9 days; we use 2 days */
+export const MS_SUBSCRIPTION_LIFETIME_MINUTES = 2 * 24 * 60;
+
 // ── KV keys & prefixes ──────────────────────────────────────────────────────
 export const KV_PROCESSED_PREFIX = 'processed_message:';
 export const KV_OAUTH_STATE_PREFIX = 'oauth_state:';

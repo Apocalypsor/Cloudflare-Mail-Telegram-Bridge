@@ -1,4 +1,4 @@
-import type { Account } from '../types';
+import { AccountType, type Account } from '../types';
 
 export async function getAllAccounts(db: D1Database): Promise<Account[]> {
 	const { results } = await db.prepare('SELECT * FROM accounts ORDER BY id').all<Account>();
@@ -34,10 +34,15 @@ export async function getAuthorizedAccount(db: D1Database, id: number, userId: s
 	return null;
 }
 
-export async function createAccount(db: D1Database, chatId: string, telegramUserId?: string): Promise<Account> {
+export async function createAccount(
+	db: D1Database,
+	chatId: string,
+	telegramUserId?: string,
+	type: AccountType = AccountType.Gmail,
+): Promise<Account> {
 	const result = await db
-		.prepare('INSERT INTO accounts (chat_id, telegram_user_id) VALUES (?, ?) RETURNING *')
-		.bind(chatId, telegramUserId ?? null)
+		.prepare('INSERT INTO accounts (type, chat_id, telegram_user_id) VALUES (?, ?, ?) RETURNING *')
+		.bind(type, chatId, telegramUserId ?? null)
 		.first<Account>();
 	if (!result) throw new Error('Failed to create account');
 	return result;

@@ -14,6 +14,7 @@ export interface ObservabilityServiceBinding {
 export enum AccountType {
 	Gmail = 'gmail',
 	Imap = 'imap',
+	Outlook = 'outlook',
 }
 
 /** D1 accounts 表记录 */
@@ -97,6 +98,12 @@ export interface Env {
 	IMAP_BRIDGE_URL?: string;
 	/** IMAP 中间件共享密钥（Bearer token） */
 	IMAP_BRIDGE_SECRET?: string;
+	/** Microsoft OAuth2 Client ID（Outlook 支持） */
+	MS_CLIENT_ID?: string;
+	/** Microsoft OAuth2 Client Secret */
+	MS_CLIENT_SECRET?: string;
+	/** Microsoft Graph webhook 共享密钥，校验通知来源 */
+	MS_WEBHOOK_SECRET?: string;
 }
 
 /** 队列消息体 */
