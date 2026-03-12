@@ -35,7 +35,7 @@ async function resolveAccount(env: Env, fromId: number, accountIdStr: string) {
 export function accountListKeyboard(accounts: Account[], options?: { isAdmin?: boolean; showAll?: boolean }): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const acc of accounts) {
-		const status = acc.type === AccountType.Imap ? '📬' : acc.type === AccountType.Outlook ? '📮' : acc.refresh_token ? '✅' : '❌';
+		const status = acc.type === AccountType.Imap ? '📬' : acc.refresh_token ? '✅' : '❌';
 		const display = acc.email || `#${acc.id}`;
 		kb.text(`${status} ${display}`, `acc:${acc.id}`).row();
 	}
