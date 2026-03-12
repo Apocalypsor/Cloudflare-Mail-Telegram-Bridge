@@ -17,7 +17,7 @@ export function registerStarHandler(bot: Bot, env: Env) {
 			}
 			await ctx.editMessageReplyMarkup({ reply_markup: result.keyboard });
 			await ctx.answerCallbackQuery({ text: '⭐ 已加星标' });
-			console.log(`Starred: gmail=${result.gmailMessageId}`);
+			console.log(`Starred: gmail=${result.emailMessageId}`);
 		} catch (err) {
 			await reportErrorToObservability(env, 'bot.star_failed', err);
 			await ctx.answerCallbackQuery({ text: '操作失败，请重试' });
@@ -36,7 +36,7 @@ export function registerStarHandler(bot: Bot, env: Env) {
 			}
 			await ctx.editMessageReplyMarkup({ reply_markup: result.keyboard });
 			await ctx.answerCallbackQuery({ text: '已取消星标' });
-			console.log(`Unstarred: gmail=${result.gmailMessageId}`);
+			console.log(`Unstarred: gmail=${result.emailMessageId}`);
 		} catch (err) {
 			await reportErrorToObservability(env, 'bot.unstar_failed', err);
 			await ctx.answerCallbackQuery({ text: '操作失败，请重试' });

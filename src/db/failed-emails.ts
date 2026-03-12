@@ -3,7 +3,7 @@
 export interface FailedEmail {
 	id: number;
 	account_id: number;
-	gmail_message_id: string;
+	email_message_id: string;
 	tg_chat_id: string;
 	tg_message_id: number;
 	is_caption: number;
@@ -12,20 +12,20 @@ export interface FailedEmail {
 	created_at: string;
 }
 
-/** 保存失败邮件记录（UPSERT：相同 gmail_message_id + tg_message_id 则更新） */
+/** 保存失败邮件记录（UPSERT：相同 email_message_id + tg_message_id 则更新） */
 export async function putFailedEmail(
 	db: D1Database,
 	data: Omit<FailedEmail, 'id' | 'created_at'>,
 ): Promise<void> {
 	await db
 		.prepare(
-			`INSERT INTO failed_emails (account_id, gmail_message_id, tg_chat_id, tg_message_id, is_caption, subject, error_message)
+			`INSERT INTO failed_emails (account_id, email_message_id, tg_chat_id, tg_message_id, is_caption, subject, error_message)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)
-			 ON CONFLICT (gmail_message_id, tg_message_id) DO UPDATE SET
+			 ON CONFLICT (email_message_id, tg_message_id) DO UPDATE SET
 			   error_message = excluded.error_message,
 			   created_at = datetime('now')`,
 		)
-		.bind(data.account_id, data.gmail_message_id, data.tg_chat_id, data.tg_message_id, data.is_caption, data.subject ?? null, data.error_message ?? null)
+		.bind(data.account_id, data.email_message_id, data.tg_chat_id, data.tg_message_id, data.is_caption, data.subject ?? null, data.error_message ?? null)
 		.run();
 }
 

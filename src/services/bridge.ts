@@ -52,17 +52,13 @@ function buildTelegramHeader(fromName: string, fromAddress: string, recipient: s
 // 核心投递（Gmail + IMAP 共用）
 // ---------------------------------------------------------------------------
 
-/**
- * 解析 raw email 并发送到账号对应的 Telegram chat。
- * @param supportsMailLink - Gmail 支持生成原文查看链接，IMAP 不支持
- */
+/** 解析 raw email 并发送到账号对应的 Telegram chat。 */
 export async function deliverEmailToTelegram(
 	rawEmail: ArrayBuffer,
 	messageId: string,
 	account: Account,
 	env: Env,
 	waitUntil: (p: Promise<unknown>) => void,
-	supportsMailLink: boolean,
 ): Promise<void> {
 	const tgToken = env.TELEGRAM_BOT_TOKEN;
 	const chatId = account.chat_id;
@@ -83,7 +79,7 @@ export async function deliverEmailToTelegram(
 	const formattedBody = formatBody(email.text, email.html, bodyBudget);
 	const text = header + wrapExpandableQuote(formattedBody);
 
-	const keyboard = await buildEmailKeyboard(env, messageId, chatId, false, supportsMailLink);
+	const keyboard = await buildEmailKeyboard(env, messageId, account.id, chatId, false);
 
 	let sentMessageId: number;
 	if (hasAttachments) {
@@ -96,7 +92,7 @@ export async function deliverEmailToTelegram(
 	await putMessageMapping(env.DB, {
 		tg_message_id: sentMessageId,
 		tg_chat_id: chatId,
-		gmail_message_id: messageId,
+		email_message_id: messageId,
 		account_id: account.id,
 	});
 
@@ -108,7 +104,7 @@ export async function deliverEmailToTelegram(
 	waitUntil(
 		(async () => {
 			try {
-				const editKeyboard = await resolveStarredKeyboard(env, chatId, sentMessageId, messageId, supportsMailLink);
+				const editKeyboard = await resolveStarredKeyboard(env, chatId, sentMessageId, messageId, account.id);
 				await runLlmProcessing({
 					env,
 					tgToken,
@@ -125,7 +121,7 @@ export async function deliverEmailToTelegram(
 				await reportErrorToObservability(env, 'llm.summary_failed', err, { subject });
 				await putFailedEmail(env.DB, {
 					account_id: account.id,
-					gmail_message_id: messageId,
+					email_message_id: messageId,
 					tg_chat_id: chatId,
 					tg_message_id: sentMessageId,
 					is_caption: hasSingleAttachment ? 1 : 0,
@@ -170,7 +166,7 @@ export async function processEmailMessage(
 		rawEmail = base64urlToArrayBuffer(gmailMsg.raw);
 	}
 
-	await deliverEmailToTelegram(rawEmail, msg.messageId, account, env, waitUntil, account.type === AccountType.Gmail);
+	await deliverEmailToTelegram(rawEmail, msg.messageId, account, env, waitUntil);
 
 	await env.EMAIL_KV.put(dedupeKey, '1', { expirationTtl: PROCESSED_TTL_SECONDS });
 }
@@ -189,11 +185,11 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	// 按账号类型拉取原始邮件：Gmail 走 API，IMAP 向中间件请求重取
 	let rawEmail: ArrayBuffer;
 	if (account.type === AccountType.Imap) {
-		const base64 = await fetchImapRawEmail(env, account.id, failed.gmail_message_id);
+		const base64 = await fetchImapRawEmail(env, account.id, failed.email_message_id);
 		rawEmail = base64ToArrayBuffer(base64);
 	} else {
 		const token = await getAccessToken(env, account);
-		const msg = await gmailGet(token, `/users/me/messages/${failed.gmail_message_id}?format=raw`);
+		const msg = await gmailGet(token, `/users/me/messages/${failed.email_message_id}?format=raw`);
 		rawEmail = base64urlToArrayBuffer(msg.raw);
 	}
 
@@ -212,8 +208,7 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	const charLimit = failed.is_caption ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
 	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
 	const formattedBody = formatBody(email.text, email.html, bodyBudget);
-	const supportsMailLink = account.type === AccountType.Gmail;
-	const keyboard = await resolveStarredKeyboard(env, failed.tg_chat_id, failed.tg_message_id, failed.gmail_message_id, supportsMailLink);
+	const keyboard = await resolveStarredKeyboard(env, failed.tg_chat_id, failed.tg_message_id, failed.email_message_id, account.id);
 
 	await runLlmProcessing({
 		env,

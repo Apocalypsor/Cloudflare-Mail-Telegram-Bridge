@@ -12,11 +12,11 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /** 生成邮件查看链接的 HMAC-SHA256 token */
-export async function generateMailToken(secret: string, gmailMessageId: string, chatId: string): Promise<string> {
+export async function generateMailToken(secret: string, messageId: string, accountId: number, chatId: string): Promise<string> {
 	const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
 		'sign',
 	]);
-	const data = new TextEncoder().encode(`${gmailMessageId}:${chatId}`);
+	const data = new TextEncoder().encode(`${messageId}:${accountId}:${chatId}`);
 	const sig = await crypto.subtle.sign('HMAC', key, data);
 	return Array.from(new Uint8Array(sig))
 		.map((b) => b.toString(16).padStart(2, '0'))
@@ -27,10 +27,11 @@ export async function generateMailToken(secret: string, gmailMessageId: string, 
 /** 验证邮件查看链接的 token */
 export async function verifyMailToken(
 	secret: string,
-	gmailMessageId: string,
+	messageId: string,
+	accountId: number,
 	chatId: string,
 	token: string,
 ): Promise<boolean> {
-	const expected = await generateMailToken(secret, gmailMessageId, chatId);
+	const expected = await generateMailToken(secret, messageId, accountId, chatId);
 	return timingSafeEqual(expected, token);
 }

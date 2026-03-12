@@ -48,3 +48,16 @@ export async function fetchImapRawEmail(env: Env, accountId: number, messageId: 
 	const { rawEmail } = await resp.json<{ rawEmail: string }>();
 	return rawEmail;
 }
+
+/**
+ * 检查 IMAP 中间件健康状态。
+ * /api/health 不需要鉴权，503 或 ok=false 表示不健康。
+ * 返回 null 表示未配置 IMAP bridge（跳过检查）。
+ */
+export async function checkImapBridgeHealth(env: Env): Promise<{ ok: boolean; total: number; usable: number } | null> {
+	if (!env.IMAP_BRIDGE_URL) return null;
+	const url = `${env.IMAP_BRIDGE_URL.replace(/\/$/, '')}/api/health`;
+	const resp = await fetch(url);
+	const body = await resp.json<{ ok: boolean; total: number; usable: number }>();
+	return body;
+}

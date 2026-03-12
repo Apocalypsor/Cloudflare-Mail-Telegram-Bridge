@@ -32,7 +32,7 @@ function extractPartByMime(payload: any, mimeType: string): string | null {
 }
 
 /** 将纯文本包裹成可读的 HTML 页面 */
-function wrapPlainText(text: string): string {
+export function wrapPlainText(text: string): string {
 	const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:monospace;white-space:pre-wrap;word-break:break-word;max-width:800px;margin:2em auto;padding:0 1em;line-height:1.5;color:#333}</style></head><body>${escaped}</body></html>`;
 }
