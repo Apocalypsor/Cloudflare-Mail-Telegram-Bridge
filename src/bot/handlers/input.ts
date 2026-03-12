@@ -2,6 +2,7 @@ import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import { createAccount, createImapAccount, getAuthorizedAccount, updateAccount } from '../../db/accounts';
 import { syncAccounts } from '../../services/email/imap/bridge';
+import { reportErrorToObservability } from '../../services/observability';
 import type { Env } from '../../types';
 import { isAdmin } from '../auth';
 import { clearBotState, getBotState, setBotState } from '../state';
@@ -95,8 +96,8 @@ export function registerInputHandler(bot: Bot, env: Env) {
 
 					// 通知中间件更新连接列表
 					if (env.IMAP_BRIDGE_URL && env.IMAP_BRIDGE_SECRET) {
-						syncAccounts(env).catch((err) => {
-							console.error('Failed to sync with IMAP bridge after account creation:', err);
+						await syncAccounts(env).catch((err) => {
+							reportErrorToObservability(env, 'imap.sync_after_create_failed', err, { accountId: account.id });
 						});
 					}
 
