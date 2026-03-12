@@ -1,5 +1,6 @@
 import {
 	KV_OAUTH_STATE_PREFIX,
+	MS_GRAPH_API,
 	MS_MAIL_SCOPE,
 	MS_OAUTH_AUTHORIZE_URL,
 	MS_OAUTH_TOKEN_URL,
@@ -161,7 +162,7 @@ export async function processOAuthCallback(request: Request, env: Env): Promise<
 		// 用 access_token 获取真实邮箱地址
 		if (tokenData.access_token) {
 			try {
-				const profileResp = await fetch('https://graph.microsoft.com/v1.0/me', {
+				const profileResp = await fetch(`${MS_GRAPH_API}/me`, {
 					headers: { Authorization: `Bearer ${tokenData.access_token}` },
 				});
 				if (profileResp.ok) {

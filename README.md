@@ -1,6 +1,10 @@
 # Telemail
 
-一个 Cloudflare Worker，通过 **Gmail API + Google Cloud Pub/Sub** 推送通知监控 Gmail 收件箱，并将新邮件转发到 Telegram 聊天——支持**多账号**、附件和可选的 AI 摘要。
+一个 Cloudflare Worker，监控 **Gmail / Outlook / IMAP** 收件箱，并将新邮件转发到 Telegram 聊天——支持**多账号**、附件和可选的 AI 摘要。
+
+- **Gmail**: 通过 Google Cloud Pub/Sub 推送通知实时接收
+- **Outlook**: 通过 Microsoft Graph webhook 订阅实时接收
+- **IMAP**: 通过外部 IMAP Bridge 中间件轮询接收（私有项目，不包含在本仓库中）
 
 ## 技术栈
 
@@ -37,19 +41,20 @@
 
 ## 多账号支持
 
-- 每个 Gmail 账号可以配置**不同的 Telegram Chat ID**，实现不同邮箱转发到不同的聊天/频道。
-- 所有账号**共享同一个 GCP 项目**（OAuth Client ID/Secret 和 Pub/Sub Topic）。
+- 支持 **Gmail**、**Outlook**、**IMAP** 三种邮箱类型，可混合使用。
+- 每个邮箱账号可以配置**不同的 Telegram Chat ID**，实现不同邮箱转发到不同的聊天/频道。
+- 所有 Gmail 账号共享同一个 GCP 项目；所有 Outlook 账号共享同一个 Entra ID 应用。
 - 所有账号**共享同一个 Telegram Bot**。
-- 账号信息（email、chat_id、refresh_token、history_id）存储在 **D1 数据库**中。
-- 通过 Web Dashboard 管理账号：添加、删除、OAuth 授权、Watch 续订。
+- 账号信息存储在 **D1 数据库**中，通过 Telegram Bot 管理。
 
 ## 前置条件
 
 - 一个 [Cloudflare](https://cloudflare.com) 账号
-- 一个启用了 Gmail API 的 [Google Cloud](https://console.cloud.google.com) 项目
-- 一个或多个 Gmail / Google Workspace 账号
 - 一个 [Telegram Bot](https://core.telegram.org/bots#how-do-i-create-a-bot) Token
-- 接收消息的 Telegram Chat ID（每个 Gmail 账号可配置不同的 Chat ID）
+- 接收消息的 Telegram Chat ID（每个邮箱账号可配置不同的 Chat ID）
+- **Gmail**: 启用了 Gmail API 的 [Google Cloud](https://console.cloud.google.com) 项目
+- **Outlook**: [Microsoft Entra ID](https://entra.microsoft.com) 应用注册
+- **IMAP**: 外部 IMAP Bridge 中间件（私有项目，可选）
 
 ## 配置步骤
 
@@ -93,6 +98,15 @@ gcloud pubsub subscriptions create gmail-push-sub \
   --ack-deadline=30
 ```
 
+### 2d. Microsoft Entra ID 配置（Outlook，可选）
+
+1. 打开 [Microsoft Entra ID](https://entra.microsoft.com) → Applications → App registrations → **New registration**
+2. 名称随意，账户类型选 **Accounts in any organizational directory and personal Microsoft accounts**
+3. Redirect URI 添加 **Web** 类型：`https://YOUR_WORKER_DOMAIN/oauth/microsoft/callback`
+4. 注册后记下 **Application (client) ID**
+5. 进入 **Certificates & secrets** → New client secret → 记下 Value
+6. 进入 **API permissions** → Add a permission → Microsoft Graph → Delegated permissions → 勾选 `Mail.ReadWrite`、`offline_access`、`User.Read`
+
 ### 3. 创建 D1 数据库
 
 ```sh
@@ -126,15 +140,23 @@ Queue 用于处理 Gmail history 同步和邮件发送，内置重试。`wrangle
 ### 4. 配置 Secrets
 
 ```sh
+# ── 必填 ──
 npx wrangler secret put TELEGRAM_BOT_TOKEN        # Telegram Bot Token
 npx wrangler secret put TELEGRAM_BOT_USERNAME      # Telegram Bot 用户名（不含 @），用于 Login Widget
 npx wrangler secret put ADMIN_TELEGRAM_ID          # 管理员 Telegram user ID
 npx wrangler secret put ADMIN_SECRET               # 自定义密钥，用于 HMAC 签名（session cookie、邮件查看链接）
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET    # 自定义密钥，用于验证 Telegram webhook
+
+# ── Gmail（使用 Gmail 时必填）──
 npx wrangler secret put GMAIL_CLIENT_ID            # Google OAuth2 Client ID
 npx wrangler secret put GMAIL_CLIENT_SECRET        # Google OAuth2 Client Secret
 npx wrangler secret put GMAIL_PUBSUB_TOPIC         # 例如 projects/my-project/topics/gmail-push
 npx wrangler secret put GMAIL_PUSH_SECRET          # 自定义密钥，用于验证 Pub/Sub push
-npx wrangler secret put TELEGRAM_WEBHOOK_SECRET    # 自定义密钥，用于验证 Telegram webhook
+
+# ── Outlook（使用 Outlook 时必填）──
+npx wrangler secret put MS_CLIENT_ID               # Microsoft Entra ID Application (client) ID
+npx wrangler secret put MS_CLIENT_SECRET           # Microsoft Entra ID Client Secret
+npx wrangler secret put MS_WEBHOOK_SECRET          # 自定义密钥，用于验证 Graph webhook
 ```
 
 ### 5. AI 摘要（可选）
@@ -186,14 +208,16 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 
 > **注意**：如果邮件转发到**频道**，Bot 需要被设为频道管理员才能接收 reaction 事件。
 
-### 9. 添加 Gmail 账号
+### 9. 添加邮箱账号
 
-1. 打开 `https://YOUR_WORKER_DOMAIN/`，通过 **Telegram Login Widget** 登录（仅 `ADMIN_TELEGRAM_ID` 对应的用户可登录）
-2. 在 "Add Account" 表单中填写 Gmail 地址和 Telegram Chat ID，点击"添加账号"
-3. 点击账号旁边的"授权"按钮，完成 Google OAuth 授权
-4. 授权成功后，点击 "Watch" 或 "Renew All Watches" 激活 Gmail 推送通知
+通过 Telegram Bot 管理账号：
 
-之后 Cron Trigger 会每 6 天自动为所有已授权账号续订 watch。
+1. 向 Bot 发送 `/start`，点击「账号管理」→「添加账号」
+2. 选择账号类型（Gmail / Outlook / IMAP），按提示完成配置
+3. Gmail / Outlook 需要完成 OAuth 授权；IMAP 需要填写服务器信息和密码
+4. 授权成功后自动创建 webhook 订阅，新邮件会实时推送到 Telegram
+
+Cron Trigger 每天凌晨自动为所有已授权的 Gmail 账号续订 watch、Outlook 账号续订 Graph subscription。
 
 ## 开发
 
@@ -214,15 +238,15 @@ src/
   styles.css           # Tailwind CSS v4 入口
   handlers/
     hono/
-      index.tsx        # Hono app 入口：error handler、favicon、Telegram Login、home/dashboard、挂载子路由
+      index.tsx        # Hono app 入口：error handler、favicon、挂载子路由
       routes.ts        # 路由路径常量
-      middleware.ts    # 共享中间件（requireSession + requireSecret for push）
       telegram.tsx     # Telegram webhook 路由
-      gmail.tsx        # Gmail push + watch 路由
-      accounts.tsx     # 账号 CRUD 路由
-      oauth.tsx        # Google OAuth 路由
       preview.tsx      # HTML 预览路由
       mail.tsx         # 邮件原文查看路由（HMAC 验证 + KV 缓存）
+      email/
+        gmail/         # Gmail push + OAuth 路由
+        outlook/       # Outlook push + OAuth 路由
+        imap/          # IMAP 相关路由
     queue.ts           # Queue consumer（重试/ack/retry）
   components/
     layout.tsx         # 共享 Layout、Card、BackLink 组件 (Tailwind CSS inline)
@@ -242,12 +266,15 @@ src/
     kv.ts              # KV 辅助函数（access_token 缓存、去重、history_id）
     message-map.ts     # Telegram ↔ Gmail 消息映射（星标状态）
   services/
-    bridge.ts          # Gmail→Telegram 业务流程编排（多账号 sync/message/AI 摘要/标签）
-    gmail.ts           # Gmail OAuth2 + REST API + watch + history + star/read
-    llm.ts             # OpenAI compatible API 调用（AI 摘要 + 标签生成）
+    bridge.ts          # 邮件→Telegram 业务流程编排（多账号 sync/message/AI 摘要/标签）
+    email/
+      gmail/           # Gmail OAuth2 + REST API + watch + history
+      outlook/         # Outlook OAuth2 + Graph API + subscription
+      imap/            # IMAP Bridge 通信
+      provider.ts      # EmailProvider 接口（markAsRead/addStar/removeStar 多类型分发）
+    llm-processing.ts  # OpenAI compatible API 调用（AI 摘要 + 标签生成）
     mail-content.ts    # 邮件内容获取与 HTML 缓存
     message-actions.ts # 消息操作（星标、已读等）
-    oauth.ts           # OAuth 流程逻辑（按账号的 token 交换、state 管理）
     observability.ts   # 错误结构化日志 + Observability Hub
     telegram.ts        # Telegram 发送/编辑：text、attachments、caption、reply_markup
   utils/
@@ -269,23 +296,28 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 
 ## 环境变量
 
-| Secret / 变量             | 说明                                                   |
-| ------------------------- | ------------------------------------------------------ |
-| `TELEGRAM_BOT_TOKEN`      | Telegram Bot Token                                     |
-| `TELEGRAM_BOT_USERNAME`   | Telegram Bot 用户名（不含 @），用于 Login Widget       |
-| `ADMIN_TELEGRAM_ID`       | 管理员 Telegram user ID，用于 Telegram Login 鉴权      |
-| `ADMIN_SECRET`            | 自定义密钥，用于 HMAC 签名（session cookie、邮件链接） |
-| `GMAIL_CLIENT_ID`         | Google OAuth2 Client ID（所有账号共享）                |
-| `GMAIL_CLIENT_SECRET`     | Google OAuth2 Client Secret（所有账号共享）            |
-| `GMAIL_PUBSUB_TOPIC`      | Pub/Sub topic 全名（所有账号共享）                     |
-| `GMAIL_PUSH_SECRET`       | 自定义密钥，附加在 push URL 中用于验证                 |
-| `TELEGRAM_WEBHOOK_SECRET` | 自定义密钥，用于验证 Telegram webhook                  |
-| `LLM_API_URL`             | OpenAI compatible API base URL（可选）                 |
-| `LLM_API_KEY`             | LLM API key（可选）                                    |
-| `LLM_MODEL`               | LLM 模型名称（可选）                                   |
-| `WORKER_URL`              | Worker 对外 URL（可选，启用"查看原文"按钮）            |
+| Secret / 变量             | 说明                                                        |
+| ------------------------- | ----------------------------------------------------------- |
+| `TELEGRAM_BOT_TOKEN`      | Telegram Bot Token                                          |
+| `TELEGRAM_BOT_USERNAME`   | Telegram Bot 用户名（不含 @），用于 Login Widget            |
+| `ADMIN_TELEGRAM_ID`       | 管理员 Telegram user ID，用于 Telegram Login 鉴权           |
+| `ADMIN_SECRET`            | 自定义密钥，用于 HMAC 签名（session cookie、邮件链接）      |
+| `GMAIL_CLIENT_ID`         | Google OAuth2 Client ID（所有账号共享）                     |
+| `GMAIL_CLIENT_SECRET`     | Google OAuth2 Client Secret（所有账号共享）                 |
+| `GMAIL_PUBSUB_TOPIC`      | Pub/Sub topic 全名（所有账号共享）                          |
+| `GMAIL_PUSH_SECRET`       | 自定义密钥，附加在 push URL 中用于验证                      |
+| `TELEGRAM_WEBHOOK_SECRET` | 自定义密钥，用于验证 Telegram webhook                       |
+| `LLM_API_URL`             | OpenAI compatible API base URL（可选）                      |
+| `LLM_API_KEY`             | LLM API key（可选）                                         |
+| `LLM_MODEL`               | LLM 模型名称（可选）                                        |
+| `WORKER_URL`              | Worker 对外 URL（可选，启用"查看原文"按钮）                 |
+| `MS_CLIENT_ID`            | Microsoft Entra ID Application (client) ID（Outlook，可选） |
+| `MS_CLIENT_SECRET`        | Microsoft Entra ID Client Secret（Outlook，可选）           |
+| `MS_WEBHOOK_SECRET`       | 自定义密钥，验证 Graph webhook（Outlook，可选）             |
+| `IMAP_BRIDGE_URL`         | IMAP Bridge 中间件 URL（IMAP，私有项目，可选）              |
+| `IMAP_BRIDGE_SECRET`      | IMAP Bridge 中间件共享密钥（IMAP，私有项目，可选）          |
 
-每个 Gmail 账号的 `refresh_token`、`chat_id`、`history_id` 存储在 D1 数据库的 `accounts` 表中，通过 Web Dashboard 管理。
+每个邮箱账号的 `type`、`refresh_token`、`chat_id` 等信息存储在 D1 数据库的 `accounts` 表中，通过 Telegram Bot 管理。
 
 ## API 端点
 
@@ -293,32 +325,28 @@ wrangler.jsonc         # Cloudflare Worker 配置（D1 + KV + Queue + Cron）
 
 **页面路由（GET / HTML）：**
 
-| 方法 | 路径                             | 鉴权     | 说明                                 |
-| ---- | -------------------------------- | -------- | ------------------------------------ |
-| GET  | `/`                              | -        | 登录页（Telegram Login）/ Dashboard  |
-| GET  | `/auth/telegram`                 | -        | Telegram Login 回调（验证+创建会话） |
-| GET  | `/logout`                        | -        | 登出（清除 session cookie）          |
-| GET  | `/favicon.png`                   | -        | Favicon                              |
-| GET  | `/preview`                       | Session  | HTML→Telegram MarkdownV2 预览        |
-| GET  | `/mail/:id?t=HMAC_TOKEN`         | HMAC     | 查看邮件原文 HTML                    |
-| GET  | `/oauth/google?account=ID`       | Session  | 指定账号的 OAuth 授权说明页          |
-| GET  | `/oauth/google/start?account=ID` | Session  | 发起指定账号的 Google OAuth          |
-| GET  | `/oauth/google/callback`         | KV state | OAuth 回调                           |
+| 方法 | 路径                                | 鉴权     | 说明                                  |
+| ---- | ----------------------------------- | -------- | ------------------------------------- |
+| GET  | `/`                                 | -        | 登录页（Telegram Login）/ Dashboard   |
+| GET  | `/auth/telegram`                    | -        | Telegram Login 回调（验证+创建会话）  |
+| GET  | `/logout`                           | -        | 登出（清除 session cookie）           |
+| GET  | `/favicon.png`                      | -        | Favicon                               |
+| GET  | `/preview`                          | Session  | HTML→Telegram MarkdownV2 预览         |
+| GET  | `/mail/:id?t=HMAC_TOKEN`            | HMAC     | 查看邮件原文 HTML                     |
+| GET  | `/oauth/google?account=ID`          | Session  | 指定账号的 Google OAuth 授权说明页    |
+| GET  | `/oauth/google/start?account=ID`    | Session  | 发起指定账号的 Google OAuth           |
+| GET  | `/oauth/google/callback`            | KV state | Google OAuth 回调                     |
+| GET  | `/oauth/microsoft?account=ID`       | Session  | 指定账号的 Microsoft OAuth 授权说明页 |
+| GET  | `/oauth/microsoft/start?account=ID` | Session  | 发起指定账号的 Microsoft OAuth        |
+| GET  | `/oauth/microsoft/callback`         | KV state | Microsoft OAuth 回调                  |
 
 **API 路由（POST，均以 `/api` 开头）：**
 
-| 方法 | 路径                                 | 鉴权    | 说明                   |
-| ---- | ------------------------------------ | ------- | ---------------------- |
-| POST | `/api/accounts`                      | Session | 添加 Gmail 账号        |
-| POST | `/api/accounts/:id/edit`             | Session | 编辑 Gmail 账号        |
-| POST | `/api/accounts/:id/delete`           | Session | 删除 Gmail 账号        |
-| POST | `/api/accounts/:id/watch`            | Session | 为指定账号续订 watch   |
-| POST | `/api/accounts/:id/clear-cache`      | Session | 清除指定账号的 KV 缓存 |
-| POST | `/api/gmail/watch`                   | Admin   | 为所有账号续订 watch   |
-| POST | `/api/clear-all-kv`                  | Admin   | 清除所有 KV 数据       |
-| POST | `/api/preview`                       | Session | 预览转换 API           |
-| POST | `/api/telegram/webhook?secret=XXX`   | Secret  | Telegram Bot webhook   |
-| POST | `/api/gmail/push?secret=XXX`         | Secret  | Pub/Sub push 回调      |
+| 方法 | 路径                               | 鉴权   | 说明                    |
+| ---- | ---------------------------------- | ------ | ----------------------- |
+| POST | `/api/telegram/webhook?secret=XXX` | Secret | Telegram Bot webhook    |
+| POST | `/api/gmail/push?secret=XXX`       | Secret | Gmail Pub/Sub push 回调 |
+| POST | `/api/outlook/push?secret=XXX`     | Secret | Outlook Graph webhook   |
 
 ## Telegram 消息格式
 

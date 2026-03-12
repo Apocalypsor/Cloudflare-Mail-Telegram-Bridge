@@ -3,11 +3,9 @@ import PostalMime from 'postal-mime';
 import { getAccountByEmail } from '../../db/accounts';
 import { getCachedMailHtml, putCachedMailHtml } from '../../db/kv';
 import { getAccessToken } from '../../services/email/gmail';
-import { fetchImapRawEmail } from '../../services/email/imap/bridge';
-import { fetchRawMime, getAccessToken as msGetAccessToken } from '../../services/email/outlook';
+import { fetchRawEmailByType } from '../../services/bridge';
 import { fetchMailContent, wrapPlainText } from '../../services/mail-content';
 import { AccountType, type AppEnv } from '../../types';
-import { base64ToArrayBuffer } from '../../utils/base64url';
 import { verifyMailToken } from '../../utils/hash';
 import { ROUTE_MAIL } from './routes';
 
@@ -24,7 +22,7 @@ mail.get(ROUTE_MAIL, async (c) => {
 	const valid = await verifyMailToken(c.env.ADMIN_SECRET, messageId, accountEmail, chatId, token);
 	if (!valid) return c.text('Forbidden', 403);
 
-	// KV 缓存（Gmail 和 IMAP 共用）
+	// KV 缓存（所有类型共用）
 	const cached = await getCachedMailHtml(c.env, messageId);
 	if (cached) return c.html(cached);
 
@@ -33,20 +31,16 @@ mail.get(ROUTE_MAIL, async (c) => {
 
 	let html: string | null = null;
 
-	if (account.type === AccountType.Imap) {
-		const base64 = await fetchImapRawEmail(c.env, account.id, messageId);
-		const email = await new PostalMime().parse(base64ToArrayBuffer(base64));
-		html = email.html ?? (email.text ? wrapPlainText(email.text) : null);
-	} else if (account.type === AccountType.Outlook) {
-		if (!account.refresh_token) return c.text('Account not authorized', 403);
-		const accessToken = await msGetAccessToken(c.env, account);
-		const raw = await fetchRawMime(accessToken, messageId);
-		const email = await new PostalMime().parse(raw);
-		html = email.html ?? (email.text ? wrapPlainText(email.text) : null);
-	} else {
+	if (account.type === AccountType.Gmail) {
 		if (!account.refresh_token) return c.text('Account not authorized', 403);
 		const accessToken = await getAccessToken(c.env, account);
 		html = await fetchMailContent(accessToken, messageId);
+	} else {
+		// IMAP + Outlook: 获取原始 MIME 并解析
+		if (account.type !== AccountType.Imap && !account.refresh_token) return c.text('Account not authorized', 403);
+		const raw = await fetchRawEmailByType(account, messageId, c.env);
+		const email = await new PostalMime().parse(raw);
+		html = email.html ?? (email.text ? wrapPlainText(email.text) : null);
 	}
 
 	if (!html) return c.text('No content in this email', 404);

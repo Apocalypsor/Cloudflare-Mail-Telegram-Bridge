@@ -103,6 +103,9 @@ export async function removeStar(token: string, messageId: string): Promise<void
 
 /** 为单个账号创建/续订 Graph change notification subscription */
 export async function renewSubscription(env: Env, account: Account): Promise<void> {
+	if (!env.MS_WEBHOOK_SECRET) {
+		throw new Error('MS_WEBHOOK_SECRET not configured');
+	}
 	const token = await getAccessToken(env, account);
 	const workerUrl = env.WORKER_URL?.replace(/\/$/, '') || '';
 	const notificationUrl = `${workerUrl}/api/outlook/push?secret=${env.MS_WEBHOOK_SECRET}`;

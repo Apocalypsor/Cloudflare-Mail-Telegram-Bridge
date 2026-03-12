@@ -44,7 +44,7 @@ function buildTelegramHeader(fromName: string, fromAddress: string, recipient: s
 }
 
 /** 按账号类型拉取原始邮件 */
-async function fetchRawEmailByType(account: Account, messageId: string, env: Env): Promise<ArrayBuffer> {
+export async function fetchRawEmailByType(account: Account, messageId: string, env: Env): Promise<ArrayBuffer> {
 	if (account.type === AccountType.Imap) {
 		const base64 = await fetchImapRawEmail(env, account.id, messageId);
 		return base64ToArrayBuffer(base64);
