@@ -11,7 +11,7 @@ import {
 	updateAccount,
 } from '../../db/accounts';
 import { deleteHistoryId } from '../../db/kv';
-import { getAllUsers } from '../../db/users';
+import { getAllUsers, getUserByTelegramId } from '../../db/users';
 import { renewWatch, stopWatch } from '../../services/email/gmail';
 import { generateOAuthUrl } from '../../services/email/gmail/oauth';
 import { syncAccounts } from '../../services/email/imap/bridge';
@@ -74,11 +74,18 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
 	// Account detail
 	bot.callbackQuery(/^acc:(\d+)$/, async (ctx) => {
-		const { userId, account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
+		const { userId, admin, account } = await resolveAccount(env, ctx.from.id, ctx.match![1]);
 		await clearBotState(env, userId);
 		if (!account) return ctx.answerCallbackQuery({ text: '账号不存在或无权访问' });
 
-		await ctx.editMessageText(accountDetailText(account), { reply_markup: accountDetailKeyboard(account) });
+		let ownerName: string | undefined;
+		if (admin && account.telegram_user_id) {
+			const owner = await getUserByTelegramId(env.DB, account.telegram_user_id);
+			ownerName = owner?.username ? `@${owner.username}` : formatUserName(owner ?? { first_name: account.telegram_user_id });
+		} else if (admin) {
+			ownerName = '';
+		}
+		await ctx.editMessageText(accountDetailText(account, ownerName), { reply_markup: accountDetailKeyboard(account) });
 		await ctx.answerCallbackQuery();
 	});
 
@@ -252,7 +259,9 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await updateAccount(env.DB, accountId, account.chat_id, newOwner);
 		const updated = await getAuthorizedAccount(env.DB, accountId, userId, true);
 		if (!updated) return ctx.answerCallbackQuery({ text: '账号不存在' });
-		await ctx.editMessageText(accountDetailText(updated), { reply_markup: accountDetailKeyboard(updated) });
+		const newOwnerUser = await getUserByTelegramId(env.DB, newOwner);
+		const ownerName = newOwnerUser?.username ? `@${newOwnerUser.username}` : formatUserName(newOwnerUser ?? { first_name: newOwner });
+		await ctx.editMessageText(accountDetailText(updated, ownerName), { reply_markup: accountDetailKeyboard(updated) });
 		await ctx.answerCallbackQuery({ text: `✅ 已分配给 ${newOwner}` });
 	});
 

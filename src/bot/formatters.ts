@@ -2,7 +2,7 @@ import { InlineKeyboard } from 'grammy';
 import type { Account, TelegramUser } from '../types';
 import { AccountType } from '../types';
 
-export function accountDetailText(account: Account): string {
+export function accountDetailText(account: Account, ownerName?: string): string {
 	let text = `📧 账号详情 #${account.id}\n\n`;
 	if (account.type === AccountType.Imap) {
 		text += `类型: 📬 IMAP\n`;
@@ -17,6 +17,9 @@ export function accountDetailText(account: Account): string {
 		text += `邮箱: ${account.email || '(未设置)'}\n`;
 		text += `Chat ID: ${account.chat_id}\n`;
 		text += `状态: ${status}`;
+	}
+	if (ownerName !== undefined) {
+		text += `\n所有者: ${ownerName || '(无)'}`;
 	}
 	return text;
 }
