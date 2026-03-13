@@ -7,7 +7,6 @@ import gmailPush from './email/gmail/push';
 import imapRoutes from './email/imap/index';
 import msOauth from './email/outlook/oauth';
 import outlookPush from './email/outlook/push';
-import mail from './mail';
 import preview from './preview';
 import telegram from './telegram';
 
@@ -39,6 +38,5 @@ app.route('', outlookPush);
 app.route('', msOauth);
 app.route('', imapRoutes);
 app.route('', preview);
-app.route('', mail);
 
 export default app;
