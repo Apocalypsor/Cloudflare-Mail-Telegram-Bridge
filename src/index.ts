@@ -1,5 +1,6 @@
 import app from './handlers/hono';
 import { handleQueueBatch } from './handlers/queue';
+import { retryAllFailedEmails } from './services/bridge';
 import { renewWatchAll } from './services/email/gmail';
 import { checkImapBridgeHealth } from './services/email/imap';
 import { renewSubscriptionAll } from './services/email/outlook';
@@ -24,6 +25,8 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
 	const isMidnight = new Date(event.scheduledTime).getUTCHours() === 0;
 
 	await Promise.allSettled([
+		// 每小时：自动重试失败邮件的 LLM 摘要
+		retryAllFailedEmails(env).catch((error: unknown) => reportErrorToObservability(env, 'scheduled.retry_failed_emails', error)),
 		// 每小时：检查 IMAP 中间件健康
 		checkImapBridgeHealth(env)
 			.then((health) => {
