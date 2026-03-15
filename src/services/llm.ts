@@ -3,8 +3,40 @@
 import { MAX_LINKS } from '../constants';
 import { extractLinks, prepareBody } from '../utils/format';
 
-/** 调用 OpenAI compatible /v1/chat/completions 接口，支持 JSON mode */
-async function callLLM(baseUrl: string, apiKey: string, model: string, prompt: string, json?: boolean): Promise<string> {
+/** JSON Schema 定义，用于 Structured Outputs */
+const EMAIL_ANALYSIS_SCHEMA = {
+	name: 'email_analysis',
+	strict: true,
+	schema: {
+		type: 'object',
+		properties: {
+			verification_code: {
+				type: ['string', 'null'],
+				description: 'Verification code / OTP extracted from the email, or null if none',
+			},
+			summary: {
+				type: 'string',
+				description: 'Bullet-point summary of the email (3-6 bullets, each starting with "• ")',
+			},
+			tags: {
+				type: 'array',
+				items: { type: 'string' },
+				description: '1-3 short keyword tags for the email',
+			},
+		},
+		required: ['verification_code', 'summary', 'tags'],
+		additionalProperties: false,
+	},
+} as const;
+
+/** 调用 OpenAI compatible /v1/chat/completions 接口，使用 Structured Outputs */
+async function callLLM(
+	baseUrl: string,
+	apiKey: string,
+	model: string,
+	prompt: string,
+	jsonSchema?: { name: string; strict: boolean; schema: Record<string, unknown> },
+): Promise<string> {
 	const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 	const resp = await fetch(url, {
 		method: 'POST',
@@ -16,7 +48,7 @@ async function callLLM(baseUrl: string, apiKey: string, model: string, prompt: s
 			model,
 			messages: [{ role: 'user', content: prompt }],
 			stream: false,
-			...(json && { response_format: { type: 'json_object' } }),
+			...(jsonSchema && { response_format: { type: 'json_schema', json_schema: jsonSchema } }),
 		}),
 	});
 
@@ -77,26 +109,17 @@ export async function analyzeEmail(
 		`   - Use the SAME LANGUAGE as the email\n` +
 		`   - Each tag 1-3 words, no "#" prefix\n` +
 		`   - Capture: sender/service name, category (notification, newsletter, promotion, verification), key topic\n\n` +
-		`Output ONLY valid JSON, no other text. Example:\n` +
-		`{"verification_code": null, "summary": "• ...", "tags": ["tag1", "tag2"]}\n\n` +
 		`Subject: ${subject}\n\n` +
 		`Body:\n${body}` +
 		linksSection;
 
-	const raw = await callLLM(baseUrl, apiKey, model, prompt, true);
+	const raw = await callLLM(baseUrl, apiKey, model, prompt, EMAIL_ANALYSIS_SCHEMA);
+	const parsed = JSON.parse(raw) as { verification_code: string | null; summary: string; tags: string[] };
+	const code = parsed.verification_code;
 
-	// 解析 JSON，容忍 markdown code fence 包裹
-	const jsonStr = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-	try {
-		const parsed = JSON.parse(jsonStr) as { verification_code?: string | null; summary?: string; tags?: string[] };
-		const code = parsed.verification_code ?? null;
-		return {
-			verificationCode: code && /^[A-Za-z0-9\-]{4,12}$/.test(code) ? code : null,
-			summary: parsed.summary ?? '',
-			tags: (parsed.tags ?? []).slice(0, 5),
-		};
-	} catch {
-		// JSON 解析失败时，把整个输出当摘要
-		return { verificationCode: null, summary: raw, tags: [] };
-	}
+	return {
+		verificationCode: code && /^[A-Za-z0-9\-]{4,12}$/.test(code) ? code : null,
+		summary: parsed.summary,
+		tags: parsed.tags.slice(0, 5),
+	};
 }
