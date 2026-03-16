@@ -39,7 +39,8 @@ export function accountListKeyboard(accounts: Account[], options?: { isAdmin?: b
 	}
 	kb.text('➕ 添加账号', 'add').row();
 	if (options?.isAdmin) {
-		kb.text(options.showAll ? '🔽 收起' : '👀 查看所有账号', options.showAll ? 'accs' : 'accs:all').row();
+		const back = options.showBack ? '' : ':s';
+		kb.text(options.showAll ? '🔽 收起' : '👀 查看所有账号', options.showAll ? `accs${back}` : `accs:all${back}`).row();
 	}
 	if (options?.showBack) kb.text('« 返回', 'menu');
 	return kb;
@@ -58,7 +59,7 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		await ctx.answerCallbackQuery();
 	});
 
-	// Account list (admin: show all accounts)
+	// Account list (admin: show all accounts, from menu)
 	bot.callbackQuery('accs:all', async (ctx) => {
 		const userId = String(ctx.from.id);
 		await clearBotState(env, userId);
@@ -67,6 +68,29 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 		const accounts = await getAllAccounts(env.DB);
 		const text = `📧 所有账号 (${accounts.length})`;
 		await ctx.editMessageText(text, { reply_markup: accountListKeyboard(accounts, { isAdmin: true, showAll: true, showBack: true }) });
+		await ctx.answerCallbackQuery();
+	});
+
+	// Account list (admin: show all accounts, standalone from /accounts)
+	bot.callbackQuery('accs:all:s', async (ctx) => {
+		const userId = String(ctx.from.id);
+		await clearBotState(env, userId);
+		if (!isAdmin(userId, env)) return ctx.answerCallbackQuery({ text: '无权操作' });
+
+		const accounts = await getAllAccounts(env.DB);
+		const text = `📧 所有账号 (${accounts.length})`;
+		await ctx.editMessageText(text, { reply_markup: accountListKeyboard(accounts, { isAdmin: true, showAll: true }) });
+		await ctx.answerCallbackQuery();
+	});
+
+	// Account list (standalone: collapse back to own accounts)
+	bot.callbackQuery('accs:s', async (ctx) => {
+		const userId = String(ctx.from.id);
+		await clearBotState(env, userId);
+		const accounts = await getOwnAccounts(env.DB, userId);
+
+		const text = accounts.length > 0 ? `📧 我的账号 (${accounts.length})` : '📧 暂无账号';
+		await ctx.editMessageText(text, { reply_markup: accountListKeyboard(accounts, { isAdmin: true }) });
 		await ctx.answerCallbackQuery();
 	});
 
