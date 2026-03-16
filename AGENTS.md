@@ -19,7 +19,7 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 | `npm test`           | Run tests (vitest)                             |
 | `npm run cf-typegen` | Generate TypeScript types from wrangler.jsonc  |
 
-Run `npx prettier --write <file>` after editing any source file to ensure consistent formatting.
+**IMPORTANT**: Run `npx prettier --write <file>` after editing ANY source file. This is mandatory — never skip formatting.
 Run `npm run cf-typegen` after changing bindings in wrangler.jsonc.
 Run `npm run build:css` after changing Tailwind classes in components (auto-runs with dev/deploy).
 
