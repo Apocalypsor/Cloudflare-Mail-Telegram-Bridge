@@ -75,9 +75,9 @@ export function registerUnreadHandler(bot: Bot, env: Env) {
 		const userId = String(ctx.from?.id);
 		const admin = isAdmin(userId, env);
 
-		await ctx.reply('🔍 正在查询未读邮件…');
+		const msg = await ctx.reply('🔍 正在查询未读邮件…');
 		const text = await buildUnreadText(env, userId, admin);
-		return ctx.reply(text, { link_preview_options: { is_disabled: true } });
+		await ctx.api.editMessageText(msg.chat.id, msg.message_id, text, { link_preview_options: { is_disabled: true } });
 	});
 
 	bot.callbackQuery('unread', async (ctx) => {
@@ -86,6 +86,6 @@ export function registerUnreadHandler(bot: Bot, env: Env) {
 
 		await ctx.answerCallbackQuery({ text: '正在查询…' });
 		const text = await buildUnreadText(env, userId, admin);
-		await ctx.editMessageText(text, { link_preview_options: { is_disabled: true } });
+		await ctx.reply(text, { link_preview_options: { is_disabled: true } });
 	});
 }

@@ -2,7 +2,7 @@ import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import { countFailedEmails, deleteAllFailedEmails, deleteFailedEmail, getAllFailedEmails, getFailedEmail } from '@db/failed-emails';
 
-import { approveUser, getNonAdminUsers, rejectUser } from '@db/users';
+import { approveUser, deleteUser, getNonAdminUsers, rejectUser } from '@db/users';
 import { retryAllFailedEmails, retryFailedEmail } from '@services/bridge';
 import { renewWatchAll } from '@services/email/gmail';
 import { renewSubscriptionAll } from '@services/email/outlook';
@@ -17,9 +17,9 @@ function userListKeyboard(users: TelegramUser[]): InlineKeyboard {
 	for (const u of users) {
 		const name = formatUserName(u);
 		if (u.approved === 1) {
-			kb.text(`✅ ${name}`, `u:${u.telegram_id}:info`).text('撤回', `u:${u.telegram_id}:r`);
+			kb.text(`✅ ${name}`, `u:${u.telegram_id}:info`).text('撤回', `u:${u.telegram_id}:r`).text('🗑', `u:${u.telegram_id}:del`);
 		} else {
-			kb.text(`⏳ ${name}`, `u:${u.telegram_id}:info`).text('批准', `u:${u.telegram_id}:a`).text('拒绝', `u:${u.telegram_id}:r`);
+			kb.text(`⏳ ${name}`, `u:${u.telegram_id}:info`).text('批准', `u:${u.telegram_id}:a`).text('🗑', `u:${u.telegram_id}:del`);
 		}
 		kb.row();
 	}
@@ -130,6 +130,34 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
 		const users = await getNonAdminUsers(env.DB, env.ADMIN_TELEGRAM_ID);
 		await ctx.editMessageText(userListText(users), { reply_markup: userListKeyboard(users) });
 		await ctx.answerCallbackQuery({ text: '已处理' });
+	});
+
+	// Delete user confirmation
+	bot.callbackQuery(/^u:(\d+):del$/, async (ctx) => {
+		const userId = String(ctx.from.id);
+		if (!isAdmin(userId, env)) {
+			return ctx.answerCallbackQuery({ text: '无权操作' });
+		}
+
+		const targetId = ctx.match![1];
+		const kb = new InlineKeyboard().text('⚠️ 确认删除', `u:${targetId}:dy`).text('取消', 'users');
+		await ctx.editMessageText(`确定要删除用户 ${targetId} 吗？\n\n该用户关联的账号绑定将被解除。`, { reply_markup: kb });
+		await ctx.answerCallbackQuery();
+	});
+
+	// Delete user confirmed
+	bot.callbackQuery(/^u:(\d+):dy$/, async (ctx) => {
+		const userId = String(ctx.from.id);
+		if (!isAdmin(userId, env)) {
+			return ctx.answerCallbackQuery({ text: '无权操作' });
+		}
+
+		const targetId = ctx.match![1];
+		await deleteUser(env.DB, targetId);
+
+		const users = await getNonAdminUsers(env.DB, env.ADMIN_TELEGRAM_ID);
+		await ctx.editMessageText(userListText(users), { reply_markup: userListKeyboard(users) });
+		await ctx.answerCallbackQuery({ text: '🗑 已删除' });
 	});
 
 	// Watch all

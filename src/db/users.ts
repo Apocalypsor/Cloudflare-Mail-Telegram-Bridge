@@ -54,3 +54,11 @@ export async function approveUser(db: D1Database, telegramId: string): Promise<v
 export async function rejectUser(db: D1Database, telegramId: string): Promise<void> {
 	await db.prepare('UPDATE users SET approved = 0 WHERE telegram_id = ?').bind(telegramId).run();
 }
+
+/** 删除用户（同时解除其关联的账号绑定） */
+export async function deleteUser(db: D1Database, telegramId: string): Promise<void> {
+	await db.batch([
+		db.prepare('UPDATE accounts SET telegram_user_id = NULL WHERE telegram_user_id = ?').bind(telegramId),
+		db.prepare('DELETE FROM users WHERE telegram_id = ?').bind(telegramId),
+	]);
+}
