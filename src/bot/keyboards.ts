@@ -1,5 +1,7 @@
 import type { Env } from '@/types';
+import { getAccountById } from '@db/accounts';
 import { getMessageMapping } from '@db/message-map';
+import { getEmailProvider } from '@services/email/provider';
 import { generateMailToken } from '@utils/hash';
 import { InlineKeyboard } from 'grammy';
 
@@ -34,7 +36,7 @@ export async function buildEmailKeyboard(
 	return starred ? STARRED_KEYBOARD : STAR_KEYBOARD;
 }
 
-/** 从 DB 读取当前星标状态后构建键盘（LLM 处理后编辑消息使用） */
+/** 从邮件源查询当前星标状态后构建键盘（LLM 处理后编辑消息使用） */
 export async function resolveStarredKeyboard(
 	env: Env,
 	chatId: string,
@@ -43,7 +45,12 @@ export async function resolveStarredKeyboard(
 	accountEmail: string | null,
 ): Promise<InlineKeyboard> {
 	const mapping = await getMessageMapping(env.DB, chatId, tgMessageId);
-	return buildEmailKeyboard(env, emailMessageId, accountEmail, chatId, !!mapping?.starred);
+	if (!mapping) return buildEmailKeyboard(env, emailMessageId, accountEmail, chatId, false);
+	const account = await getAccountById(env.DB, mapping.account_id);
+	if (!account) return buildEmailKeyboard(env, emailMessageId, accountEmail, chatId, false);
+	const provider = getEmailProvider(account, env);
+	const starred = await provider.isStarred(emailMessageId);
+	return buildEmailKeyboard(env, emailMessageId, accountEmail, chatId, starred);
 }
 
 // ── 主菜单键盘 ──────────────────────────────────────────────────────────────

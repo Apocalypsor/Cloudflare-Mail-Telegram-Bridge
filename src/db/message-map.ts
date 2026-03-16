@@ -5,7 +5,6 @@ export interface MessageMapping {
 	tg_chat_id: string;
 	email_message_id: string;
 	account_id: number;
-	starred: number; // 0 = 未星标, 1 = 已星标
 }
 
 /** 保存 Telegram → 邮件消息映射，返回是否实际插入（false = 重复，被 IGNORE） */
@@ -39,12 +38,4 @@ export async function getMappingsByEmailIds(db: D1Database, accountId: number, e
 /** 删除指定账号的所有消息映射 */
 export async function deleteMappingsByAccountId(db: D1Database, accountId: number): Promise<void> {
 	await db.prepare('DELETE FROM message_map WHERE account_id = ?').bind(accountId).run();
-}
-
-/** 更新星标状态 */
-export async function updateStarred(db: D1Database, chatId: string, tgMessageId: number, starred: boolean): Promise<void> {
-	await db
-		.prepare('UPDATE message_map SET starred = ? WHERE tg_chat_id = ? AND tg_message_id = ?')
-		.bind(starred ? 1 : 0, chatId, tgMessageId)
-		.run();
 }

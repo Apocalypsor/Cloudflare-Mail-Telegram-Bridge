@@ -106,6 +106,12 @@ export async function removeStar(token: string, messageId: string): Promise<void
 	await graphPatch(token, `/me/messages/${messageId}`, { flag: { flagStatus: 'notFlagged' } });
 }
 
+/** 检查邮件是否已星标 */
+export async function isStarred(token: string, messageId: string): Promise<boolean> {
+	const msg = await graphGet(token, `/me/messages/${messageId}?$select=flag`);
+	return msg.flag?.flagStatus === 'flagged';
+}
+
 /** 列出未读邮件（最多 top 条），含标题 */
 export async function listUnreadMessages(token: string, top: number = 20): Promise<{ id: string; subject?: string }[]> {
 	const data = await graphGet(token, `/me/mailFolders('Inbox')/messages?$filter=isRead eq false&$select=id,subject&$top=${top}`);

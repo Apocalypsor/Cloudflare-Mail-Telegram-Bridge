@@ -1,6 +1,6 @@
 import { InlineKeyboard } from 'grammy';
 import { getAccountById, getOwnAccounts } from '@db/accounts';
-import { getMessageMapping, updateStarred } from '@db/message-map';
+import { getMessageMapping } from '@db/message-map';
 import type { Env } from '@/types';
 import { getEmailProvider } from '@services/email/provider';
 import { buildEmailKeyboard } from '@bot/keyboards';
@@ -22,7 +22,6 @@ export async function toggleStar(env: Env, chatId: string, messageId: number, st
 	} else {
 		await provider.removeStar(mapping.email_message_id);
 	}
-	await updateStarred(env.DB, chatId, messageId, starred);
 
 	const keyboard = await buildEmailKeyboard(env, mapping.email_message_id, account.email, chatId, starred);
 	return { ok: true, keyboard, emailMessageId: mapping.email_message_id };

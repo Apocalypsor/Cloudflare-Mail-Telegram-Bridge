@@ -96,6 +96,12 @@ export async function removeStar(token: string, messageId: string): Promise<void
 	});
 }
 
+/** 检查邮件是否已星标 */
+export async function isStarred(token: string, messageId: string): Promise<boolean> {
+	const msg = await gmailGet(token, `/users/me/messages/${messageId}?format=MINIMAL`);
+	return (msg.labelIds as string[] | undefined)?.includes('STARRED') ?? false;
+}
+
 /** 列出未读邮件（最多 maxResults 条），含标题 */
 export async function listUnreadMessages(token: string, maxResults: number = 20): Promise<{ id: string; subject?: string }[]> {
 	const data = await gmailGet(token, `/users/me/messages?q=is:unread&maxResults=${maxResults}`);

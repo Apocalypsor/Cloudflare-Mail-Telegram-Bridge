@@ -58,6 +58,13 @@ export async function listImapStarred(env: Env, accountId: number, maxResults: n
 	return messages ?? [];
 }
 
+/** 检查邮件是否已星标（\Flagged） */
+export async function isImapStarred(env: Env, accountId: number, messageId: string): Promise<boolean> {
+	const resp = await callBridge(env, 'POST', '/api/is-starred', { accountId, messageId });
+	const { starred } = await resp.json<{ starred: boolean }>();
+	return starred;
+}
+
 /**
  * 从中间件按需拉取单封邮件原文（用于 LLM 重试），返回 base64 编码的 RFC 2822 raw email。
  * 中间件需实现 POST /api/fetch → { rawEmail: string }。
