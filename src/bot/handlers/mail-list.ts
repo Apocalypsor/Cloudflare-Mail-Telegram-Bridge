@@ -1,10 +1,12 @@
-import type { Bot } from 'grammy';
+import type { Account, Env } from '@/types';
+import { isAdmin } from '@bot/auth';
 import { getVisibleAccounts } from '@db/accounts';
 import { getMappingsByEmailIds, updateStarred } from '@db/message-map';
 import { getEmailProvider, type EmailListItem, type EmailProvider } from '@services/email/provider';
+import { buildEmailKeyboard } from '@services/keyboard';
+import { setReplyMarkup } from '@services/telegram';
 import { reportErrorToObservability } from '@utils/observability';
-import type { Account, Env } from '@/types';
-import { isAdmin } from '@bot/auth';
+import type { Bot } from 'grammy';
 
 const MAX_PER_ACCOUNT = 20;
 
@@ -41,10 +43,23 @@ async function queryAccount(
 		);
 		const mappingMap = new Map(mappings.map((m) => [m.email_message_id, m]));
 
-		// 同步星标状态：邮件源有星标但本地 message_map 没有的，更新本地
+		// 同步星标状态：邮件源有星标但本地 message_map 没有的，更新 DB + 按钮
 		if (syncStarred) {
 			const toSync = mappings.filter((m) => !m.starred);
-			await Promise.all(toSync.map((m) => updateStarred(env.DB, m.tg_chat_id, m.tg_message_id, true)));
+			if (toSync.length > 0) {
+				console.log(`Syncing ${toSync.length} starred messages for account ${account.id}`);
+			}
+			await Promise.all(
+				toSync.map(async (m) => {
+					await updateStarred(env.DB, m.tg_chat_id, m.tg_message_id, true);
+					try {
+						const keyboard = await buildEmailKeyboard(env, m.email_message_id, account.email, m.tg_chat_id, true);
+						await setReplyMarkup(env.TELEGRAM_BOT_TOKEN, m.tg_chat_id, m.tg_message_id, keyboard);
+					} catch (err) {
+						await reportErrorToObservability(env, 'bot.sync_star_button_failed', err, { chatId: m.tg_chat_id, messageId: m.tg_message_id });
+					}
+				}),
+			);
 		}
 
 		const items = msgs.map((msg) => {
