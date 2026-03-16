@@ -7,7 +7,7 @@ import { registerAdminHandlers, userListKeyboard } from '@bot/handlers/admin';
 import { registerInputHandler } from '@bot/handlers/input';
 import { registerReactionHandler } from '@bot/handlers/reaction';
 import { registerStarHandler } from '@bot/handlers/star';
-import { registerUnreadHandler } from '@bot/handlers/unread';
+import { registerMailListHandlers } from '@bot/handlers/mail-list';
 import { getOwnAccounts, getVisibleAccounts } from '@db/accounts';
 import { approveUser, getNonAdminUsers, getUserByTelegramId, rejectUser, upsertUser } from '@db/users';
 import { reportErrorToObservability } from '@utils/observability';
@@ -18,13 +18,14 @@ export { STAR_KEYBOARD, starKeyboardWithMailUrl, STARRED_KEYBOARD, starredKeyboa
 
 // ─── Bot 命令定义 ───────────────────────────────────────────────────────────
 // 修改此列表后更新 BOT_COMMANDS_VERSION，会自动同步到 Telegram
-const BOT_COMMANDS_VERSION = 2;
+const BOT_COMMANDS_VERSION = 3;
 
 const BOT_COMMANDS: BotCommand[] = [
 	{ command: 'start', description: '打开管理面板' },
 	{ command: 'help', description: '查看帮助信息' },
 	{ command: 'accounts', description: '查看我的邮箱账号' },
 	{ command: 'unread', description: '查看未读邮件' },
+	{ command: 'starred', description: '查看星标邮件' },
 	{ command: 'users', description: '查看用户列表（管理员）' },
 ];
 
@@ -35,6 +36,7 @@ const HELP_TEXT = `📬 *Telemail 帮助*
 /help \\- 查看帮助信息
 /accounts \\- 查看我的邮箱账号
 /unread \\- 查看未读邮件
+/starred \\- 查看星标邮件
 /users \\- 查看用户列表（管理员）
 
 *功能说明*
@@ -69,7 +71,7 @@ export async function getBotInfo(env: Env): Promise<UserFromGetMe> {
 }
 
 function mainMenuKeyboard(admin: boolean): InlineKeyboard {
-	const kb = new InlineKeyboard().text('📧 账号管理', 'accs').text('📬 未读邮件', 'unread').row();
+	const kb = new InlineKeyboard().text('📧 账号管理', 'accs').row().text('📬 未读邮件', 'unread').text('⭐ 星标邮件', 'starred').row();
 	if (admin) {
 		kb.text('👥 用户管理', 'users').text('⚙️ 全局操作', 'admin').row();
 	}
@@ -211,7 +213,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	registerAdminHandlers(bot, env);
 	registerReactionHandler(bot, env);
 	registerStarHandler(bot, env);
-	registerUnreadHandler(bot, env);
+	registerMailListHandlers(bot, env);
 	// 输入处理必须最后注册（catch-all text handler）
 	registerInputHandler(bot, env);
 

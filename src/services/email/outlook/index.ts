@@ -113,6 +113,13 @@ export async function listUnreadMessages(token: string, top: number = 20): Promi
 	return (data.value as { id: string; subject?: string }[]).map((m) => ({ id: m.id, subject: m.subject }));
 }
 
+/** 列出星标邮件（最多 top 条），含标题 */
+export async function listStarredMessages(token: string, top: number = 20): Promise<{ id: string; subject?: string }[]> {
+	const data = await graphGet(token, `/me/messages?$filter=flag/flagStatus eq 'flagged'&$select=id,subject&$top=${top}`);
+	if (!data.value) return [];
+	return (data.value as { id: string; subject?: string }[]).map((m) => ({ id: m.id, subject: m.subject }));
+}
+
 // ─── Subscription (webhook) ──────────────────────────────────────────────────
 
 /** 为单个账号创建/续订 Graph change notification subscription */
