@@ -1,5 +1,4 @@
 import type { Account, Env } from '@/types';
-import { isAdmin } from '@bot/auth';
 import { getVisibleAccounts } from '@db/accounts';
 import { getMappingsByEmailIds, updateStarred } from '@db/message-map';
 import { getEmailProvider, type EmailListItem, type EmailProvider } from '@services/email/provider';
@@ -136,17 +135,15 @@ const starredConfig = {
 export function registerMailListHandlers(bot: Bot, env: Env) {
 	bot.command('unread', async (ctx) => {
 		const userId = String(ctx.from?.id);
-		const admin = isAdmin(userId, env);
 		const msg = await ctx.reply('🔍 正在查询未读邮件…');
-		const text = await buildListText(env, userId, admin, (p) => p.listUnread(MAX_PER_ACCOUNT), unreadConfig);
+		const text = await buildListText(env, userId, false, (p) => p.listUnread(MAX_PER_ACCOUNT), unreadConfig);
 		await ctx.api.editMessageText(msg.chat.id, msg.message_id, text, { link_preview_options: { is_disabled: true } });
 	});
 
 	bot.callbackQuery('unread', async (ctx) => {
 		const userId = String(ctx.from.id);
-		const admin = isAdmin(userId, env);
 		await ctx.answerCallbackQuery({ text: '正在查询…' });
-		const text = await buildListText(env, userId, admin, (p) => p.listUnread(MAX_PER_ACCOUNT), unreadConfig);
+		const text = await buildListText(env, userId, false, (p) => p.listUnread(MAX_PER_ACCOUNT), unreadConfig);
 		await ctx.reply(text, { link_preview_options: { is_disabled: true } });
 	});
 
