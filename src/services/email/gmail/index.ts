@@ -96,6 +96,13 @@ export async function removeStar(token: string, messageId: string): Promise<void
 	});
 }
 
+/** 列出未读邮件 ID（最多 maxResults 条） */
+export async function listUnreadMessageIds(token: string, maxResults: number = 20): Promise<string[]> {
+	const data = await gmailGet(token, `/users/me/messages?q=is:unread&maxResults=${maxResults}`);
+	if (!data.messages) return [];
+	return (data.messages as { id: string }[]).map((m) => m.id);
+}
+
 // ─── Watch ───────────────────────────────────────────────────────────────────
 
 /** 停止单个账号的 Gmail push 通知 (watch) */

@@ -40,6 +40,16 @@ export async function setImapFlag(
 }
 
 /**
+ * 列出未读邮件 ID（需中间件实现 POST /api/unread → { messages: string[] }）。
+ * 中间件内部执行 IMAP SEARCH UNSEEN 命令。
+ */
+export async function listImapUnread(env: Env, accountId: number, maxResults: number = 20): Promise<string[]> {
+	const resp = await callBridge(env, 'POST', '/api/unread', { accountId, maxResults });
+	const { messages } = await resp.json<{ messages: string[] }>();
+	return messages ?? [];
+}
+
+/**
  * 从中间件按需拉取单封邮件原文（用于 LLM 重试），返回 base64 编码的 RFC 2822 raw email。
  * 中间件需实现 POST /api/fetch → { rawEmail: string }。
  */

@@ -106,6 +106,13 @@ export async function removeStar(token: string, messageId: string): Promise<void
 	await graphPatch(token, `/me/messages/${messageId}`, { flag: { flagStatus: 'notFlagged' } });
 }
 
+/** 列出未读邮件 ID（最多 top 条） */
+export async function listUnreadMessageIds(token: string, top: number = 20): Promise<string[]> {
+	const data = await graphGet(token, `/me/mailFolders('Inbox')/messages?$filter=isRead eq false&$select=id&$top=${top}`);
+	if (!data.value) return [];
+	return (data.value as { id: string }[]).map((m) => m.id);
+}
+
 // ─── Subscription (webhook) ──────────────────────────────────────────────────
 
 /** 为单个账号创建/续订 Graph change notification subscription */

@@ -1,11 +1,12 @@
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from '@/constants';
 import type { Account, Env } from '@/types';
 import { AccountType } from '@/types';
-import { addStar, getAccessToken, markAsRead, removeStar } from '@services/email/gmail/index';
-import { setImapFlag } from '@services/email/imap';
+import { addStar, getAccessToken, listUnreadMessageIds, markAsRead, removeStar } from '@services/email/gmail/index';
+import { listImapUnread, setImapFlag } from '@services/email/imap';
 import {
 	addStar as msAddStar,
 	getAccessToken as msGetAccessToken,
+	listUnreadMessageIds as msListUnreadMessageIds,
 	markAsRead as msMarkAsRead,
 	removeStar as msRemoveStar,
 } from '@services/email/outlook/index';
@@ -14,6 +15,7 @@ export interface EmailProvider {
 	markAsRead(messageId: string): Promise<void>;
 	addStar(messageId: string): Promise<void>;
 	removeStar(messageId: string): Promise<void>;
+	listUnread(maxResults?: number): Promise<string[]>;
 }
 
 export function getEmailProvider(account: Account, env: Env): EmailProvider {
@@ -22,6 +24,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			markAsRead: (messageId) => setImapFlag(env, account.id, messageId, IMAP_FLAG_SEEN, true),
 			addStar: (messageId) => setImapFlag(env, account.id, messageId, IMAP_FLAG_FLAGGED, true),
 			removeStar: (messageId) => setImapFlag(env, account.id, messageId, IMAP_FLAG_FLAGGED, false),
+			listUnread: (maxResults) => listImapUnread(env, account.id, maxResults),
 		};
 	}
 
@@ -39,6 +42,10 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 				const token = await msGetAccessToken(env, account);
 				await msRemoveStar(token, messageId);
 			},
+			listUnread: async (maxResults) => {
+				const token = await msGetAccessToken(env, account);
+				return msListUnreadMessageIds(token, maxResults);
+			},
 		};
 	}
 
@@ -55,6 +62,10 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 		removeStar: async (messageId) => {
 			const token = await getAccessToken(env, account);
 			await removeStar(token, messageId);
+		},
+		listUnread: async (maxResults) => {
+			const token = await getAccessToken(env, account);
+			return listUnreadMessageIds(token, maxResults);
 		},
 	};
 }

@@ -24,6 +24,21 @@ export async function getMessageMapping(db: D1Database, chatId: string, tgMessag
 		.first<MessageMapping>();
 }
 
+/** 根据邮件 ID 列表批量查找对应的 Telegram 消息映射 */
+export async function getMappingsByEmailIds(
+	db: D1Database,
+	accountId: number,
+	emailMessageIds: string[],
+): Promise<MessageMapping[]> {
+	if (emailMessageIds.length === 0) return [];
+	const placeholders = emailMessageIds.map(() => '?').join(',');
+	const { results } = await db
+		.prepare(`SELECT * FROM message_map WHERE account_id = ? AND email_message_id IN (${placeholders})`)
+		.bind(accountId, ...emailMessageIds)
+		.all<MessageMapping>();
+	return results;
+}
+
 /** 更新星标状态 */
 export async function updateStarred(db: D1Database, chatId: string, tgMessageId: number, starred: boolean): Promise<void> {
 	await db

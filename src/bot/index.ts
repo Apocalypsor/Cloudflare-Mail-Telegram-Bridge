@@ -7,6 +7,7 @@ import { registerAdminHandlers } from '@bot/handlers/admin';
 import { registerInputHandler } from '@bot/handlers/input';
 import { registerReactionHandler } from '@bot/handlers/reaction';
 import { registerStarHandler } from '@bot/handlers/star';
+import { registerUnreadHandler } from '@bot/handlers/unread';
 import { getOwnAccounts, getVisibleAccounts } from '@db/accounts';
 import { approveUser, getNonAdminUsers, getUserByTelegramId, rejectUser, upsertUser } from '@db/users';
 import { reportErrorToObservability } from '@utils/observability';
@@ -17,12 +18,13 @@ export { STAR_KEYBOARD, starKeyboardWithMailUrl, STARRED_KEYBOARD, starredKeyboa
 
 // ─── Bot 命令定义 ───────────────────────────────────────────────────────────
 // 修改此列表后更新 BOT_COMMANDS_VERSION，会自动同步到 Telegram
-const BOT_COMMANDS_VERSION = 1;
+const BOT_COMMANDS_VERSION = 2;
 
 const BOT_COMMANDS: BotCommand[] = [
 	{ command: 'start', description: '打开管理面板' },
 	{ command: 'help', description: '查看帮助信息' },
 	{ command: 'accounts', description: '查看我的邮箱账号' },
+	{ command: 'unread', description: '查看未读邮件' },
 	{ command: 'users', description: '查看用户列表（管理员）' },
 ];
 
@@ -32,12 +34,14 @@ const HELP_TEXT = `📬 *Telemail 帮助*
 /start \\- 打开管理面板
 /help \\- 查看帮助信息
 /accounts \\- 查看我的邮箱账号
+/unread \\- 查看未读邮件
 /users \\- 查看用户列表（管理员）
 
 *功能说明*
 • 支持 Gmail / Outlook / IMAP 邮箱转发到 Telegram
 • 点击 ⭐ 按钮可星标/取消星标邮件
 • 对消息添加 emoji reaction 可标记邮件为已读
+• 发送 /unread 查看未读邮件列表并跳转
 • 配置 LLM 后自动生成 AI 摘要`;
 
 /**
@@ -65,7 +69,7 @@ export async function getBotInfo(env: Env): Promise<UserFromGetMe> {
 }
 
 function mainMenuKeyboard(admin: boolean): InlineKeyboard {
-	const kb = new InlineKeyboard().text('📧 账号管理', 'accs').row();
+	const kb = new InlineKeyboard().text('📧 账号管理', 'accs').text('📬 未读邮件', 'unread').row();
 	if (admin) {
 		kb.text('👥 用户管理', 'users').text('⚙️ 全局操作', 'admin').row();
 	}
@@ -207,6 +211,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	registerAdminHandlers(bot, env);
 	registerReactionHandler(bot, env);
 	registerStarHandler(bot, env);
+	registerUnreadHandler(bot, env);
 	// 输入处理必须最后注册（catch-all text handler）
 	registerInputHandler(bot, env);
 
