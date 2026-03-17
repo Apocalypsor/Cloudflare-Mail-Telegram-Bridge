@@ -3,14 +3,20 @@
 import { MAX_LINKS } from '@/constants';
 import { extractLinks, prepareBody } from '@utils/format';
 
+/** 从逗号分隔的 API Key 列表中随机选一个 */
+function pickRandomKey(apiKeys: string): string {
+	const keys = apiKeys.split(',').map((k) => k.trim()).filter(Boolean);
+	return keys[Math.floor(Math.random() * keys.length)];
+}
+
 /** 调用 OpenAI compatible /v1/chat/completions 接口，支持 JSON mode */
-async function callLLM(baseUrl: string, apiKey: string, model: string, prompt: string, json?: boolean): Promise<string> {
+async function callLLM(baseUrl: string, apiKeys: string, model: string, prompt: string, json?: boolean): Promise<string> {
 	const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 	const resp = await fetch(url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			Authorization: `Bearer ${apiKey}`,
+			Authorization: `Bearer ${pickRandomKey(apiKeys)}`,
 		},
 		body: JSON.stringify({
 			model,
