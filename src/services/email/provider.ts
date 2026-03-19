@@ -10,11 +10,12 @@ import {
 	listUnreadMessages,
 	markAsRead,
 	removeStar,
+	markAsJunk as gmailMarkAsJunk,
 	moveToInbox as gmailMoveToInbox,
 	trashMessage as gmailTrashMessage,
 	deleteAllJunk as gmailDeleteAllJunk,
 } from '@services/email/gmail/index';
-import { imapDeleteAllJunk, imapDeleteMessage, imapMoveToInbox, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
+import { imapDeleteAllJunk, imapDeleteMessage, imapMarkAsJunk, imapMoveToInbox, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
 import {
 	addStar as msAddStar,
 	getAccessToken as msGetAccessToken,
@@ -24,6 +25,7 @@ import {
 	listUnreadMessages as msListUnreadMessages,
 	markAsRead as msMarkAsRead,
 	removeStar as msRemoveStar,
+	markAsJunk as msMarkAsJunk,
 	moveToInbox as msMoveToInbox,
 	deleteMessage as msDeleteMessage,
 	deleteAllJunk as msDeleteAllJunk,
@@ -42,6 +44,7 @@ export interface EmailProvider {
 	listUnread(maxResults?: number): Promise<EmailListItem[]>;
 	listStarred(maxResults?: number): Promise<EmailListItem[]>;
 	listJunk(maxResults?: number): Promise<EmailListItem[]>;
+	markAsJunk(messageId: string): Promise<void>;
 	moveToInbox(messageId: string): Promise<void>;
 	deleteMessage(messageId: string): Promise<void>;
 	deleteAllJunk(): Promise<number>;
@@ -65,6 +68,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			listUnread: (maxResults) => listImapUnread(env, account.id, maxResults),
 			listStarred: (maxResults) => listImapStarred(env, account.id, maxResults),
 			listJunk: (maxResults) => listImapJunk(env, account.id, maxResults),
+			markAsJunk: (messageId) => imapMarkAsJunk(env, account.id, messageId),
 			moveToInbox: (messageId) => imapMoveToInbox(env, account.id, messageId),
 			deleteMessage: (messageId) => imapDeleteMessage(env, account.id, messageId),
 			deleteAllJunk: () => imapDeleteAllJunk(env, account.id),
@@ -81,6 +85,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			listUnread: withToken(t, msListUnreadMessages),
 			listStarred: withToken(t, msListStarredMessages),
 			listJunk: withToken(t, msListJunkMessages),
+			markAsJunk: withToken(t, msMarkAsJunk),
 			moveToInbox: withToken(t, msMoveToInbox),
 			deleteMessage: withToken(t, msDeleteMessage),
 			deleteAllJunk: withToken(t, msDeleteAllJunk),
@@ -97,6 +102,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 		listUnread: withToken(t, listUnreadMessages),
 		listStarred: withToken(t, listStarredMessages),
 		listJunk: withToken(t, listJunkMessages),
+		markAsJunk: withToken(t, gmailMarkAsJunk),
 		moveToInbox: withToken(t, gmailMoveToInbox),
 		deleteMessage: withToken(t, gmailTrashMessage),
 		deleteAllJunk: withToken(t, gmailDeleteAllJunk),

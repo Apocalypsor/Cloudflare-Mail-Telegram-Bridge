@@ -6,6 +6,7 @@ import { registerInputHandler } from '@bot/handlers/input';
 import { registerMailListHandlers } from '@bot/handlers/mail-list';
 import { registerReactionHandler } from '@bot/handlers/reaction';
 import { registerStartHandlers } from '@bot/handlers/start';
+import { registerJunkHandler } from '@bot/handlers/junk';
 import { registerStarHandler } from '@bot/handlers/star';
 import { reportErrorToObservability } from '@utils/observability';
 import { Api, Bot } from 'grammy';
@@ -45,6 +46,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
 	registerAdminHandlers(bot, env);
 	registerReactionHandler(bot, env);
 	registerStarHandler(bot, env);
+	registerJunkHandler(bot, env);
 	registerMailListHandlers(bot, env);
 	// 输入处理必须最后注册（catch-all text handler）
 	registerInputHandler(bot, env);

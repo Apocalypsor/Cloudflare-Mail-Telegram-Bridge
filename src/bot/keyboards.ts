@@ -8,16 +8,16 @@ import { InlineKeyboard } from 'grammy';
 // ── 邮件消息键盘（星标 / 查看原文）─────────────────────────────────────────
 
 /** 星标 inline keyboard（无查看原文按钮） */
-export const STAR_KEYBOARD = new InlineKeyboard().text('⭐ 星标', 'star');
-export const STARRED_KEYBOARD = new InlineKeyboard().text('✅ 已星标', 'unstar');
+export const STAR_KEYBOARD = new InlineKeyboard().text('⭐ 星标', 'star').text('🚫 垃圾', 'junk_mark');
+export const STARRED_KEYBOARD = new InlineKeyboard().text('✅ 已星标', 'unstar').text('🚫 垃圾', 'junk_mark');
 
 /** 创建带"查看原文"链接的星标键盘 */
 export function starKeyboardWithMailUrl(mailUrl: string): InlineKeyboard {
-	return new InlineKeyboard().text('⭐ 星标', 'star').url('📧 查看原文', mailUrl);
+	return new InlineKeyboard().text('⭐ 星标', 'star').text('🚫 垃圾', 'junk_mark').url('📧 查看原文', mailUrl);
 }
 
 export function starredKeyboardWithMailUrl(mailUrl: string): InlineKeyboard {
-	return new InlineKeyboard().text('✅ 已星标', 'unstar').url('📧 查看原文', mailUrl);
+	return new InlineKeyboard().text('✅ 已星标', 'unstar').text('🚫 垃圾', 'junk_mark').url('📧 查看原文', mailUrl);
 }
 
 /** 根据星标状态构建邮件消息键盘 */

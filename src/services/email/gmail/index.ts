@@ -158,6 +158,14 @@ export async function listJunkMessages(token: string, maxResults: number = 20): 
 	return details;
 }
 
+/** 将邮件标记为垃圾邮件（添加 SPAM 标签，移除 INBOX 标签） */
+export async function markAsJunk(token: string, messageId: string): Promise<void> {
+	await gmailPost(token, `/users/me/messages/${messageId}/modify`, {
+		addLabelIds: ['SPAM'],
+		removeLabelIds: ['INBOX'],
+	});
+}
+
 /** 将垃圾邮件移回收件箱（移除 SPAM 标签，添加 INBOX 标签） */
 export async function moveToInbox(token: string, messageId: string): Promise<void> {
 	await gmailPost(token, `/users/me/messages/${messageId}/modify`, {

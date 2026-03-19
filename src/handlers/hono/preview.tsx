@@ -16,7 +16,7 @@ import {
 	ROUTE_PREVIEW,
 	ROUTE_PREVIEW_API,
 } from '@handlers/hono/routes';
-import { fetchRawEmailByType } from '@services/bridge';
+import { deliverEmailToTelegram, fetchRawEmailByType } from '@services/bridge';
 import { getAccessToken } from '@services/email/gmail';
 import { fetchMailContent, wrapPlainText } from '@services/email/mail-content';
 import { getEmailProvider } from '@services/email/provider';
@@ -224,7 +224,15 @@ preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
 	try {
 		const provider = getEmailProvider(account, c.env);
 		await provider.moveToInbox(messageId);
-		return c.json({ ok: true, message: '已移至收件箱' });
+
+		// 重新投递到 TG 频道
+		c.executionCtx.waitUntil(
+			fetchRawEmailByType(account, messageId, c.env)
+				.then((raw) => deliverEmailToTelegram(raw, messageId, account!, c.env, c.executionCtx.waitUntil.bind(c.executionCtx)))
+				.catch((err) => console.error('Re-deliver after move-to-inbox failed:', err)),
+		);
+
+		return c.json({ ok: true, message: '已移至收件箱并重新投递' });
 	} catch {
 		return c.json({ ok: false, error: '操作失败' }, 500);
 	}

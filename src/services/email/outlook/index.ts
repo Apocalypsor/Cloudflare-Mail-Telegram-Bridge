@@ -140,6 +140,11 @@ export async function listJunkMessages(token: string, top: number = 20): Promise
 	return (data.value as { id: string; subject?: string }[]).map((m) => ({ id: m.id, subject: m.subject }));
 }
 
+/** 将邮件标记为垃圾邮件（移到 JunkEmail 文件夹） */
+export async function markAsJunk(token: string, messageId: string): Promise<void> {
+	await graphPost(token, `/me/messages/${messageId}/move`, { destinationId: 'JunkEmail' });
+}
+
 /** 将垃圾邮件移回收件箱 */
 export async function moveToInbox(token: string, messageId: string): Promise<void> {
 	await graphPost(token, `/me/messages/${messageId}/move`, { destinationId: 'Inbox' });

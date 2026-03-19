@@ -219,9 +219,7 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
 		const userId = String(ctx.from.id);
 		await ctx.answerCallbackQuery({ text: '正在删除…' });
 		const { success, failed } = await deleteAllJunkEmails(env, userId);
-		const resultText = failed > 0
-			? `🗑 已删除 ${success} 封垃圾邮件，${failed} 个账号失败`
-			: `🗑 已删除 ${success} 封垃圾邮件`;
+		const resultText = failed > 0 ? `🗑 已删除 ${success} 封垃圾邮件，${failed} 个账号失败` : `🗑 已删除 ${success} 封垃圾邮件`;
 		await ctx.editMessageText(resultText);
 	});
 }
