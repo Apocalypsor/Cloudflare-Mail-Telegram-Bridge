@@ -1,3 +1,4 @@
+import { theme } from '@assets/theme';
 import { MAX_BODY_CHARS } from '@/constants';
 import { AccountType, type AppEnv } from '@/types';
 import { JunkCheckPage } from '@components/junk-check';
@@ -62,17 +63,58 @@ preview.post(ROUTE_JUNK_CHECK_API, loginGuard, async (c) => {
 /** 生成邮件预览页的悬浮操作按钮 HTML */
 function buildMailFab(messageId: string, accountId: number, token: string): string {
 	return `<style>
-#mail-fab{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-#mail-fab .fab-main{width:52px;height:52px;border-radius:50%;background:#3b82f6;color:#fff;border:none;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .2s,background .2s}
-#mail-fab .fab-main:hover{background:#2563eb}
-#mail-fab .fab-main.open{transform:rotate(45deg);background:#64748b}
-#mail-fab .fab-actions{display:none;flex-direction:column;align-items:flex-end;gap:8px}
+:root{
+  --fab-primary:${theme.primary};
+  --fab-primary-hover:${theme.primaryHover};
+  --fab-danger:${theme.danger};
+  --fab-bg:${theme.surface};
+  --fab-border:${theme.border};
+  --fab-text:${theme.text};
+  --fab-muted:${theme.muted};
+}
+#mail-fab{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  display:flex;flex-direction:column;align-items:flex-end;gap:10px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+@media(max-width:640px){
+  #mail-fab{bottom:16px;right:16px}
+}
+#mail-fab .fab-main{
+  width:52px;height:52px;border-radius:50%;
+  background:var(--fab-primary);color:#fff;border:none;
+  font-size:22px;cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+  transition:transform .2s,background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+#mail-fab .fab-main:hover{background:var(--fab-primary-hover)}
+#mail-fab .fab-main.open{transform:rotate(45deg);background:var(--fab-border)}
+#mail-fab .fab-actions{
+  display:none;flex-direction:column;align-items:flex-end;gap:8px;
+}
 #mail-fab .fab-actions.show{display:flex}
-#mail-fab .fab-btn{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:24px;border:none;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap;transition:opacity .2s}
+#mail-fab .fab-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:24px;border:none;
+  color:#fff;font-size:14px;cursor:pointer;
+  box-shadow:0 2px 10px rgba(0,0,0,.3);
+  white-space:nowrap;transition:opacity .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+@media(max-width:640px){
+  #mail-fab .fab-btn{padding:12px 20px;font-size:15px}
+}
 #mail-fab .fab-btn:disabled{opacity:.5;cursor:default}
-#mail-fab .fab-btn.inbox{background:#3b82f6}
-#mail-fab .fab-btn.del{background:#ef4444}
-#mail-fab .fab-status{background:#1e293b;color:#94a3b8;padding:6px 14px;border-radius:16px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
+#mail-fab .fab-btn.inbox{background:var(--fab-primary)}
+#mail-fab .fab-btn.del{background:var(--fab-danger)}
+#mail-fab .fab-status{
+  background:var(--fab-bg);color:var(--fab-muted);
+  padding:8px 16px;border-radius:16px;font-size:13px;
+  border:1px solid var(--fab-border);
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+  display:none;max-width:260px;text-align:center;
+}
 #mail-fab .fab-status.show{display:block}
 </style>
 <div id="mail-fab">
@@ -87,6 +129,7 @@ function buildMailFab(messageId: string, accountId: number, token: string): stri
 function toggleFab(btn){
   btn.classList.toggle('open');
   document.getElementById('fab-actions').classList.toggle('show');
+  document.getElementById('fab-status').className='fab-status';
 }
 async function mailAction(action,btn){
   var s=document.getElementById('fab-status');
