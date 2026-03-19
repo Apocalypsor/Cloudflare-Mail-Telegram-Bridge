@@ -4,6 +4,7 @@ import { JunkCheckPage } from '@components/junk-check';
 import { PreviewPage } from '@components/preview';
 import { getAccountByEmail, getAccountById } from '@db/accounts';
 import { getCachedMailHtml, putCachedMailHtml } from '@db/kv';
+import { requireTelegramLogin } from '@handlers/hono/middleware';
 import {
 	ROUTE_CORS_PROXY,
 	ROUTE_JUNK_CHECK,
@@ -27,30 +28,32 @@ import PostalMime from 'postal-mime';
 
 const preview = new Hono<AppEnv>();
 
+const loginGuard = requireTelegramLogin();
+
 // ─── HTML 格式化预览工具 ─────────────────────────────────────────────────────
 
-preview.get(ROUTE_PREVIEW, (c) => {
+preview.get(ROUTE_PREVIEW, loginGuard, (c) => {
 	return c.html(<PreviewPage />);
 });
 
-// ─── 垃圾邮件检测工具 ────────────────────────────────────────────────────────
-
-preview.get(ROUTE_JUNK_CHECK, (c) => {
-	return c.html(<JunkCheckPage />);
-});
-
-preview.post(ROUTE_JUNK_CHECK_API, async (c) => {
-	const { subject, body } = await c.req.json<{ subject?: string; body?: string }>();
-	if (!c.env.LLM_API_URL || !c.env.LLM_API_KEY || !c.env.LLM_MODEL) return c.json({ error: 'LLM not configured' }, 500);
-	const result = await analyzeEmail(c.env.LLM_API_URL, c.env.LLM_API_KEY, c.env.LLM_MODEL, subject ?? '', body ?? '');
-	return c.json({ isJunk: result.isJunk, junkConfidence: result.junkConfidence, summary: result.summary, tags: result.tags });
-});
-
-preview.post(ROUTE_PREVIEW_API, async (c) => {
+preview.post(ROUTE_PREVIEW_API, loginGuard, async (c) => {
 	const { html } = await c.req.json<{ html?: string }>();
 	if (!html) return c.json({ result: '', length: 0 });
 	const result = formatBody(undefined, html, MAX_BODY_CHARS);
 	return c.json({ result, length: result.length });
+});
+
+// ─── 垃圾邮件检测工具 ────────────────────────────────────────────────────────
+
+preview.get(ROUTE_JUNK_CHECK, loginGuard, (c) => {
+	return c.html(<JunkCheckPage />);
+});
+
+preview.post(ROUTE_JUNK_CHECK_API, loginGuard, async (c) => {
+	const { subject, body } = await c.req.json<{ subject?: string; body?: string }>();
+	if (!c.env.LLM_API_URL || !c.env.LLM_API_KEY || !c.env.LLM_MODEL) return c.json({ error: 'LLM not configured' }, 500);
+	const result = await analyzeEmail(c.env.LLM_API_URL, c.env.LLM_API_KEY, c.env.LLM_MODEL, subject ?? '', body ?? '');
+	return c.json({ isJunk: result.isJunk, junkConfidence: result.junkConfidence, summary: result.summary, tags: result.tags });
 });
 
 // ─── 邮件内容预览 ────────────────────────────────────────────────────────────

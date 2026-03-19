@@ -1,6 +1,6 @@
 /** 使用 OpenAI compatible API 对邮件正文进行 AI 分析（验证码 + 摘要 + 标签） */
 
-import { MAX_LINKS } from '@/constants';
+import { LLM_TIMEOUT_MS, MAX_LINKS } from '@/constants';
 import { extractLinks, prepareBody } from '@utils/format';
 import { http } from '@utils/http';
 
@@ -25,6 +25,7 @@ async function callLLM(baseUrl: string, apiKeys: string, model: string, prompt: 
 				stream: false,
 				...(json && { response_format: { type: 'json_object' } }),
 			},
+			timeout: LLM_TIMEOUT_MS,
 		})
 		.json<{ choices?: Array<{ message: { content: string } }> }>();
 

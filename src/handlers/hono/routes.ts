@@ -11,6 +11,10 @@ export const ROUTE_IMAP_PUSH = '/api/imap/push';
 // ── Outlook / Microsoft Graph routes ─────────────────────────────────────────
 export const ROUTE_OUTLOOK_PUSH = '/api/outlook/push';
 
+// ── Auth routes ──────────────────────────────────────────────────────────────
+export const ROUTE_LOGIN = '/login';
+export const ROUTE_LOGIN_CALLBACK = '/login/callback';
+
 // ── Page routes (GET / HTML) ─────────────────────────────────────────────────
 export const ROUTE_OAUTH_GOOGLE = '/oauth/google';
 export const ROUTE_OAUTH_GOOGLE_START = '/oauth/google/start';

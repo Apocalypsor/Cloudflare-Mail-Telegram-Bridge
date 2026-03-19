@@ -1,6 +1,6 @@
 import type { Bot } from 'grammy';
 import type { MessageEntity } from 'grammy/types';
-import { toggleStar } from '@services/message-actions';
+import { markAsReadByMessage, toggleStar } from '@services/message-actions';
 import { reportErrorToObservability } from '@utils/observability';
 import { STAR_TAG } from '@/constants';
 import type { Env } from '@/types';
@@ -47,6 +47,9 @@ export function registerStarHandler(bot: Bot, env: Env) {
 			} else {
 				await ctx.editMessageReplyMarkup({ reply_markup: result.keyboard });
 			}
+
+			// 星标同时自动标记已读
+			await markAsReadByMessage(env, String(msg.chat.id), msg.message_id);
 
 			await ctx.answerCallbackQuery({ text: '⭐ 已加星标' });
 			console.log(`Starred: email=${result.emailMessageId}`);

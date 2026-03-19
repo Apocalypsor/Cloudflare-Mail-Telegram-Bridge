@@ -45,6 +45,12 @@ export const IMAP_FLAG_FLAGGED = '\\Flagged' as const;
 // ── Tags ─────────────────────────────────────────────────────────────────────
 export const STAR_TAG = ' #星标';
 
+// ── Session / Auth ──────────────────────────────────────────────────────────
+export const TG_AUTH_MAX_AGE = 86400; // Telegram Login Widget auth_date 有效期（秒）
+export const SESSION_TTL = 7 * 24 * 3600; // session cookie 有效期 7 天
+export const SESSION_COOKIE_NAME = 'tg_session';
+export const LLM_TIMEOUT_MS = 30_000; // LLM 请求超时（毫秒）
+
 // ── Display ──────────────────────────────────────────────────────────────────
 export const MESSAGE_DATE_LOCALE = 'zh-CN';
 export const MESSAGE_DATE_TIMEZONE = 'America/New_York';
