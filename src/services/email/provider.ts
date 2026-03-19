@@ -10,8 +10,11 @@ import {
 	listUnreadMessages,
 	markAsRead,
 	removeStar,
+	moveToInbox as gmailMoveToInbox,
+	trashMessage as gmailTrashMessage,
+	deleteAllJunk as gmailDeleteAllJunk,
 } from '@services/email/gmail/index';
-import { isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
+import { imapDeleteAllJunk, imapDeleteMessage, imapMoveToInbox, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
 import {
 	addStar as msAddStar,
 	getAccessToken as msGetAccessToken,
@@ -21,6 +24,9 @@ import {
 	listUnreadMessages as msListUnreadMessages,
 	markAsRead as msMarkAsRead,
 	removeStar as msRemoveStar,
+	moveToInbox as msMoveToInbox,
+	deleteMessage as msDeleteMessage,
+	deleteAllJunk as msDeleteAllJunk,
 } from '@services/email/outlook/index';
 
 export interface EmailListItem {
@@ -36,6 +42,9 @@ export interface EmailProvider {
 	listUnread(maxResults?: number): Promise<EmailListItem[]>;
 	listStarred(maxResults?: number): Promise<EmailListItem[]>;
 	listJunk(maxResults?: number): Promise<EmailListItem[]>;
+	moveToInbox(messageId: string): Promise<void>;
+	deleteMessage(messageId: string): Promise<void>;
+	deleteAllJunk(): Promise<number>;
 }
 
 /** 将 (token, ...args) => R 的函数包装为 (...args) => R，自动注入 token */
@@ -56,6 +65,9 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			listUnread: (maxResults) => listImapUnread(env, account.id, maxResults),
 			listStarred: (maxResults) => listImapStarred(env, account.id, maxResults),
 			listJunk: (maxResults) => listImapJunk(env, account.id, maxResults),
+			moveToInbox: (messageId) => imapMoveToInbox(env, account.id, messageId),
+			deleteMessage: (messageId) => imapDeleteMessage(env, account.id, messageId),
+			deleteAllJunk: () => imapDeleteAllJunk(env, account.id),
 		};
 	}
 
@@ -69,6 +81,9 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			listUnread: withToken(t, msListUnreadMessages),
 			listStarred: withToken(t, msListStarredMessages),
 			listJunk: withToken(t, msListJunkMessages),
+			moveToInbox: withToken(t, msMoveToInbox),
+			deleteMessage: withToken(t, msDeleteMessage),
+			deleteAllJunk: withToken(t, msDeleteAllJunk),
 		};
 	}
 
@@ -82,5 +97,8 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 		listUnread: withToken(t, listUnreadMessages),
 		listStarred: withToken(t, listStarredMessages),
 		listJunk: withToken(t, listJunkMessages),
+		moveToInbox: withToken(t, gmailMoveToInbox),
+		deleteMessage: withToken(t, gmailTrashMessage),
+		deleteAllJunk: withToken(t, gmailDeleteAllJunk),
 	};
 }

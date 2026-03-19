@@ -67,6 +67,23 @@ export async function listImapJunk(env: Env, accountId: number, maxResults: numb
 	return messages ?? [];
 }
 
+/** 将垃圾邮件移回收件箱 */
+export async function imapMoveToInbox(env: Env, accountId: number, messageId: string): Promise<void> {
+	await callBridge(env, 'POST', '/api/move-to-inbox', { accountId, messageId });
+}
+
+/** 删除邮件 */
+export async function imapDeleteMessage(env: Env, accountId: number, messageId: string): Promise<void> {
+	await callBridge(env, 'POST', '/api/delete-message', { accountId, messageId });
+}
+
+/** 清空所有垃圾邮件 */
+export async function imapDeleteAllJunk(env: Env, accountId: number): Promise<number> {
+	const resp = await callBridge(env, 'POST', '/api/delete-all-junk', { accountId });
+	const { count } = (await resp.json()) as { count: number };
+	return count;
+}
+
 /** 检查邮件是否已星标（\Flagged） */
 export async function isImapStarred(env: Env, accountId: number, messageId: string): Promise<boolean> {
 	const resp = await callBridge(env, 'POST', '/api/is-starred', { accountId, messageId });

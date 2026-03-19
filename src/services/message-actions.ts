@@ -77,6 +77,26 @@ export async function markAllAsRead(env: Env, userId: string, maxPerAccount: num
 	return { success, failed };
 }
 
+/** 删除用户所有账号的垃圾邮件 */
+export async function deleteAllJunkEmails(env: Env, userId: string): Promise<{ success: number; failed: number }> {
+	const accounts = await getOwnAccounts(env.DB, userId);
+	let success = 0;
+	let failed = 0;
+
+	for (const account of accounts) {
+		try {
+			const provider = getEmailProvider(account, env);
+			const count = await provider.deleteAllJunk();
+			success += count;
+		} catch (err) {
+			await reportErrorToObservability(env, 'bot.delete_all_junk_failed', err, { accountId: account.id });
+			failed++;
+		}
+	}
+
+	return { success, failed };
+}
+
 /** 批量同步 Telegram 消息的星标按钮状态（starred 列表刷新时调用） */
 export async function syncStarButtonsForMappings(env: Env, mappings: MessageMapping[], account: Account): Promise<void> {
 	await Promise.all(

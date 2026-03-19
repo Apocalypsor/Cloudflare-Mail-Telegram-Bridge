@@ -2,7 +2,7 @@ import type { Account, Env } from '@/types';
 import { getOwnAccounts } from '@db/accounts';
 import { getMappingsByEmailIds, type MessageMapping } from '@db/message-map';
 import { getEmailProvider, type EmailListItem, type EmailProvider } from '@services/email/provider';
-import { markAllAsRead, syncStarButtonsForMappings } from '@services/message-actions';
+import { deleteAllJunkEmails, markAllAsRead, syncStarButtonsForMappings } from '@services/message-actions';
 import { buildTgMessageLink } from '@services/telegram';
 import { buildMailPreviewUrl } from '@utils/hash';
 import { escapeMdV2 } from '@utils/markdown-v2';
@@ -141,6 +141,7 @@ const junkConfig = {
 };
 
 const MARK_ALL_READ_KB = new InlineKeyboard().text('✉️ 标记全部已读', 'mark_all_read');
+const DELETE_ALL_JUNK_KB = new InlineKeyboard().text('🗑 全部删除', 'delete_all_junk');
 
 export function registerMailListHandlers(bot: Bot, env: Env) {
 	const syncStars = (mappings: MessageMapping[], account: Account) => syncStarButtonsForMappings(env, mappings, account);
@@ -195,17 +196,32 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
 	bot.command('junk', async (ctx) => {
 		const userId = String(ctx.from?.id);
 		const msg = await ctx.reply('🔍 正在查询垃圾邮件…');
-		const { text } = await buildListText(env, userId, (p) => p.listJunk(MAX_PER_ACCOUNT), junkConfig, undefined, true);
+		const { text, hasItems } = await buildListText(env, userId, (p) => p.listJunk(MAX_PER_ACCOUNT), junkConfig, undefined, true);
 		await ctx.api.editMessageText(msg.chat.id, msg.message_id, text, {
 			parse_mode: 'MarkdownV2',
 			link_preview_options: { is_disabled: true },
+			...(hasItems ? { reply_markup: DELETE_ALL_JUNK_KB } : {}),
 		});
 	});
 
 	bot.callbackQuery('junk', async (ctx) => {
 		const userId = String(ctx.from.id);
 		await ctx.answerCallbackQuery({ text: '正在查询…' });
-		const { text } = await buildListText(env, userId, (p) => p.listJunk(MAX_PER_ACCOUNT), junkConfig, undefined, true);
-		await ctx.reply(text, { parse_mode: 'MarkdownV2', link_preview_options: { is_disabled: true } });
+		const { text, hasItems } = await buildListText(env, userId, (p) => p.listJunk(MAX_PER_ACCOUNT), junkConfig, undefined, true);
+		await ctx.reply(text, {
+			parse_mode: 'MarkdownV2',
+			link_preview_options: { is_disabled: true },
+			...(hasItems ? { reply_markup: DELETE_ALL_JUNK_KB } : {}),
+		});
+	});
+
+	bot.callbackQuery('delete_all_junk', async (ctx) => {
+		const userId = String(ctx.from.id);
+		await ctx.answerCallbackQuery({ text: '正在删除…' });
+		const { success, failed } = await deleteAllJunkEmails(env, userId);
+		const resultText = failed > 0
+			? `🗑 已删除 ${success} 封垃圾邮件，${failed} 个账号失败`
+			: `🗑 已删除 ${success} 封垃圾邮件`;
+		await ctx.editMessageText(resultText);
 	});
 }

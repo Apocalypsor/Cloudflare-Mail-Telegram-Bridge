@@ -158,6 +158,28 @@ export async function listJunkMessages(token: string, maxResults: number = 20): 
 	return details;
 }
 
+/** 将垃圾邮件移回收件箱（移除 SPAM 标签，添加 INBOX 标签） */
+export async function moveToInbox(token: string, messageId: string): Promise<void> {
+	await gmailPost(token, `/users/me/messages/${messageId}/modify`, {
+		addLabelIds: ['INBOX'],
+		removeLabelIds: ['SPAM'],
+	});
+}
+
+/** 将邮件移入回收站 */
+export async function trashMessage(token: string, messageId: string): Promise<void> {
+	await gmailPost(token, `/users/me/messages/${messageId}/trash`, {});
+}
+
+/** 清空所有垃圾邮件（永久删除） */
+export async function deleteAllJunk(token: string): Promise<number> {
+	const data = await gmailGet(token, '/users/me/messages?q=in:spam&maxResults=100');
+	if (!data.messages) return 0;
+	const ids = (data.messages as { id: string }[]).map((m) => m.id);
+	await gmailPost(token, '/users/me/messages/batchDelete', { ids });
+	return ids.length;
+}
+
 // ─── Watch ───────────────────────────────────────────────────────────────────
 
 /** 停止单个账号的 Gmail push 通知 (watch) */

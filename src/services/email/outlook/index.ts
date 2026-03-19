@@ -70,6 +70,23 @@ export async function graphPatch(token: string, path: string, body: Record<strin
 	});
 }
 
+/** 调用 Graph API (POST with JSON body) */
+export async function graphPost(token: string, path: string, body: Record<string, unknown>): Promise<any> {
+	const resp = await http.post(`${MS_GRAPH_API}${path}`, {
+		headers: { Authorization: `Bearer ${token}` },
+		json: body,
+	});
+	const text = await resp.text();
+	return text ? JSON.parse(text) : null;
+}
+
+/** 调用 Graph API (DELETE) */
+export async function graphDelete(token: string, path: string): Promise<void> {
+	await http.delete(`${MS_GRAPH_API}${path}`, {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+}
+
 /** 获取邮件的原始 MIME 内容 */
 export async function fetchRawMime(token: string, messageId: string): Promise<ArrayBuffer> {
 	return http
@@ -121,6 +138,25 @@ export async function listJunkMessages(token: string, top: number = 20): Promise
 	const data = await graphGet(token, `/me/mailFolders('JunkEmail')/messages?$select=id,subject&$top=${top}`);
 	if (!data.value) return [];
 	return (data.value as { id: string; subject?: string }[]).map((m) => ({ id: m.id, subject: m.subject }));
+}
+
+/** 将垃圾邮件移回收件箱 */
+export async function moveToInbox(token: string, messageId: string): Promise<void> {
+	await graphPost(token, `/me/messages/${messageId}/move`, { destinationId: 'Inbox' });
+}
+
+/** 删除邮件 */
+export async function deleteMessage(token: string, messageId: string): Promise<void> {
+	await graphDelete(token, `/me/messages/${messageId}`);
+}
+
+/** 清空所有垃圾邮件 */
+export async function deleteAllJunk(token: string): Promise<number> {
+	const data = await graphGet(token, `/me/mailFolders('JunkEmail')/messages?$select=id&$top=100`);
+	if (!data.value || data.value.length === 0) return 0;
+	const ids = (data.value as { id: string }[]).map((m) => m.id);
+	await Promise.all(ids.map((id) => graphDelete(token, `/me/messages/${id}`)));
+	return ids.length;
 }
 
 // ─── Subscription (webhook) ──────────────────────────────────────────────────

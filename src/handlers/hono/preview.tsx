@@ -10,12 +10,15 @@ import {
 	ROUTE_JUNK_CHECK,
 	ROUTE_JUNK_CHECK_API,
 	ROUTE_MAIL,
+	ROUTE_MAIL_DELETE,
+	ROUTE_MAIL_MOVE_TO_INBOX,
 	ROUTE_PREVIEW,
 	ROUTE_PREVIEW_API,
 } from '@handlers/hono/routes';
 import { fetchRawEmailByType } from '@services/bridge';
 import { getAccessToken } from '@services/email/gmail';
 import { fetchMailContent, wrapPlainText } from '@services/email/mail-content';
+import { getEmailProvider } from '@services/email/provider';
 import { analyzeEmail } from '@services/llm';
 import { formatBody } from '@utils/format';
 import { verifyMailToken, verifyMailTokenById, verifyProxySignature } from '@utils/hash';
@@ -56,6 +59,51 @@ preview.post(ROUTE_JUNK_CHECK_API, loginGuard, async (c) => {
 	return c.json({ isJunk: result.isJunk, junkConfidence: result.junkConfidence, summary: result.summary, tags: result.tags });
 });
 
+/** 生成邮件预览页的悬浮操作按钮 HTML */
+function buildMailFab(messageId: string, accountId: number, token: string): string {
+	return `<style>
+#mail-fab{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+#mail-fab .fab-main{width:52px;height:52px;border-radius:50%;background:#3b82f6;color:#fff;border:none;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .2s,background .2s}
+#mail-fab .fab-main:hover{background:#2563eb}
+#mail-fab .fab-main.open{transform:rotate(45deg);background:#64748b}
+#mail-fab .fab-actions{display:none;flex-direction:column;align-items:flex-end;gap:8px}
+#mail-fab .fab-actions.show{display:flex}
+#mail-fab .fab-btn{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:24px;border:none;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap;transition:opacity .2s}
+#mail-fab .fab-btn:disabled{opacity:.5;cursor:default}
+#mail-fab .fab-btn.inbox{background:#3b82f6}
+#mail-fab .fab-btn.del{background:#ef4444}
+#mail-fab .fab-status{background:#1e293b;color:#94a3b8;padding:6px 14px;border-radius:16px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
+#mail-fab .fab-status.show{display:block}
+</style>
+<div id="mail-fab">
+<div id="fab-status" class="fab-status"></div>
+<div id="fab-actions" class="fab-actions">
+<button class="fab-btn inbox" onclick="mailAction('move-to-inbox',this)">📥 移到收件箱</button>
+<button class="fab-btn del" onclick="mailAction('delete',this)">🗑 删除邮件</button>
+</div>
+<button class="fab-main" onclick="toggleFab(this)">⚡</button>
+</div>
+<script>
+function toggleFab(btn){
+  btn.classList.toggle('open');
+  document.getElementById('fab-actions').classList.toggle('show');
+}
+async function mailAction(action,btn){
+  var s=document.getElementById('fab-status');
+  btn.disabled=true;s.className='fab-status show';s.textContent='处理中...';
+  try{
+    var r=await fetch('/api/mail/${encodeURIComponent(messageId)}/'+action,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accountId:${accountId},token:'${token}'})
+    });
+    var d=await r.json();
+    s.textContent=d.ok?'✅ '+d.message:'❌ '+(d.error||'操作失败');
+    if(d.ok){document.querySelectorAll('.fab-btn').forEach(function(b){b.disabled=true})}
+  }catch(e){s.textContent='❌ 网络错误'}
+}
+</script>`;
+}
+
 // ─── 邮件内容预览 ────────────────────────────────────────────────────────────
 
 preview.get(ROUTE_MAIL, async (c) => {
@@ -85,9 +133,12 @@ preview.get(ROUTE_MAIL, async (c) => {
 
 	if (!account) return c.text('Account not found', 404);
 
+	// 悬浮操作按钮（缓存和非缓存路径共用）
+	const fab = buildMailFab(messageId, account.id, token!);
+
 	// KV 缓存（所有类型共用）
 	const cached = await getCachedMailHtml(c.env, messageId);
-	if (cached) return c.html(await proxyImages(cached, c.env.ADMIN_SECRET));
+	if (cached) return c.html((await proxyImages(cached, c.env.ADMIN_SECRET)) + fab);
 
 	let html: string | null = null;
 	let cidMap: CidMap = new Map();
@@ -113,7 +164,44 @@ preview.get(ROUTE_MAIL, async (c) => {
 
 	html = replaceCidReferences(html, cidMap);
 	await putCachedMailHtml(c.env, messageId, html);
-	return c.html(await proxyImages(html, c.env.ADMIN_SECRET));
+	const proxied = await proxyImages(html, c.env.ADMIN_SECRET);
+	return c.html(proxied + fab);
+});
+
+// ─── 邮件操作 API ────────────────────────────────────────────────────────────
+
+preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
+	const messageId = c.req.param('id');
+	const body = (await c.req.json()) as { accountId?: number; token?: string };
+	if (!messageId || !body.accountId || !body.token) return c.json({ ok: false, error: '参数缺失' }, 400);
+	const valid = await verifyMailTokenById(c.env.ADMIN_SECRET, messageId, body.accountId, body.token);
+	if (!valid) return c.json({ ok: false, error: '无效的 token' }, 403);
+	const account = await getAccountById(c.env.DB, body.accountId);
+	if (!account) return c.json({ ok: false, error: '账号未找到' }, 404);
+	try {
+		const provider = getEmailProvider(account, c.env);
+		await provider.moveToInbox(messageId);
+		return c.json({ ok: true, message: '已移至收件箱' });
+	} catch {
+		return c.json({ ok: false, error: '操作失败' }, 500);
+	}
+});
+
+preview.post(ROUTE_MAIL_DELETE, async (c) => {
+	const messageId = c.req.param('id');
+	const body = (await c.req.json()) as { accountId?: number; token?: string };
+	if (!messageId || !body.accountId || !body.token) return c.json({ ok: false, error: '参数缺失' }, 400);
+	const valid = await verifyMailTokenById(c.env.ADMIN_SECRET, messageId, body.accountId, body.token);
+	if (!valid) return c.json({ ok: false, error: '无效的 token' }, 403);
+	const account = await getAccountById(c.env.DB, body.accountId);
+	if (!account) return c.json({ ok: false, error: '账号未找到' }, 404);
+	try {
+		const provider = getEmailProvider(account, c.env);
+		await provider.deleteMessage(messageId);
+		return c.json({ ok: true, message: '已删除' });
+	} catch {
+		return c.json({ ok: false, error: '操作失败' }, 500);
+	}
 });
 
 // ─── 通用 CORS 代理 ────────────────────────────────────────────────────────
