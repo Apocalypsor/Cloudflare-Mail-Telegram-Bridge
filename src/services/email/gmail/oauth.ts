@@ -17,9 +17,9 @@ const handler = createOAuthHandler({
 	extraAuthorizeParams: { access_type: 'offline', include_granted_scopes: 'true' },
 	getCredentials: (env) => ({ clientId: env.GMAIL_CLIENT_ID, clientSecret: env.GMAIL_CLIENT_SECRET }),
 	fetchEmail: async (accessToken) => {
-		const profile = (await http
-			.get(`${GMAIL_API}/users/me/profile`, { headers: { Authorization: `Bearer ${accessToken}` } })
-			.json()) as { emailAddress?: string };
+		const profile = (await http.get(`${GMAIL_API}/users/me/profile`, { headers: { Authorization: `Bearer ${accessToken}` } }).json()) as {
+			emailAddress?: string;
+		};
 		return profile.emailAddress;
 	},
 	onAuthorized: async (env, account) => {

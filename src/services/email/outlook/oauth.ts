@@ -18,9 +18,10 @@ const handler = createOAuthHandler({
 	getCredentials: (env) => ({ clientId: env.MS_CLIENT_ID!, clientSecret: env.MS_CLIENT_SECRET! }),
 	extraTokenBody: () => ({ scope: MS_MAIL_SCOPE }),
 	fetchEmail: async (accessToken) => {
-		const profile = (await http
-			.get(`${MS_GRAPH_API}/me`, { headers: { Authorization: `Bearer ${accessToken}` } })
-			.json()) as { mail?: string; userPrincipalName?: string };
+		const profile = (await http.get(`${MS_GRAPH_API}/me`, { headers: { Authorization: `Bearer ${accessToken}` } }).json()) as {
+			mail?: string;
+			userPrincipalName?: string;
+		};
 		return profile.mail || profile.userPrincipalName;
 	},
 	onAuthorized: async (env, account) => {
