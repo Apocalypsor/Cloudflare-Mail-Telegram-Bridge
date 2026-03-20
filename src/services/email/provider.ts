@@ -16,7 +16,18 @@ import {
 	trashMessage as gmailTrashMessage,
 	trashAllJunk as gmailDeleteAllJunk,
 } from '@services/email/gmail/index';
-import { imapTrashAllJunk, imapTrashMessage, imapMarkAsJunk, imapMoveToInbox, isImapJunk, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
+import {
+	imapTrashAllJunk,
+	imapTrashMessage,
+	imapMarkAsJunk,
+	imapMoveToInbox,
+	isImapJunk,
+	isImapStarred,
+	listImapJunk,
+	listImapStarred,
+	listImapUnread,
+	setImapFlag,
+} from '@services/email/imap';
 import {
 	addStar as msAddStar,
 	getAccessToken as msGetAccessToken,

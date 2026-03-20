@@ -207,9 +207,7 @@ export async function deliverEmailToTelegram(
 				if (isJunk) {
 					// 邮件移到垃圾邮件文件夹 + 删除 TG 消息 + 清理映射
 					const provider = getEmailProvider(account, env);
-					await provider.markAsJunk(messageId).catch((e) =>
-						reportErrorToObservability(env, 'bridge.mark_junk_error', e),
-					);
+					await provider.markAsJunk(messageId).catch((e) => reportErrorToObservability(env, 'bridge.mark_junk_error', e));
 					await deleteMessage(tgToken, chatId, sentMessageId).catch(() => {});
 					await deleteMappingByEmailId(env.DB, messageId, account.id).catch((e) =>
 						reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),
