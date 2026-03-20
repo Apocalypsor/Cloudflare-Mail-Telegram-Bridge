@@ -45,7 +45,7 @@ export function registerStartHandlers(bot: Bot, env: Env) {
 			return ctx.reply('您的账号正在等待管理员审批，审批通过后会收到通知。');
 		}
 
-		return ctx.reply('📬 Telemail 管理面板', { reply_markup: mainMenuKeyboard(admin) });
+		return ctx.reply('💻 Telemail 管理面板', { reply_markup: mainMenuKeyboard(admin) });
 	});
 
 	// ─── /help ────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export function registerStartHandlers(bot: Bot, env: Env) {
 	bot.callbackQuery('menu', async (ctx) => {
 		const userId = String(ctx.from.id);
 		const admin = isAdmin(userId, env);
-		await ctx.editMessageText('📬 Telemail 管理面板', { reply_markup: mainMenuKeyboard(admin) });
+		await ctx.editMessageText('💻 Telemail 管理面板', { reply_markup: mainMenuKeyboard(admin) });
 		await ctx.answerCallbackQuery();
 	});
 
