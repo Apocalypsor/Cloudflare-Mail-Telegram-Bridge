@@ -19,7 +19,7 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 | `npm test`           | Run tests (vitest)                             |
 | `npm run cf-typegen` | Generate TypeScript types from wrangler.jsonc  |
 
-**IMPORTANT**: Run `npx prettier --write <file>` after editing ANY source file. This is mandatory — never skip formatting.
+**IMPORTANT**: Prettier + tsc run automatically on pre-commit hook (husky + lint-staged). You can also run `npx prettier --write <file>` manually.
 Run `npm run cf-typegen` after changing bindings in wrangler.jsonc.
 Run `npm run build:css` after changing Tailwind classes in components (auto-runs with dev/deploy).
 
@@ -55,8 +55,9 @@ Telemail is a Cloudflare Worker that forwards emails (Gmail / Outlook / IMAP) to
 
 - `requireSecret('GMAIL_PUSH_SECRET')` — query param secret for Pub/Sub push
 - `requireBearer('IMAP_BRIDGE_SECRET')` — Authorization header for IMAP bridge
+- `requireTelegramLogin()` — Telegram Login Widget session cookie (protects preview pages)
 
-**Email provider abstraction**: `src/services/email/provider.ts` — unified `markAsRead` / `addStar` / `removeStar` dispatching across Gmail, Outlook, and IMAP account types.
+**Email provider abstraction**: `src/services/email/provider.ts` — unified interface dispatching across Gmail, Outlook, and IMAP: `markAsRead`, `addStar`, `removeStar`, `isStarred`, `isJunk`, `markAsJunk`, `moveToInbox`, `trashMessage`, `trashAllJunk`, `listUnread`, `listStarred`, `listJunk`.
 
 ## Constants
 
@@ -89,13 +90,18 @@ TypeScript path aliases are configured in `tsconfig.json` and resolved by Wrangl
 
 Examples: `import { Env } from '@/types'`, `import { analyzeEmail } from '@services/llm'`, `import { reportErrorToObservability } from '@utils/observability'`.
 
+## Theme
+
+All color values are centralized in `src/assets/theme.ts` (slate/blue palette). Used by the mail preview FAB and any inline CSS injected outside of Tailwind context.
+
 ## LLM Analysis
 
-`analyzeEmail()` in `src/services/llm.ts` performs a single LLM call returning:
+`analyzeEmail()` in `src/services/llm.ts` performs a single LLM call (with 30s timeout) returning:
 
 - `verificationCode`: extracted OTP/passcode, or `null`
 - `summary`: bullet-point summary (skipped when a verification code is found)
 - `tags`: 1–3 single-word tags, first letter capitalized, same language as the email (e.g. `Github`, `Verification`, `Password_Reset`)
+- `isJunk` / `junkConfidence`: spam classification. Emails with confidence ≥ 0.8 are auto-moved to junk folder, TG message deleted.
 
 ## Bot Commands
 
