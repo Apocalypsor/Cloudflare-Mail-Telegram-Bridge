@@ -1,0 +1,50 @@
+{
+	"version": 1,
+	"skills": {
+		"agents-sdk": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "921f2a43c0f58851a8bf9faaeb3641fa3108f3a94e787ca8e948626342988658"
+		},
+		"building-ai-agent-on-cloudflare": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "e1d8051a52bd96c307a7781fc045a9155f86750e25f151675c19709c88d78468"
+		},
+		"building-mcp-server-on-cloudflare": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "281b2b0870687792fd23a738b2838f6f581b928a96012de57a9ff61f0df24101"
+		},
+		"cloudflare": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "02ef72b4906d295d03da15d52357babdef06a762f0374b85c89c73c9b22a7bad"
+		},
+		"durable-objects": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "72efa2277fea08f43b393c74abaacc9fa575e20bc63bdc9d46829b8a39352852"
+		},
+		"sandbox-sdk": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "5655f09026204f4b753c9e06dc6483e9f6ddeec18bb3daa8735195c4b2d1f752"
+		},
+		"web-perf": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "520d36ee93779146266dcdeec31d5e42341c3a40cc35007c1b5e02d6824ff86b"
+		},
+		"workers-best-practices": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "420e1ad3eaeb8ed2016e6b34fff3757de6aa39899ec2bd6e9784a29c38e70f9a"
+		},
+		"wrangler": {
+			"source": "cloudflare/skills",
+			"sourceType": "github",
+			"computedHash": "cd0ac8f97a2f54d19166acfd380fca8236db5e9f37d3b2066f713967e2673d36"
+		}
+	}
+}
