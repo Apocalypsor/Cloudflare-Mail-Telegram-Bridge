@@ -90,7 +90,7 @@ export async function imapTrashMessage(env: Env, accountId: number, messageId: s
 }
 
 /** 清空所有垃圾邮件 */
-export async function imapDeleteAllJunk(env: Env, accountId: number): Promise<number> {
+export async function imapTrashAllJunk(env: Env, accountId: number): Promise<number> {
 	const resp = await callBridge(env, 'POST', '/api/delete-all-junk', { accountId });
 	const { count } = (await resp.json()) as { count: number };
 	return count;

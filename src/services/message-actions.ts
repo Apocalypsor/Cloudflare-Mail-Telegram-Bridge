@@ -77,21 +77,8 @@ export async function markAllAsRead(env: Env, userId: string, maxPerAccount: num
 	return { success, failed };
 }
 
-/** 通过 Telegram 消息将对应邮件标记为垃圾 */
-export async function markAsJunkByMessage(env: Env, chatId: string, messageId: number): Promise<{ ok: true; emailMessageId: string; accountId: number } | { ok: false; reason: string }> {
-	const mapping = await getMessageMapping(env.DB, chatId, messageId);
-	if (!mapping) return { ok: false, reason: '消息映射未找到' };
-
-	const account = await getAccountById(env.DB, mapping.account_id);
-	if (!account) return { ok: false, reason: '账号未找到' };
-
-	const provider = getEmailProvider(account, env);
-	await provider.markAsJunk(mapping.email_message_id);
-	return { ok: true, emailMessageId: mapping.email_message_id, accountId: mapping.account_id };
-}
-
-/** 删除用户所有账号的垃圾邮件 */
-export async function deleteAllJunkEmails(env: Env, userId: string): Promise<{ success: number; failed: number }> {
+/** 清空用户所有账号的垃圾邮件（移到回收站） */
+export async function trashAllJunkEmails(env: Env, userId: string): Promise<{ success: number; failed: number }> {
 	const accounts = await getOwnAccounts(env.DB, userId);
 	let success = 0;
 	let failed = 0;
@@ -99,7 +86,7 @@ export async function deleteAllJunkEmails(env: Env, userId: string): Promise<{ s
 	for (const account of accounts) {
 		try {
 			const provider = getEmailProvider(account, env);
-			const count = await provider.deleteAllJunk();
+			const count = await provider.trashAllJunk();
 			success += count;
 		} catch (err) {
 			await reportErrorToObservability(env, 'bot.delete_all_junk_failed', err, { accountId: account.id });

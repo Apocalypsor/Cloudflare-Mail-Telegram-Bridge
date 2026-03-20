@@ -14,9 +14,9 @@ import {
 	markAsJunk as gmailMarkAsJunk,
 	moveToInbox as gmailMoveToInbox,
 	trashMessage as gmailTrashMessage,
-	deleteAllJunk as gmailDeleteAllJunk,
+	trashAllJunk as gmailDeleteAllJunk,
 } from '@services/email/gmail/index';
-import { imapDeleteAllJunk, imapTrashMessage, imapMarkAsJunk, imapMoveToInbox, isImapJunk, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
+import { imapTrashAllJunk, imapTrashMessage, imapMarkAsJunk, imapMoveToInbox, isImapJunk, isImapStarred, listImapJunk, listImapStarred, listImapUnread, setImapFlag } from '@services/email/imap';
 import {
 	addStar as msAddStar,
 	getAccessToken as msGetAccessToken,
@@ -30,7 +30,7 @@ import {
 	markAsJunk as msMarkAsJunk,
 	moveToInbox as msMoveToInbox,
 	trashMessage as msTrashMessage,
-	deleteAllJunk as msDeleteAllJunk,
+	trashAllJunk as msDeleteAllJunk,
 } from '@services/email/outlook/index';
 
 export interface EmailListItem {
@@ -50,7 +50,7 @@ export interface EmailProvider {
 	markAsJunk(messageId: string): Promise<void>;
 	moveToInbox(messageId: string): Promise<void>;
 	trashMessage(messageId: string): Promise<void>;
-	deleteAllJunk(): Promise<number>;
+	trashAllJunk(): Promise<number>;
 }
 
 /** 将 (token, ...args) => R 的函数包装为 (...args) => R，自动注入 token */
@@ -75,7 +75,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			markAsJunk: (messageId) => imapMarkAsJunk(env, account.id, messageId),
 			moveToInbox: (messageId) => imapMoveToInbox(env, account.id, messageId),
 			trashMessage: (messageId) => imapTrashMessage(env, account.id, messageId),
-			deleteAllJunk: () => imapDeleteAllJunk(env, account.id),
+			trashAllJunk: () => imapTrashAllJunk(env, account.id),
 		};
 	}
 
@@ -93,7 +93,7 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 			markAsJunk: withToken(t, msMarkAsJunk),
 			moveToInbox: withToken(t, msMoveToInbox),
 			trashMessage: withToken(t, msTrashMessage),
-			deleteAllJunk: withToken(t, msDeleteAllJunk),
+			trashAllJunk: withToken(t, msDeleteAllJunk),
 		};
 	}
 
@@ -111,6 +111,6 @@ export function getEmailProvider(account: Account, env: Env): EmailProvider {
 		markAsJunk: withToken(t, gmailMarkAsJunk),
 		moveToInbox: withToken(t, gmailMoveToInbox),
 		trashMessage: withToken(t, gmailTrashMessage),
-		deleteAllJunk: withToken(t, gmailDeleteAllJunk),
+		trashAllJunk: withToken(t, gmailDeleteAllJunk),
 	};
 }

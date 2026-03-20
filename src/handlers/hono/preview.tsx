@@ -126,7 +126,7 @@ function buildMailFab(messageId: string, accountId: number, token: string, inJun
 ${
 	inJunk
 		? `<button class="fab-btn inbox" onclick="mailAction('move-to-inbox',this)">📥 移到收件箱</button>
-<button class="fab-btn del" onclick="mailAction('delete',this)">🗑 删除邮件</button>`
+<button class="fab-btn del" onclick="mailAction('trash',this)">🗑 删除邮件</button>`
 		: `<button class="fab-btn del" onclick="mailAction('mark-as-junk',this)">🚫 标记为垃圾</button>`
 }
 </div>

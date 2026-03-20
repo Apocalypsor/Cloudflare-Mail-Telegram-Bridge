@@ -186,7 +186,7 @@ export async function trashMessage(token: string, messageId: string): Promise<vo
 }
 
 /** 清空所有垃圾邮件（移入回收站，gmail.modify 权限即可） */
-export async function deleteAllJunk(token: string): Promise<number> {
+export async function trashAllJunk(token: string): Promise<number> {
 	const data = await gmailGet(token, '/users/me/messages?q=in:spam&maxResults=100');
 	if (!data.messages) return 0;
 	const ids = (data.messages as { id: string }[]).map((m) => m.id);

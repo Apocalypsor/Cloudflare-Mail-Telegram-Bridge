@@ -2,7 +2,7 @@ import type { Account, Env } from '@/types';
 import { getOwnAccounts } from '@db/accounts';
 import { getMappingsByEmailIds, type MessageMapping } from '@db/message-map';
 import { getEmailProvider, type EmailListItem, type EmailProvider } from '@services/email/provider';
-import { deleteAllJunkEmails, markAllAsRead, syncStarButtonsForMappings } from '@services/message-actions';
+import { trashAllJunkEmails, markAllAsRead, syncStarButtonsForMappings } from '@services/message-actions';
 import { buildTgMessageLink } from '@services/telegram';
 import { buildMailPreviewUrl } from '@utils/hash';
 import { escapeMdV2 } from '@utils/markdown-v2';
@@ -218,7 +218,7 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
 	bot.callbackQuery('delete_all_junk', async (ctx) => {
 		const userId = String(ctx.from.id);
 		await ctx.answerCallbackQuery({ text: '正在删除…' });
-		const { success, failed } = await deleteAllJunkEmails(env, userId);
+		const { success, failed } = await trashAllJunkEmails(env, userId);
 		const resultText = failed > 0 ? `🗑 已删除 ${success} 封垃圾邮件，${failed} 个账号失败` : `🗑 已删除 ${success} 封垃圾邮件`;
 		await ctx.editMessageText(resultText);
 	});

@@ -10,6 +10,7 @@ import { escapeMdV2 } from '@utils/markdown-v2';
 import { getAccessToken, gmailGet } from '@services/email/gmail';
 import { fetchImapRawEmail } from '@services/email/imap';
 import { fetchRawMime, getAccessToken as msGetAccessToken } from '@services/email/outlook';
+import { getEmailProvider } from '@services/email/provider';
 import { buildEmailKeyboard, resolveStarredKeyboard } from '@bot/keyboards';
 import { analyzeEmail } from '@services/llm';
 import { reportErrorToObservability } from '@utils/observability';
@@ -204,6 +205,11 @@ export async function deliverEmailToTelegram(
 					editKeyboard,
 				);
 				if (isJunk) {
+					// 邮件移到垃圾邮件文件夹 + 删除 TG 消息 + 清理映射
+					const provider = getEmailProvider(account, env);
+					await provider.markAsJunk(messageId).catch((e) =>
+						reportErrorToObservability(env, 'bridge.mark_junk_error', e),
+					);
 					await deleteMessage(tgToken, chatId, sentMessageId).catch(() => {});
 					await deleteMappingByEmailId(env.DB, messageId, account.id).catch((e) =>
 						reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),

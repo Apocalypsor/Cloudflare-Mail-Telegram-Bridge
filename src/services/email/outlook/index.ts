@@ -164,7 +164,7 @@ export async function trashMessage(token: string, messageId: string): Promise<vo
 }
 
 /** 清空所有垃圾邮件（移到回收站） */
-export async function deleteAllJunk(token: string): Promise<number> {
+export async function trashAllJunk(token: string): Promise<number> {
 	const data = await graphGet(token, `/me/mailFolders('JunkEmail')/messages?$select=id&$top=100`);
 	if (!data.value || data.value.length === 0) return 0;
 	const ids = (data.value as { id: string }[]).map((m) => m.id);
