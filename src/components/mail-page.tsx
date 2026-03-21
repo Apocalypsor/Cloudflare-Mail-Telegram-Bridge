@@ -27,7 +27,7 @@ function MailMetaHeader({ meta, accountEmail }: { meta: MailMeta; accountEmail?:
 
 	return (
 		<div
-			style={`position:sticky;top:0;z-index:9998;background:${theme.surface};border-bottom:1px solid ${theme.border};padding:12px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:${theme.text};line-height:1.7`}
+			style={`background:${theme.surface};border-bottom:1px solid ${theme.border};padding:12px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:${theme.text};line-height:1.7`}
 		>
 			{meta.subject && <div style={`font-size:15px;font-weight:600;color:${theme.text};margin-bottom:6px`}>{meta.subject}</div>}
 			{meta.from && (
