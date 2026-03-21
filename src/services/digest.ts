@@ -36,30 +36,31 @@ function getGreeting(hour: number): string {
 	return hour < 12 ? '🌅 早安' : '🌆 晚上好';
 }
 
-/** 为所有用户发送邮件摘要通知 */
+/** 为所有用户发送邮件摘要通知（私聊发送给用户本人） */
 export async function sendDigestNotifications(env: Env, scheduledTime: number): Promise<void> {
 	const localHour = getLocalHour(scheduledTime);
 	const accounts = await getAllAccounts(env.DB);
 	if (accounts.length === 0) return;
 
-	// 按 chat_id 分组
-	const chatGroups = new Map<string, Account[]>();
+	// 按 telegram_user_id 分组，跳过没有用户 ID 的账号
+	const userGroups = new Map<string, Account[]>();
 	for (const account of accounts) {
-		const group = chatGroups.get(account.chat_id) ?? [];
+		if (!account.telegram_user_id) continue;
+		const group = userGroups.get(account.telegram_user_id) ?? [];
 		group.push(account);
-		chatGroups.set(account.chat_id, group);
+		userGroups.set(account.telegram_user_id, group);
 	}
 
 	await Promise.allSettled(
-		[...chatGroups.entries()].map(([chatId, groupAccounts]) =>
-			sendDigestToChat(env, chatId, groupAccounts, localHour).catch((error: unknown) =>
-				reportErrorToObservability(env, 'digest.send_failed', error, { chatId }),
+		[...userGroups.entries()].map(([userId, userAccounts]) =>
+			sendDigestToUser(env, userId, userAccounts, localHour).catch((error: unknown) =>
+				reportErrorToObservability(env, 'digest.send_failed', error, { userId }),
 			),
 		),
 	);
 }
 
-async function sendDigestToChat(env: Env, chatId: string, accounts: Account[], localHour: number): Promise<void> {
+async function sendDigestToUser(env: Env, userId: string, accounts: Account[], localHour: number): Promise<void> {
 	// 并发查询每个账号的未读和垃圾数
 	const digests = await Promise.all(accounts.map((account) => queryAccountDigest(env, account)));
 
@@ -89,7 +90,7 @@ async function sendDigestToChat(env: Env, chatId: string, accounts: Account[], l
 	}
 
 	const text = lines.join('\n');
-	await sendTextMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, DIGEST_KB);
+	await sendTextMessage(env.TELEGRAM_BOT_TOKEN, userId, text, DIGEST_KB);
 }
 
 async function queryAccountDigest(env: Env, account: Account): Promise<AccountDigest> {
