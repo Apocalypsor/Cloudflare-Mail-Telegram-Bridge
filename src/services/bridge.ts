@@ -67,6 +67,22 @@ function buildTelegramHeader(fromName: string, fromAddress: string, recipient: s
 	return lines.join('\n');
 }
 
+/** 从解析后的邮件中提取 TG 消息所需的各项内容 */
+function prepareEmailContent(
+	email: { subject?: string; to?: { address?: string }[]; from?: { name?: string; address?: string }; text?: string; html?: string },
+	account: Account,
+	isCaption: boolean,
+) {
+	const subject = email.subject || '无主题';
+	const recipient = email.to?.map((t) => t.address).join(', ') || account.email || `Account #${account.id}`;
+	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
+	const charLimit = isCaption ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
+	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
+	const formattedBody = formatBody(email.text, email.html, bodyBudget);
+	const plainBody = getEmailPlainBody(email);
+	return { subject, header, formattedBody, plainBody };
+}
+
 /** 调用 LLM 分析邮件并编辑 Telegram 消息（验证码 / 摘要 + 标签），返回分析结果 */
 async function editMessageWithAnalysis(
 	env: Env,
@@ -85,12 +101,7 @@ async function editMessageWithAnalysis(
 			? editMessageCaption(tgToken, chatId, tgMessageId, newText, keyboard)
 			: editTextMessage(tgToken, chatId, tgMessageId, newText, keyboard);
 
-	const result = await analyzeEmail(env.LLM_API_URL!, env.LLM_API_KEY!, env.LLM_MODEL!, subject, plainBody).catch((err) => {
-		reportErrorToObservability(env, 'llm.analyze_failed', err, { subject });
-		return null;
-	});
-
-	if (!result) return false;
+	const result = await analyzeEmail(env.LLM_API_URL!, env.LLM_API_KEY!, env.LLM_MODEL!, subject, plainBody);
 
 	// 置信度 >= 0.8 视为垃圾邮件，由调用方删除消息
 	if (result.isJunk && result.junkConfidence >= 0.8) {
@@ -152,18 +163,12 @@ export async function deliverEmailToTelegram(
 	const parser = new PostalMime();
 	const email = await parser.parse(rawEmail);
 
-	const subject = email.subject || '无主题';
-	const recipient = email.to?.map((t) => t.address).join(', ') || account.email || `Account #${account.id}`;
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
 	const hasAttachments = !!(email.attachments && email.attachments.length > 0);
 	const hasSingleAttachment = hasAttachments && email.attachments!.length === 1;
-	const charLimit = hasSingleAttachment ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
+	const { subject, header, formattedBody, plainBody } = prepareEmailContent(email, account, hasSingleAttachment);
+	const text = header + wrapExpandableQuote(formattedBody);
 
 	const hasLlm = !!(env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL);
-
-	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
-	const formattedBody = formatBody(email.text, email.html, bodyBudget);
-	const text = header + wrapExpandableQuote(formattedBody);
 
 	const keyboard = await buildEmailKeyboard(env, messageId, account.id, false);
 
@@ -190,7 +195,6 @@ export async function deliverEmailToTelegram(
 
 	if (!hasLlm) return;
 
-	const plainBody = getEmailPlainBody(email);
 	if (!plainBody.trim()) return;
 
 	waitUntil(
@@ -210,9 +214,8 @@ export async function deliverEmailToTelegram(
 					editKeyboard,
 				);
 				if (isJunk) {
-					// 邮件移到垃圾邮件文件夹 + 删除 TG 消息 + 清理映射
 					const provider = getEmailProvider(account, env);
-					await provider.markAsJunk(messageId).catch((e) => reportErrorToObservability(env, 'bridge.mark_junk_error', e));
+					await provider.markAsJunk(messageId);
 					await deleteMessage(tgToken, chatId, sentMessageId).catch(() => {});
 					await deleteMappingByEmailId(env.DB, messageId, account.id).catch((e) =>
 						reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),
@@ -267,21 +270,14 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	const parser = new PostalMime();
 	const email = await parser.parse(rawEmail);
 
-	const plainBody = getEmailPlainBody(email);
+	const { subject, header, formattedBody, plainBody } = prepareEmailContent(email, account, !!failed.is_caption);
 	if (!plainBody.trim()) {
 		await deleteFailedEmail(env.DB, failed.id);
 		return;
 	}
-
-	const subject = email.subject || '无主题';
-	const recipient = email.to?.map((t) => t.address).join(', ') || account.email || `Account #${account.id}`;
-	const header = buildTelegramHeader(email.from?.name || '', email.from?.address || '未知', recipient, subject, account.email ?? undefined);
-	const charLimit = failed.is_caption ? TG_CAPTION_LIMIT : TG_MSG_LIMIT;
-	const bodyBudget = Math.max(Math.floor((charLimit - header.length) * 0.9), 100);
-	const formattedBody = formatBody(email.text, email.html, bodyBudget);
 	const keyboard = await resolveStarredKeyboard(env, failed.tg_chat_id, failed.tg_message_id, failed.email_message_id, account.id);
 
-	await editMessageWithAnalysis(
+	const isJunk = await editMessageWithAnalysis(
 		env,
 		env.TELEGRAM_BOT_TOKEN,
 		failed.tg_chat_id,
@@ -293,6 +289,16 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 		formattedBody,
 		keyboard,
 	);
+
+	if (isJunk) {
+		// markAsJunk 失败时让异常传播，保留 failed_emails 记录以便下次重试
+		const provider = getEmailProvider(account, env);
+		await provider.markAsJunk(failed.email_message_id);
+		await deleteMessage(env.TELEGRAM_BOT_TOKEN, failed.tg_chat_id, failed.tg_message_id).catch(() => {});
+		await deleteMappingByEmailId(env.DB, failed.email_message_id, account.id).catch((e) =>
+			reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),
+		);
+	}
 
 	await deleteFailedEmail(env.DB, failed.id);
 }
