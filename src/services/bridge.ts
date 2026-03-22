@@ -2,7 +2,7 @@ import PostalMime from 'postal-mime';
 import { MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE } from '@/constants';
 import { getAccountById } from '@db/accounts';
 import { deleteFailedEmail, getAllFailedEmails, putFailedEmail, type FailedEmail } from '@db/failed-emails';
-import { deleteMappingByEmailId, putMessageMapping } from '@db/message-map';
+import { putMessageMapping } from '@db/message-map';
 import { AccountType, type Account, type Env, type QueueMessage } from '@/types';
 import { base64ToArrayBuffer, base64urlToArrayBuffer } from '@utils/base64url';
 import { formatBody, htmlToMarkdown, toTelegramMdV2 } from '@utils/format';
@@ -10,7 +10,6 @@ import { escapeMdV2 } from '@utils/markdown-v2';
 import { getAccessToken, gmailGet } from '@services/email/gmail';
 import { fetchImapRawEmail } from '@services/email/imap';
 import { fetchRawMime, getAccessToken as msGetAccessToken } from '@services/email/outlook';
-import { getEmailProvider } from '@services/email/provider';
 import { buildEmailKeyboard, resolveStarredKeyboard } from '@bot/keyboards';
 import { analyzeEmail } from '@services/llm';
 import { reportErrorToObservability } from '@utils/observability';
@@ -95,7 +94,7 @@ async function editMessageWithAnalysis(
 	plainBody: string,
 	formattedBody: string,
 	keyboard: unknown,
-): Promise<boolean> {
+): Promise<void> {
 	const editMsg = (newText: string) =>
 		isCaption
 			? editMessageCaption(tgToken, chatId, tgMessageId, newText, keyboard)
@@ -103,10 +102,9 @@ async function editMessageWithAnalysis(
 
 	const result = await analyzeEmail(env.LLM_API_URL!, env.LLM_API_KEY!, env.LLM_MODEL!, subject, plainBody);
 
-	// 置信度 >= 0.8 视为垃圾邮件，由调用方删除消息
-	if (result.isJunk && result.junkConfidence >= 0.8) {
-		console.log(`Junk email detected (confidence=${result.junkConfidence}), will delete`);
-		return true;
+	// 高置信度垃圾邮件仅添加 Junk 标签，不移动到垃圾箱
+	if (result.isJunk && result.junkConfidence >= 0.8 && !result.tags.some((t) => /^junk$/i.test(t))) {
+		result.tags.push('Junk');
 	}
 
 	const tagsLine =
@@ -116,12 +114,11 @@ async function editMessageWithAnalysis(
 		const codeSection = `*🔒 验证码:*  \`${escapeMdV2(result.verificationCode)}\`\n\n`;
 		await editMsg(header + codeSection + wrapExpandableQuote(formattedBody) + tagsLine);
 		console.log('Verification code extracted');
-		return false;
+		return;
 	}
 
 	const summarySection = `*${escapeMdV2('🤖 AI 摘要')}*\n\n${toTelegramMdV2(result.summary)}`;
 	await editMsg(header + summarySection + tagsLine);
-	return false;
 }
 
 /** 按账号类型拉取原始邮件 */
@@ -201,7 +198,7 @@ export async function deliverEmailToTelegram(
 		(async () => {
 			try {
 				const editKeyboard = await buildEmailKeyboard(env, messageId, account.id, false);
-				const isJunk = await editMessageWithAnalysis(
+				await editMessageWithAnalysis(
 					env,
 					tgToken,
 					chatId,
@@ -213,14 +210,6 @@ export async function deliverEmailToTelegram(
 					formattedBody,
 					editKeyboard,
 				);
-				if (isJunk) {
-					const provider = getEmailProvider(account, env);
-					await provider.markAsJunk(messageId);
-					await deleteMessage(tgToken, chatId, sentMessageId).catch(() => {});
-					await deleteMappingByEmailId(env.DB, messageId, account.id).catch((e) =>
-						reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),
-					);
-				}
 			} catch (err) {
 				await reportErrorToObservability(env, 'llm.summary_failed', err, { subject });
 				await putFailedEmail(env.DB, {
@@ -277,7 +266,7 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 	}
 	const keyboard = await resolveStarredKeyboard(env, failed.tg_chat_id, failed.tg_message_id, failed.email_message_id, account.id);
 
-	const isJunk = await editMessageWithAnalysis(
+	await editMessageWithAnalysis(
 		env,
 		env.TELEGRAM_BOT_TOKEN,
 		failed.tg_chat_id,
@@ -289,16 +278,6 @@ export async function retryFailedEmail(failed: FailedEmail, env: Env): Promise<v
 		formattedBody,
 		keyboard,
 	);
-
-	if (isJunk) {
-		// markAsJunk 失败时让异常传播，保留 failed_emails 记录以便下次重试
-		const provider = getEmailProvider(account, env);
-		await provider.markAsJunk(failed.email_message_id);
-		await deleteMessage(env.TELEGRAM_BOT_TOKEN, failed.tg_chat_id, failed.tg_message_id).catch(() => {});
-		await deleteMappingByEmailId(env.DB, failed.email_message_id, account.id).catch((e) =>
-			reportErrorToObservability(env, 'bridge.delete_junk_mapping_error', e),
-		);
-	}
 
 	await deleteFailedEmail(env.DB, failed.id);
 }

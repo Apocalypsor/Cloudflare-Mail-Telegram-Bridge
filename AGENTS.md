@@ -106,7 +106,7 @@ All color values are centralized in `src/assets/theme.ts` (slate/blue palette). 
 - `verificationCode`: extracted OTP/passcode, or `null`
 - `summary`: bullet-point summary (skipped when a verification code is found)
 - `tags`: 1–3 single-word tags, first letter capitalized, same language as the email (e.g. `Github`, `Verification`, `Password_Reset`)
-- `isJunk` / `junkConfidence`: spam classification. Emails with confidence ≥ 0.8 are auto-moved to junk folder, TG message deleted.
+- `isJunk` / `junkConfidence`: spam classification. Emails with confidence ≥ 0.8 get a `#Junk` tag added to the Telegram message (no auto-move or deletion).
 
 ## Email Digest
 
@@ -125,4 +125,4 @@ Use `reportErrorToObservability()` from `src/utils/observability.ts` instead of 
 After making significant changes (new features, architectural refactors, route changes, dependency changes), update:
 
 1. **AGENTS.md** — Keep commands, conventions, and project-specific notes current.
-2. **README.md** — Update project description, setup instructions, route documentation, and tech stack as needed.
+2. **README.md** — Update project description, setup instructions, route documentation, and tech stack as needed. **Do not forget to update README.md** — it is the user-facing documentation and must stay in sync with AGENTS.md.
