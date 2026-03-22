@@ -11,8 +11,8 @@
 		"cf-typegen": "wrangler types",
 		"migrate": "wrangler d1 migrations apply gmail-tg-bridge --remote",
 		"prepare": "husky",
-		"skills:install": "bunx skills experimental_install && ln -sf ../.agents/skills .claude/",
-		"skills:update": "bunx skills update"
+		"skills:install": "pnpm dlx skills experimental_install && ln -sf ../.agents/skills .claude/",
+		"skills:update": "pnpm dlx skills update"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.13.3",
@@ -22,6 +22,7 @@
 		"husky": "^9.1.7",
 		"lint-staged": "^16.4.0",
 		"prettier": "^3.8.1",
+		"tailwindcss": "^4.2.2",
 		"typescript": "^5.9.3",
 		"vitest": "~4.1.0",
 		"wrangler": "^4.76.0"
