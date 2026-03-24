@@ -1,5 +1,15 @@
 # Cloudflare Workers
 
+> **MANDATORY: Code Quality & Documentation**
+>
+> Before committing ANY changes, you MUST:
+>
+> 1. Run `pnpm check` — Biome lint + format check. Fix ALL errors and warnings. Do NOT use `biome-ignore` — fix the code instead.
+> 2. Run `pnpm typecheck` — TypeScript type checking. Fix ALL errors.
+> 3. Update **AGENTS.md** and **README.md** if your changes affect commands, conventions, architecture, or features. Do not forget README.md.
+>
+> These checks also run automatically on pre-commit hook (husky + lint-staged).
+
 STOP. Your knowledge of Cloudflare Workers APIs and limits may be outdated. Always retrieve current documentation before any Workers, KV, R2, D1, Durable Objects, Queues, Vectorize, AI, or Agents SDK task.
 
 ## Docs
@@ -17,9 +27,11 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 | `pnpm deploy`     | Build CSS + deploy to Cloudflare               |
 | `pnpm build:css`  | Generate Tailwind CSS (src/assets/tailwind.ts) |
 | `pnpm test`       | Run tests (vitest)                             |
+| `pnpm check`      | Lint + format check (Biome)                    |
+| `pnpm typecheck`  | TypeScript type checking (tsc --noEmit)        |
 | `pnpm cf-typegen` | Generate TypeScript types from wrangler.jsonc  |
 
-**IMPORTANT**: Prettier + tsc run automatically on pre-commit hook (husky + lint-staged). You can also run `pnpm prettier --write <file>` manually.
+**IMPORTANT**: Biome check runs automatically on pre-commit hook (husky + lint-staged). You can also run `pnpm check --fix` or `pnpm exec biome check --write <file>` manually.
 Run `pnpm cf-typegen` after changing bindings in wrangler.jsonc.
 Run `pnpm build:css` after changing Tailwind classes in components (auto-runs with dev/deploy).
 
