@@ -28,6 +28,7 @@ export function htmlToMarkdown(html: string): string {
   // they cause document.body to be empty. Strip them before parsing.
   const htmlTagIdx = html.search(/<html[\s>]/i);
   if (htmlTagIdx > 0) html = html.substring(htmlTagIdx);
+  else if (htmlTagIdx < 0) html = `<html><body>${html}</body></html>`;
 
   const { document } = parseHTML(html);
   for (const node of document.querySelectorAll("head, style, script")) {
