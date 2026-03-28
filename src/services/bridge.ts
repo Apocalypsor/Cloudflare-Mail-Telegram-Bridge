@@ -299,9 +299,10 @@ export async function deliverEmailToTelegram(
           editKeyboard,
         );
       } catch (err) {
-        await reportErrorToObservability(env, "llm.summary_failed", err, {
-          subject,
-        });
+        console.error(
+          `LLM analysis failed for message ${messageId}, saving to failed_emails`,
+          err,
+        );
         await putFailedEmail(env.DB, {
           account_id: account.id,
           email_message_id: messageId,
