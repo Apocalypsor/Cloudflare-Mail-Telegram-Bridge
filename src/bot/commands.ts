@@ -4,12 +4,13 @@ import { KV_BOT_COMMANDS_VERSION_KEY } from "@/constants";
 import type { Env } from "@/types";
 
 // 修改此列表后更新 BOT_COMMANDS_VERSION，会自动同步到 Telegram
-const BOT_COMMANDS_VERSION = 5;
+const BOT_COMMANDS_VERSION = 6;
 
 export const BOT_COMMANDS: BotCommand[] = [
   { command: "start", description: "打开管理面板" },
   { command: "help", description: "查看帮助信息" },
   { command: "accounts", description: "查看我的邮箱账号" },
+  { command: "sync", description: "同步所有邮箱" },
   { command: "unread", description: "查看未读邮件" },
   { command: "starred", description: "查看星标邮件" },
   { command: "junk", description: "查看垃圾邮件" },
@@ -22,6 +23,7 @@ export const HELP_TEXT = `📬 *Telemail 帮助*
 /start \\- 打开管理面板
 /help \\- 查看帮助信息
 /accounts \\- 查看我的邮箱账号
+/sync \\- 同步所有邮箱
 /unread \\- 查看未读邮件
 /starred \\- 查看星标邮件
 /junk \\- 查看垃圾邮件

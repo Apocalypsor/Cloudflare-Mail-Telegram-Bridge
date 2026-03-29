@@ -125,7 +125,11 @@ All color values are centralized in `src/assets/theme.ts` (slate/blue palette). 
 
 ## Bot Commands
 
-Bot commands are defined in `src/bot/index.ts` (`BOT_COMMANDS` array) and auto-synced to Telegram via `setMyCommands` on each webhook request (gated by KV-stored `BOT_COMMANDS_VERSION` — only calls the API when the version changes). Increment `BOT_COMMANDS_VERSION` after modifying the command list; deploy and send any message to the Bot to trigger sync.
+Bot commands are defined in `src/bot/commands.ts` (`BOT_COMMANDS` array) and auto-synced to Telegram via `setMyCommands` on each webhook request (gated by KV-stored `BOT_COMMANDS_VERSION` — only calls the API when the version changes). Increment `BOT_COMMANDS_VERSION` after modifying the command list; deploy and send any message to the Bot to trigger sync.
+
+## Manual Sync
+
+`/sync` command and the "🔄 同步邮件" main menu button trigger a manual pull-based sync for all of the user's accounts. For each account, `listUnread` fetches up to 50 unread messages, filters out those already delivered (via `message_map`), and enqueues the rest to `EMAIL_QUEUE`. Dedup at delivery time (`INSERT OR IGNORE`) prevents duplicate Telegram messages even under concurrent syncs. Handler: `src/bot/handlers/sync.ts`.
 
 ## Error Reporting
 
