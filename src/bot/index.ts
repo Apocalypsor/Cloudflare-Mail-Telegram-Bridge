@@ -7,25 +7,23 @@ import { registerReactionHandler } from "@bot/handlers/reaction";
 import { registerStarHandler } from "@bot/handlers/star";
 import { registerStartHandlers } from "@bot/handlers/start";
 import { registerSyncHandler } from "@bot/handlers/sync";
+import { getCachedBotInfo, putCachedBotInfo } from "@db/kv";
 import { t } from "@i18n";
 import { reportErrorToObservability } from "@utils/observability";
 import { Api, Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
-import { BOT_INFO_TTL, KV_BOT_INFO_KEY } from "@/constants";
 import type { Env } from "@/types";
 
 export { syncBotCommands } from "@bot/commands";
 
 /** 从 KV 获取 botInfo，首次调用时从 Telegram API 拉取并缓存 */
 export async function getBotInfo(env: Env): Promise<UserFromGetMe> {
-  const cached = await env.EMAIL_KV.get(KV_BOT_INFO_KEY);
+  const cached = await getCachedBotInfo(env.EMAIL_KV);
   if (cached) return JSON.parse(cached);
 
   const api = new Api(env.TELEGRAM_BOT_TOKEN);
   const botInfo = await api.getMe();
-  await env.EMAIL_KV.put(KV_BOT_INFO_KEY, JSON.stringify(botInfo), {
-    expirationTtl: BOT_INFO_TTL,
-  });
+  await putCachedBotInfo(env.EMAIL_KV, JSON.stringify(botInfo));
   return botInfo;
 }
 

@@ -5,6 +5,7 @@ import {
   OAuthSetupPage,
 } from "@components/oauth";
 import { getAccountById } from "@db/accounts";
+import { deleteOAuthBotMsg, getOAuthBotMsg } from "@db/kv";
 import {
   ROUTE_OAUTH_GOOGLE,
   ROUTE_OAUTH_GOOGLE_CALLBACK,
@@ -18,7 +19,6 @@ import {
 import { Api } from "grammy";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { KV_OAUTH_BOT_MSG_PREFIX } from "@/constants";
 import type { AppEnv } from "@/types";
 
 const gmailOauth = new Hono<AppEnv>();
@@ -58,20 +58,15 @@ gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
   }
 
   // 尝试更新 bot 中的授权消息
-  const botMsgKey = `${KV_OAUTH_BOT_MSG_PREFIX}${result.accountId}`;
-  const botMsgRaw = await c.env.EMAIL_KV.get(botMsgKey);
-  if (botMsgRaw) {
+  const botMsg = await getOAuthBotMsg(c.env.EMAIL_KV, result.accountId);
+  if (botMsg) {
     try {
-      const { chatId, messageId } = JSON.parse(botMsgRaw) as {
-        chatId: string;
-        messageId: number;
-      };
       const account = await getAccountById(c.env.DB, result.accountId);
       if (account) {
         const api = new Api(c.env.TELEGRAM_BOT_TOKEN);
         await api.editMessageText(
-          chatId,
-          messageId,
+          botMsg.chatId,
+          botMsg.messageId,
           accountDetailText(account),
           {
             reply_markup: accountDetailKeyboard(account),
@@ -81,7 +76,7 @@ gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
     } catch {
       /* best-effort: don't break OAuth success page */
     }
-    await c.env.EMAIL_KV.delete(botMsgKey);
+    await deleteOAuthBotMsg(c.env.EMAIL_KV, result.accountId);
   }
 
   return c.html(

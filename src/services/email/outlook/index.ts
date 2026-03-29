@@ -1,11 +1,16 @@
 import { getAllAccounts } from "@db/accounts";
-import { getCachedAccessToken, putCachedAccessToken } from "@db/kv";
+import {
+  deleteMsSubscription,
+  getCachedAccessToken,
+  getMsSubscriptionId,
+  putCachedAccessToken,
+  putMsSubscription,
+  refreshMsSubAccountMapping,
+} from "@db/kv";
 import type { MsTokenResponse } from "@services/email/outlook/oauth";
 import { http } from "@utils/http";
 import { HTTPError } from "ky";
 import {
-  KV_MS_SUB_ACCOUNT_PREFIX,
-  KV_MS_SUBSCRIPTION_PREFIX,
   MS_GRAPH_API,
   MS_MAIL_SCOPE,
   MS_OAUTH_TOKEN_URL,
@@ -37,7 +42,7 @@ export async function getAccessToken(
   env: Env,
   account: Account,
 ): Promise<string> {
-  const cached = await getCachedAccessToken(env, account.id);
+  const cached = await getCachedAccessToken(env.EMAIL_KV, account.id);
   if (cached) return cached;
 
   if (!account.refresh_token) {
@@ -71,7 +76,7 @@ export async function getAccessToken(
     throw new Error("MS token response missing access_token or expires_in");
   }
   await putCachedAccessToken(
-    env,
+    env.EMAIL_KV,
     account.id,
     data.access_token,
     Math.max(data.expires_in - 120, 60),
@@ -297,9 +302,10 @@ export async function renewSubscription(
     Date.now() + MS_SUBSCRIPTION_LIFETIME_MINUTES * 60 * 1000,
   ).toISOString();
 
+  const ttl = MS_SUBSCRIPTION_LIFETIME_MINUTES * 60;
+
   // 先尝试查找已有 subscription
-  const existingKey = `${KV_MS_SUBSCRIPTION_PREFIX}${account.id}`;
-  const existingSubId = await env.EMAIL_KV.get(existingKey);
+  const existingSubId = await getMsSubscriptionId(env.EMAIL_KV, account.id);
 
   if (existingSubId) {
     // 尝试续订
@@ -313,13 +319,11 @@ export async function renewSubscription(
         },
       );
       if (resp.ok) {
-        // 续订成功，刷新反向映射 TTL
-        await env.EMAIL_KV.put(
-          `${KV_MS_SUB_ACCOUNT_PREFIX}${existingSubId}`,
-          String(account.id),
-          {
-            expirationTtl: MS_SUBSCRIPTION_LIFETIME_MINUTES * 60,
-          },
+        await refreshMsSubAccountMapping(
+          env.EMAIL_KV,
+          existingSubId,
+          account.id,
+          ttl,
         );
         console.log(`Outlook subscription renewed for ${account.email}`);
         return;
@@ -354,15 +358,7 @@ export async function renewSubscription(
     }
     throw err;
   }
-  const ttl = MS_SUBSCRIPTION_LIFETIME_MINUTES * 60;
-  await Promise.all([
-    env.EMAIL_KV.put(existingKey, sub.id, { expirationTtl: ttl }),
-    env.EMAIL_KV.put(
-      `${KV_MS_SUB_ACCOUNT_PREFIX}${sub.id}`,
-      String(account.id),
-      { expirationTtl: ttl },
-    ),
-  ]);
+  await putMsSubscription(env.EMAIL_KV, account.id, sub.id, ttl);
   console.log(
     `Outlook subscription created for ${account.email}, id=${sub.id}`,
   );
@@ -374,8 +370,7 @@ export async function stopSubscription(
   account: Account,
 ): Promise<void> {
   const token = await getAccessToken(env, account);
-  const existingKey = `${KV_MS_SUBSCRIPTION_PREFIX}${account.id}`;
-  const subId = await env.EMAIL_KV.get(existingKey);
+  const subId = await getMsSubscriptionId(env.EMAIL_KV, account.id);
   if (!subId) return;
 
   try {
@@ -385,7 +380,7 @@ export async function stopSubscription(
   } catch {
     // 删除失败不影响主流程
   }
-  await env.EMAIL_KV.delete(existingKey);
+  await deleteMsSubscription(env.EMAIL_KV, account.id);
   console.log(`Outlook subscription stopped for ${account.email}`);
 }
 

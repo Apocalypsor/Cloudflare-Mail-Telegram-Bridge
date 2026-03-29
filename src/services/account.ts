@@ -56,7 +56,7 @@ export async function cleanupAndDeleteAccount(
   await Promise.all([
     deleteMappingsByAccountId(env.DB, account.id),
     deleteFailedEmailsByAccountId(env.DB, account.id),
-    deleteCachedAccessToken(env, account.id),
+    deleteCachedAccessToken(env.EMAIL_KV, account.id),
   ]);
 }
 

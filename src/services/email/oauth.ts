@@ -3,10 +3,14 @@ import {
   updateAccountEmail,
   updateRefreshToken,
 } from "@db/accounts";
-import { putCachedAccessToken } from "@db/kv";
+import {
+  deleteOAuthState,
+  getOAuthState,
+  putCachedAccessToken,
+  putOAuthState,
+} from "@db/kv";
 import { http } from "@utils/http";
 import { reportErrorToObservability } from "@utils/observability";
-import { KV_OAUTH_STATE_PREFIX, OAUTH_STATE_TTL_SECONDS } from "@/constants";
 import type { Account, Env } from "@/types";
 
 // ─── Shared types ────────────────────────────────────────────────────────────
@@ -79,13 +83,7 @@ export function createOAuthHandler(config: OAuthProviderConfig) {
     origin: string,
   ): Promise<string> {
     const state = crypto.randomUUID();
-    await env.EMAIL_KV.put(
-      `${KV_OAUTH_STATE_PREFIX}${config.statePrefix}${state}`,
-      String(accountId),
-      {
-        expirationTtl: OAUTH_STATE_TTL_SECONDS,
-      },
-    );
+    await putOAuthState(env.EMAIL_KV, config.statePrefix, state, accountId);
 
     const { clientId } = config.getCredentials(env);
     const authUrl = new URL(config.authorizeUrl);
@@ -142,8 +140,11 @@ export function createOAuthHandler(config: OAuthProviderConfig) {
       };
     }
 
-    const stateKey = `${KV_OAUTH_STATE_PREFIX}${config.statePrefix}${state}`;
-    const accountIdStr = await env.EMAIL_KV.get(stateKey);
+    const accountIdStr = await getOAuthState(
+      env.EMAIL_KV,
+      config.statePrefix,
+      state,
+    );
     if (!accountIdStr) {
       return {
         ok: false,
@@ -198,7 +199,7 @@ export function createOAuthHandler(config: OAuthProviderConfig) {
     }
 
     // Token exchange succeeded — now safe to delete the one-time state
-    await env.EMAIL_KV.delete(stateKey);
+    await deleteOAuthState(env.EMAIL_KV, config.statePrefix, state);
 
     const refreshToken = tokenData.refresh_token;
     if (account) {
@@ -221,7 +222,7 @@ export function createOAuthHandler(config: OAuthProviderConfig) {
 
       if (tokenData.access_token && tokenData.expires_in) {
         await putCachedAccessToken(
-          env,
+          env.EMAIL_KV,
           account.id,
           tokenData.access_token,
           Math.max(tokenData.expires_in - 120, 60),

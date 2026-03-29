@@ -81,8 +81,8 @@ function failedEmailListMessage(
       ? item.subject.length > 30
         ? `${item.subject.slice(0, 30)}…`
         : item.subject
-      : t("admin:failedEmails.noSubject");
-    return `${i + 1}. ${subj}\n   ${date} | ${item.error_message?.slice(0, 40) || t("admin:failedEmails.unknownError")}`;
+      : t("common:label.noSubjectParen");
+    return `${i + 1}. ${subj}\n   ${date} | ${item.error_message?.slice(0, 40) || t("common:error.unknownError")}`;
   });
   const kb = new InlineKeyboard()
     .text(t("admin:failedEmails.retryAll"), "retry_all")

@@ -17,13 +17,17 @@ export function registerJunkHandler(bot: Bot, env: Env) {
       const chatId = String(msg.chat.id);
       const mapping = await getMessageMapping(env.DB, chatId, msg.message_id);
       if (!mapping) {
-        await ctx.answerCallbackQuery({ text: t("junk:mappingNotFound") });
+        await ctx.answerCallbackQuery({
+          text: t("common:error.mappingNotFound"),
+        });
         return;
       }
 
       const account = await getAccountById(env.DB, mapping.account_id);
       if (!account) {
-        await ctx.answerCallbackQuery({ text: t("junk:accountNotFound") });
+        await ctx.answerCallbackQuery({
+          text: t("common:error.accountNotFoundShort"),
+        });
         return;
       }
 

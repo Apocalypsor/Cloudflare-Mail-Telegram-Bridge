@@ -13,6 +13,7 @@ import {
   getVisibleAccounts,
   updateAccount,
 } from "@db/accounts";
+import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
 import { cleanupAndDeleteAccount } from "@services/account";
@@ -23,7 +24,6 @@ import { generateOAuthUrl as generateMsOAuthUrl } from "@services/email/outlook/
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import { KV_OAUTH_BOT_MSG_PREFIX, OAUTH_STATE_TTL_SECONDS } from "@/constants";
 import type { Account, Env } from "@/types";
 import { AccountType } from "@/types";
 
@@ -226,16 +226,10 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
       const msg = ctx.callbackQuery.message;
       if (msg) {
-        await env.EMAIL_KV.put(
-          `${KV_OAUTH_BOT_MSG_PREFIX}${accountId}`,
-          JSON.stringify({
-            chatId: String(msg.chat.id),
-            messageId: msg.message_id,
-          }),
-          {
-            expirationTtl: OAUTH_STATE_TTL_SECONDS,
-          },
-        );
+        await putOAuthBotMsg(env.EMAIL_KV, accountId, {
+          chatId: String(msg.chat.id),
+          messageId: msg.message_id,
+        });
       }
     } catch (err) {
       await reportErrorToObservability(env, "bot.oauth_url_gen_failed", err);
@@ -513,14 +507,10 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
       const msg = ctx.callbackQuery.message;
       if (msg) {
-        await env.EMAIL_KV.put(
-          `${KV_OAUTH_BOT_MSG_PREFIX}${account.id}`,
-          JSON.stringify({
-            chatId: String(msg.chat.id),
-            messageId: msg.message_id,
-          }),
-          { expirationTtl: OAUTH_STATE_TTL_SECONDS },
-        );
+        await putOAuthBotMsg(env.EMAIL_KV, account.id, {
+          chatId: String(msg.chat.id),
+          messageId: msg.message_id,
+        });
       }
 
       await ctx.editMessageText(
@@ -574,14 +564,10 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
       const msg = ctx.callbackQuery.message;
       if (msg) {
-        await env.EMAIL_KV.put(
-          `${KV_OAUTH_BOT_MSG_PREFIX}${account.id}`,
-          JSON.stringify({
-            chatId: String(msg.chat.id),
-            messageId: msg.message_id,
-          }),
-          { expirationTtl: OAUTH_STATE_TTL_SECONDS },
-        );
+        await putOAuthBotMsg(env.EMAIL_KV, account.id, {
+          chatId: String(msg.chat.id),
+          messageId: msg.message_id,
+        });
       }
 
       await ctx.editMessageText(

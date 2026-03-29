@@ -110,14 +110,14 @@ function prepareEmailContent(
   account: Account,
   isCaption: boolean,
 ) {
-  const subject = email.subject || t("bridge:noSubject");
+  const subject = email.subject || t("common:label.noSubject");
   const recipient =
     email.to?.map((addr) => addr.address).join(", ") ||
     account.email ||
     `Account #${account.id}`;
   const header = buildTelegramHeader(
     email.from?.name || "",
-    email.from?.address || t("bridge:unknown"),
+    email.from?.address || t("common:label.unknown"),
     recipient,
     subject,
     account.email ?? undefined,

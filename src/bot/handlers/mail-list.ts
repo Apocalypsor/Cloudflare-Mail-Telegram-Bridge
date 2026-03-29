@@ -164,7 +164,9 @@ async function buildListText(
       `\n${escapeMdV2(t("mailList:accountLabel", { label: r.account.email || `Account #${r.account.id}`, count: r.total, type: config.label }))}`,
     );
     for (const [i, item] of r.items.entries()) {
-      const title = escapeMdV2(item.subject || t("mailList:noSubject"));
+      const title = escapeMdV2(
+        item.subject || t("common:label.noSubjectParen"),
+      );
       const linkParts: string[] = [];
       if (item.tgLink)
         linkParts.push(`[${t("mailList:tgMessage")}](${item.tgLink})`);

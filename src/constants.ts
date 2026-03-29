@@ -16,21 +16,8 @@ export const MS_MAIL_SCOPE = "offline_access Mail.ReadWrite User.Read";
 /** Graph webhook subscription max lifetime for mail: ~4230 min ≈ 2.9 days; we use 2 days */
 export const MS_SUBSCRIPTION_LIFETIME_MINUTES = 2 * 24 * 60;
 
-// ── KV keys & prefixes ──────────────────────────────────────────────────────
-export const KV_OAUTH_STATE_PREFIX = "oauth_state:";
-export const KV_OAUTH_BOT_MSG_PREFIX = "oauth_bot_msg:";
-export const KV_MS_SUB_ACCOUNT_PREFIX = "ms_sub_account:";
-export const KV_MS_SUBSCRIPTION_PREFIX = "ms_subscription:";
-export const KV_BOT_INFO_KEY = "telegram:bot_info";
-export const KV_BOT_COMMANDS_VERSION_KEY = "telegram:bot_commands_version";
-
 // ── Telegram API ────────────────────────────────────────────────────────────
 export const TG_API_BASE = "https://api.telegram.org/bot";
-
-// ── TTL (seconds) ────────────────────────────────────────────────────────────
-export const MAIL_HTML_CACHE_TTL = 60 * 60 * 24 * 7; // 7 天
-export const OAUTH_STATE_TTL_SECONDS = 10 * 60; // 10 分钟
-export const BOT_INFO_TTL = 86400 * 30; // 30 天
 
 // ── Telegram limits ──────────────────────────────────────────────────────────
 export const TG_MSG_LIMIT = 4096;

@@ -3,7 +3,6 @@ export default {
   queryingShort: "正在查询…",
   total: "{{icon}} 共 {{total}} 封{{label}}",
   accountLabel: "📧 {{label}} ({{count}} 封{{type}})",
-  noSubject: "(无主题)",
   tgMessage: "💬 消息",
   preview: "👁 预览",
   unread: {

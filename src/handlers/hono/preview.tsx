@@ -151,7 +151,7 @@ preview.get(ROUTE_MAIL, async (c) => {
   };
 
   // KV 缓存（所有类型共用）
-  const cached = await getCachedMailData(c.env, messageId);
+  const cached = await getCachedMailData(c.env.EMAIL_KV, messageId);
   if (cached) {
     const proxied = await proxyImages(cached.html, c.env.ADMIN_SECRET);
     return c.html(
@@ -198,7 +198,7 @@ preview.get(ROUTE_MAIL, async (c) => {
   if (!html) return c.text("No content in this email", 404);
 
   html = replaceCidReferences(html, cidMap);
-  await putCachedMailData(c.env, messageId, { html, meta });
+  await putCachedMailData(c.env.EMAIL_KV, messageId, { html, meta });
   const proxied = await proxyImages(html, c.env.ADMIN_SECRET);
   return c.html(
     <MailPage meta={meta} {...pageProps}>

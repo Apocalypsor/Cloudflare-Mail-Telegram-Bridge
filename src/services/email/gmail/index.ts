@@ -48,7 +48,7 @@ export async function getAccessToken(
   env: Env,
   account: Account,
 ): Promise<string> {
-  const cached = await getCachedAccessToken(env, account.id);
+  const cached = await getCachedAccessToken(env.EMAIL_KV, account.id);
   if (cached) return cached;
 
   if (!account.refresh_token) {
@@ -82,7 +82,7 @@ export async function getAccessToken(
   }
   // 缓存到 KV，TTL 比实际过期提前 120 秒
   await putCachedAccessToken(
-    env,
+    env.EMAIL_KV,
     account.id,
     data.access_token,
     Math.max(data.expires_in - 120, 60),

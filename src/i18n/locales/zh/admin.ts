@@ -30,8 +30,6 @@ export default {
     clearAll: "🗑 全部清空",
     cleared: "📋 失败邮件\n\n✅ 已全部清空",
     clearedShort: "已清空",
-    unknownError: "未知错误",
-    noSubject: "(无主题)",
   },
   renewWatch: "🔄 续订所有 Watch",
   htmlPreview: "🔍 HTML 预览工具",

@@ -12,6 +12,8 @@ export default {
     recordNotFound: "记录不存在",
     genOAuthFailed: "生成授权链接失败",
     queryFailed: "查询失败",
+    unknownError: "未知错误",
+    mappingNotFound: "消息映射未找到",
   },
   button: {
     cancel: "❌ 取消",
@@ -30,7 +32,8 @@ export default {
     noAccounts: "📭 暂无绑定的邮箱账号",
     notSet: "(未设置)",
     none: "(无)",
-    noSubject: "(无主题)",
+    noSubject: "无主题",
+    noSubjectParen: "(无主题)",
     unknown: "未知",
   },
   admin: {
