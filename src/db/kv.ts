@@ -7,34 +7,6 @@ function kvAccessTokenKey(accountId: number): string {
   return `access_token:${accountId}`;
 }
 
-function kvHistoryIdKey(accountId: number): string {
-  return `history_id:${accountId}`;
-}
-
-// ─── History ID ─────────────────────────────────────────────────────────────
-
-export async function getHistoryId(
-  env: Env,
-  accountId: number,
-): Promise<string | null> {
-  return env.EMAIL_KV.get(kvHistoryIdKey(accountId));
-}
-
-export async function putHistoryId(
-  env: Env,
-  accountId: number,
-  historyId: string,
-): Promise<void> {
-  await env.EMAIL_KV.put(kvHistoryIdKey(accountId), historyId);
-}
-
-export async function deleteHistoryId(
-  env: Env,
-  accountId: number,
-): Promise<void> {
-  await env.EMAIL_KV.delete(kvHistoryIdKey(accountId));
-}
-
 // ─── Access Token Cache ─────────────────────────────────────────────────────
 
 export async function getCachedAccessToken(

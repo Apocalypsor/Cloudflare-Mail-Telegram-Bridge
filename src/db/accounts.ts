@@ -140,6 +140,32 @@ export async function getImapAccounts(db: D1Database): Promise<Account[]> {
   return results;
 }
 
+// ─── History ID ─────────────────────────────────────────────────────────────
+
+export async function getHistoryId(
+  db: D1Database,
+  accountId: number,
+): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT history_id FROM accounts WHERE id = ?")
+    .bind(accountId)
+    .first<{ history_id: string | null }>();
+  return row?.history_id ?? null;
+}
+
+export async function putHistoryId(
+  db: D1Database,
+  accountId: number,
+  historyId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE accounts SET history_id = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(historyId, accountId)
+    .run();
+}
+
 /** 创建 IMAP 账号 */
 export async function createImapAccount(
   db: D1Database,

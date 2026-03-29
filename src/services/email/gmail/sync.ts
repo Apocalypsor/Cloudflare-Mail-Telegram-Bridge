@@ -1,5 +1,4 @@
-import { getAccountByEmail } from "@db/accounts";
-import { getHistoryId, putHistoryId } from "@db/kv";
+import { getAccountByEmail, getHistoryId, putHistoryId } from "@db/accounts";
 import {
   fetchNewMessageIds,
   getAccessToken,
@@ -22,9 +21,9 @@ export async function enqueueSyncNotification(
     return;
   }
 
-  const storedHistoryId = await getHistoryId(env, account.id);
+  const storedHistoryId = await getHistoryId(env.DB, account.id);
   if (!storedHistoryId) {
-    await putHistoryId(env, account.id, decoded.historyId);
+    await putHistoryId(env.DB, account.id, decoded.historyId);
     console.log(
       `Initialized historyId for ${account.email}:`,
       decoded.historyId,

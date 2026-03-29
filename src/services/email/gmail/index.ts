@@ -1,10 +1,5 @@
-import { getAllAccounts } from "@db/accounts";
-import {
-  getCachedAccessToken,
-  getHistoryId,
-  putCachedAccessToken,
-  putHistoryId,
-} from "@db/kv";
+import { getAllAccounts, getHistoryId, putHistoryId } from "@db/accounts";
+import { getCachedAccessToken, putCachedAccessToken } from "@db/kv";
 import type { GoogleTokenResponse } from "@services/email/gmail/oauth";
 import { http } from "@utils/http";
 import { HTTPError } from "ky";
@@ -337,9 +332,9 @@ export async function renewWatch(env: Env, account: Account): Promise<void> {
   );
 
   // 如果 KV 里还没有 historyId，用 watch 返回的初始化
-  const existing = await getHistoryId(env, account.id);
+  const existing = await getHistoryId(env.DB, account.id);
   if (!existing) {
-    await putHistoryId(env, account.id, String(result.historyId));
+    await putHistoryId(env.DB, account.id, String(result.historyId));
   }
 }
 
@@ -365,7 +360,7 @@ export async function fetchNewMessageIds(
   env: Env,
   account: Account,
 ): Promise<string[]> {
-  const storedHistoryId = await getHistoryId(env, account.id);
+  const storedHistoryId = await getHistoryId(env.DB, account.id);
   if (!storedHistoryId) return [];
 
   const messageIds = new Set<string>();
@@ -387,7 +382,7 @@ export async function fetchNewMessageIds(
           token,
           "/users/me/profile",
         );
-        await putHistoryId(env, account.id, profile.historyId);
+        await putHistoryId(env.DB, account.id, profile.historyId);
         return [];
       }
       throw err;
@@ -413,7 +408,7 @@ export async function fetchNewMessageIds(
 
   // 分页结束后一次性更新 historyId
   if (latestHistoryId) {
-    await putHistoryId(env, account.id, latestHistoryId);
+    await putHistoryId(env.DB, account.id, latestHistoryId);
   }
 
   return [...messageIds];

@@ -1,6 +1,6 @@
 import { deleteAccount, getOwnAccounts } from "@db/accounts";
 import { deleteFailedEmailsByAccountId } from "@db/failed-emails";
-import { deleteCachedAccessToken, deleteHistoryId } from "@db/kv";
+import { deleteCachedAccessToken } from "@db/kv";
 import { deleteMappingsByAccountId } from "@db/message-map";
 import { deleteUser } from "@db/users";
 import { stopWatch } from "@services/email/gmail";
@@ -49,10 +49,7 @@ export async function cleanupAndDeleteAccount(
         });
       }
     }
-    await Promise.all([
-      deleteAccount(env.DB, account.id),
-      deleteHistoryId(env, account.id),
-    ]);
+    await deleteAccount(env.DB, account.id);
   }
 
   // 清理关联数据及 KV 缓存
