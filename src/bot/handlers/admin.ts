@@ -17,8 +17,7 @@ import {
 import { t } from "@i18n";
 import { deleteUserWithAccounts } from "@services/account";
 import { retryAllFailedEmails, retryFailedEmail } from "@services/bridge";
-import { renewWatchAll } from "@services/email/gmail";
-import { renewSubscriptionAll } from "@services/email/outlook";
+import { renewAllPush } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -250,7 +249,7 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
 
     await ctx.answerCallbackQuery({ text: t("admin:watch.renewing") });
     try {
-      await Promise.all([renewWatchAll(env), renewSubscriptionAll(env)]);
+      await renewAllPush(env);
       await ctx.editMessageText(t("admin:watch.renewed"), {
         reply_markup: await adminMenuKeyboard(env),
       });

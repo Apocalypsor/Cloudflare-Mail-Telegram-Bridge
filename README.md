@@ -22,11 +22,11 @@
 
 ### 邮件接收
 
-三种邮箱类型通过不同方式接收新邮件通知，最终都汇入同一个 **Cloudflare Queue** 进行统一处理：
+三种邮箱类型通过各自的 Provider 类（`GmailProvider` / `OutlookProvider` / `ImapProvider`）统一处理，最终都汇入同一个 **Cloudflare Queue**：
 
-- **Gmail**: Google Cloud Pub/Sub 向 `/api/gmail/push` 发送推送通知 → Worker 根据 `emailAddress` 在 D1 中查找账号 → 调用 Gmail API `history.list` 拉取新消息 ID → 逐条入队。
-- **Outlook**: Microsoft Graph webhook 向 `/api/outlook/push` 发送变更通知 → Worker 根据 `subscriptionId` 在 KV 中查找账号 → 调用 Graph API 拉取新消息 → 逐条入队。
-- **IMAP**: 外部 IMAP Bridge 中间件轮询检测新邮件 → 调用 `/api/imap/push` 推送 `accountId` + `messageId` → 直接入队。
+- **Gmail**: Google Cloud Pub/Sub 向 `/api/gmail/push` 发送推送通知 → `GmailProvider.enqueue()` 根据 `emailAddress` 查找账号，调用 Gmail History API 拉取新消息 ID → 批量入队。
+- **Outlook**: Microsoft Graph webhook 向 `/api/outlook/push` 发送变更通知 → `OutlookProvider.enqueue()` 根据 `subscriptionId` 查找账号，从通知中提取消息 ID → 批量入队。
+- **IMAP**: 外部 IMAP Bridge 中间件轮询检测新邮件 → 调用 `/api/imap/push` → `ImapProvider.enqueue()` 验证账号后入队。
 
 ### 邮件处理（Queue Consumer）
 
@@ -36,7 +36,7 @@
    - **1 个附件** → `sendDocument` + 标题
    - **多个附件** → `sendMediaGroup`，标题放在第一个文件上
 4. （可选）如果配置了 LLM API，会异步生成 AI 摘要和标签（单词、首字母大写），编辑原消息替换正文为摘要，标签以 `#Tag` 形式附在末尾。
-5. 每条消息附带 ⭐ **星标按钮**和 🚫 **垃圾按钮**（inline keyboard）。星标同时自动标记已读；标记垃圾会将邮件移到垃圾邮件文件夹并删除 Telegram 消息。
+5. 每条消息附带 ⭐ **星标**、🚫 **垃圾**、🔄 **刷新**按钮（inline keyboard）。星标同时自动标记已读；标记垃圾会将邮件移到垃圾邮件文件夹并删除 Telegram 消息；刷新会重新拉取邮件并执行 LLM 分析。
 6. （可选）配置 `WORKER_URL` 后，每条消息附带 📧 **查看原文**按钮，点击可在浏览器中查看邮件原始 HTML。预览页提供悬浮操作按钮（FAB）：收件箱邮件可标记为垃圾，垃圾邮件可移回收件箱或删除。链接使用 HMAC-SHA256 签名防遍历，HTML 内容缓存 7 天。
 7. 在频道/群组中对消息添加 **emoji reaction** 可自动将对应邮件标记为已读。
 8. LLM 检测到高置信度垃圾邮件（≥ 0.8）时自动在 Telegram 消息中添加 `#Junk` 标签，不会自动移动或删除。
@@ -46,7 +46,7 @@
 ### 定时任务（Cron Trigger）
 
 - **每小时**: 检查 IMAP Bridge 中间件健康状态，异常时上报到 Observability Hub。
-- **每天凌晨（UTC 0 点）**: 自动为所有已授权的 **Gmail 账号**续订 watch（watch 7 天后过期）、**Outlook 账号**续订 Graph subscription。
+- **每天凌晨（UTC 0 点）**: 通过 `renewAllPush()` 自动为所有已授权账号续订推送通知（Gmail watch / Outlook Graph subscription）。
 - **每天早 9 点和晚 6 点**（Eastern Time）: 向每个 Telegram Chat 发送邮件摘要通知，包含各账号的未读和垃圾邮件数量。全部为零时跳过，不打扰。
 
 正文会自动截断以适应 Telegram 的字符限制（纯文本消息 4096 字符，附件标题 1024 字符）。
@@ -228,7 +228,7 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 3. Gmail / Outlook 需要完成 OAuth 授权；IMAP 需要填写服务器信息和密码
 4. 授权成功后自动创建 webhook 订阅，新邮件会实时推送到 Telegram
 
-Cron Trigger 每小时检查 IMAP 中间件健康；每天凌晨（UTC 0 点）自动续订 Gmail watch 和 Outlook Graph subscription；每天早 9 点和晚 6 点发送邮件摘要通知。
+Cron Trigger 每小时检查 IMAP 中间件健康；每天凌晨（UTC 0 点）自动续订所有账号的推送通知；每天早 9 点和晚 6 点发送邮件摘要通知。
 
 ## Bot 命令
 

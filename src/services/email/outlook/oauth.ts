@@ -6,7 +6,7 @@ import {
   createOAuthHandler,
   type OAuthTokenResponse,
 } from "@services/email/oauth";
-import { renewSubscription } from "@services/email/outlook/index";
+import { OutlookProvider } from "@services/email/outlook";
 import { http } from "@utils/http";
 import {
   MS_GRAPH_API,
@@ -43,7 +43,8 @@ const handler = createOAuthHandler({
     return profile.mail || profile.userPrincipalName;
   },
   onAuthorized: async (env, account) => {
-    await renewSubscription(env, account);
+    const provider = new OutlookProvider(account, env);
+    await provider.renewPush();
     console.log(`Outlook subscription activated for ${account.email}`);
   },
 });

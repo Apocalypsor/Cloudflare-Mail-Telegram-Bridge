@@ -2,7 +2,7 @@ import {
   ROUTE_OAUTH_GOOGLE_CALLBACK,
   ROUTE_OAUTH_GOOGLE_START,
 } from "@handlers/hono/routes";
-import { renewWatch } from "@services/email/gmail/index";
+import { GmailProvider } from "@services/email/gmail";
 import {
   createOAuthHandler,
   type OAuthTokenResponse,
@@ -44,7 +44,8 @@ const handler = createOAuthHandler({
     return profile.emailAddress;
   },
   onAuthorized: async (env, account) => {
-    await renewWatch(env, account);
+    const provider = new GmailProvider(account, env);
+    await provider.renewPush();
     console.log(`Auto-watch activated for ${account.email}`);
   },
 });

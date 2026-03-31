@@ -1,6 +1,7 @@
 import { getImapAccounts } from "@db/accounts";
 import { requireBearer } from "@handlers/hono/middleware";
 import { ROUTE_IMAP_ACCOUNTS, ROUTE_IMAP_PUSH } from "@handlers/hono/routes";
+import { ImapProvider } from "@services/email/imap";
 import { Hono } from "hono";
 import type { AppEnv } from "@/types";
 
@@ -34,22 +35,10 @@ imap.get(
  * POST /api/imap/push
  * Body: { accountId: number, messageId: string }
  * 中间件检测到新邮件时调用，messageId 为 IMAP UID（字符串）。
- * Worker 将消息入队，由 queue consumer 按需从中间件拉取原文处理。
  */
 imap.post(ROUTE_IMAP_PUSH, requireBearer("IMAP_BRIDGE_SECRET"), async (c) => {
-  const { accountId, messageId } = await c.req.json<{
-    accountId: number;
-    messageId: string;
-  }>();
-
-  if (typeof accountId !== "number" || accountId <= 0 || !messageId) {
-    return c.json(
-      { error: "Missing required fields: accountId, messageId" },
-      400,
-    );
-  }
-
-  await c.env.EMAIL_QUEUE.send({ accountId, messageId });
+  const body = await c.req.json();
+  await ImapProvider.enqueue(body, c.env);
   return c.text("OK");
 });
 

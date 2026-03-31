@@ -9,7 +9,7 @@ import {
 import { getMessageMapping, putMessageMapping } from "@db/message-map";
 import { t } from "@i18n";
 import { getAccessToken, gmailGet } from "@services/email/gmail";
-import { fetchImapRawEmail } from "@services/email/imap";
+import { ImapProvider } from "@services/email/imap";
 import {
   fetchRawMime,
   getAccessToken as msGetAccessToken,
@@ -193,12 +193,8 @@ export async function fetchRawEmailByType(
   imapFolder?: "inbox" | "junk",
 ): Promise<ArrayBuffer> {
   if (account.type === AccountType.Imap) {
-    const base64 = await fetchImapRawEmail(
-      env,
-      account.id,
-      messageId,
-      imapFolder,
-    );
+    const provider = new ImapProvider(account, env);
+    const base64 = await provider.fetchRawEmail(messageId, imapFolder);
     return base64ToArrayBuffer(base64);
   }
   if (account.type === AccountType.Outlook) {

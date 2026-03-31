@@ -1,8 +1,5 @@
 import { ROUTE_OUTLOOK_PUSH } from "@handlers/hono/routes";
-import {
-  enqueueOutlookNotification,
-  type GraphNotification,
-} from "@services/email/outlook/sync";
+import { OutlookProvider } from "@services/email/outlook";
 import { timingSafeEqual } from "@utils/hash";
 import { Hono } from "hono";
 import type { AppEnv } from "@/types";
@@ -26,8 +23,8 @@ outlookPush.post(ROUTE_OUTLOOK_PUSH, async (c) => {
     return c.text("Forbidden", 403);
   }
 
-  const body = await c.req.json<GraphNotification>();
-  await enqueueOutlookNotification(body, c.env);
+  const body = await c.req.json();
+  await OutlookProvider.enqueue(body, c.env);
   return c.text("OK");
 });
 

@@ -2,9 +2,8 @@ import app from "@handlers/hono";
 import { handleQueueBatch } from "@handlers/queue";
 import { retryAllFailedEmails } from "@services/bridge";
 import { isDigestHour, sendDigestNotifications } from "@services/digest";
-import { renewWatchAll } from "@services/email/gmail";
 import { checkImapBridgeHealth } from "@services/email/imap";
-import { renewSubscriptionAll } from "@services/email/outlook";
+import { renewAllPush } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Env, QueueMessage } from "@/types";
 
@@ -60,23 +59,10 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
           error,
         ),
       ),
-    // 仅凌晨：续订 Gmail watch + Outlook subscription
+    // 仅凌晨：续订所有账号推送通知
     isMidnight
-      ? renewWatchAll(env).catch((error: unknown) =>
-          reportErrorToObservability(
-            env,
-            "scheduled.watch_renew_failed",
-            error,
-          ),
-        )
-      : Promise.resolve(),
-    isMidnight
-      ? renewSubscriptionAll(env).catch((error: unknown) =>
-          reportErrorToObservability(
-            env,
-            "scheduled.outlook_subscription_renew_failed",
-            error,
-          ),
+      ? renewAllPush(env).catch((error: unknown) =>
+          reportErrorToObservability(env, "scheduled.push_renew_failed", error),
         )
       : Promise.resolve(),
     // 早9晚6：邮件摘要通知

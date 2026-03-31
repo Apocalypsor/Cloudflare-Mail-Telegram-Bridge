@@ -1,46 +1,7 @@
-import {
-  addStar,
-  getAccessToken,
-  trashAllJunk as gmailDeleteAllJunk,
-  isJunk as gmailIsJunk,
-  isStarred as gmailIsStarred,
-  markAsJunk as gmailMarkAsJunk,
-  moveToInbox as gmailMoveToInbox,
-  trashMessage as gmailTrashMessage,
-  listJunkMessages,
-  listStarredMessages,
-  listUnreadMessages,
-  markAsRead,
-  removeStar,
-} from "@services/email/gmail/index";
-import {
-  imapMarkAsJunk,
-  imapMoveToInbox,
-  imapTrashAllJunk,
-  imapTrashMessage,
-  isImapJunk,
-  isImapStarred,
-  listImapJunk,
-  listImapStarred,
-  listImapUnread,
-  setImapFlag,
-} from "@services/email/imap";
-import {
-  addStar as msAddStar,
-  trashAllJunk as msDeleteAllJunk,
-  getAccessToken as msGetAccessToken,
-  isJunk as msIsJunk,
-  isStarred as msIsStarred,
-  listJunkMessages as msListJunkMessages,
-  listStarredMessages as msListStarredMessages,
-  listUnreadMessages as msListUnreadMessages,
-  markAsJunk as msMarkAsJunk,
-  markAsRead as msMarkAsRead,
-  moveToInbox as msMoveToInbox,
-  removeStar as msRemoveStar,
-  trashMessage as msTrashMessage,
-} from "@services/email/outlook/index";
-import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
+import { getAllAccounts } from "@db/accounts";
+import { GmailProvider } from "@services/email/gmail";
+import { ImapProvider } from "@services/email/imap";
+import { OutlookProvider } from "@services/email/outlook";
 import type { Account, Env } from "@/types";
 import { AccountType } from "@/types";
 
@@ -49,82 +10,57 @@ export interface EmailListItem {
   subject?: string;
 }
 
-export interface EmailProvider {
-  markAsRead(messageId: string): Promise<void>;
-  addStar(messageId: string): Promise<void>;
-  removeStar(messageId: string): Promise<void>;
-  isStarred(messageId: string): Promise<boolean>;
-  isJunk(messageId: string): Promise<boolean>;
-  listUnread(maxResults?: number): Promise<EmailListItem[]>;
-  listStarred(maxResults?: number): Promise<EmailListItem[]>;
-  listJunk(maxResults?: number): Promise<EmailListItem[]>;
-  markAsJunk(messageId: string): Promise<void>;
-  moveToInbox(messageId: string): Promise<void>;
-  trashMessage(messageId: string): Promise<void>;
-  trashAllJunk(): Promise<number>;
-}
+export abstract class EmailProvider {
+  protected account: Account;
+  protected env: Env;
 
-/** 将 (token, ...args) => R 的函数包装为 (...args) => R，自动注入 token */
-function withToken<A extends unknown[], R>(
-  getToken: () => Promise<string>,
-  fn: (token: string, ...args: A) => Promise<R>,
-): (...args: A) => Promise<R> {
-  return async (...args) => fn(await getToken(), ...args);
+  constructor(account: Account, env: Env) {
+    this.account = account;
+    this.env = env;
+  }
+
+  abstract markAsRead(messageId: string): Promise<void>;
+  abstract addStar(messageId: string): Promise<void>;
+  abstract removeStar(messageId: string): Promise<void>;
+  abstract isStarred(messageId: string): Promise<boolean>;
+  abstract isJunk(messageId: string): Promise<boolean>;
+  abstract listUnread(maxResults?: number): Promise<EmailListItem[]>;
+  abstract listStarred(maxResults?: number): Promise<EmailListItem[]>;
+  abstract listJunk(maxResults?: number): Promise<EmailListItem[]>;
+  abstract markAsJunk(messageId: string): Promise<void>;
+  abstract moveToInbox(messageId: string): Promise<void>;
+  abstract trashMessage(messageId: string): Promise<void>;
+  abstract trashAllJunk(): Promise<number>;
+
+  /** 注册/续订推送通知（Gmail watch / Outlook subscription） */
+  async renewPush(): Promise<void> {}
+  /** 停止推送通知 */
+  async stopPush(): Promise<void> {}
+
+  /** 解析推送通知并将新邮件入队，子类必须 override */
+  static async enqueue(_body: unknown, _env: Env): Promise<void> {
+    throw new Error("enqueue not implemented");
+  }
 }
 
 export function getEmailProvider(account: Account, env: Env): EmailProvider {
-  if (account.type === AccountType.Imap) {
-    return {
-      markAsRead: (messageId) =>
-        setImapFlag(env, account.id, messageId, IMAP_FLAG_SEEN, true),
-      addStar: (messageId) =>
-        setImapFlag(env, account.id, messageId, IMAP_FLAG_FLAGGED, true),
-      removeStar: (messageId) =>
-        setImapFlag(env, account.id, messageId, IMAP_FLAG_FLAGGED, false),
-      isStarred: (messageId) => isImapStarred(env, account.id, messageId),
-      isJunk: (messageId) => isImapJunk(env, account.id, messageId),
-      listUnread: (maxResults) => listImapUnread(env, account.id, maxResults),
-      listStarred: (maxResults) => listImapStarred(env, account.id, maxResults),
-      listJunk: (maxResults) => listImapJunk(env, account.id, maxResults),
-      markAsJunk: (messageId) => imapMarkAsJunk(env, account.id, messageId),
-      moveToInbox: (messageId) => imapMoveToInbox(env, account.id, messageId),
-      trashMessage: (messageId) => imapTrashMessage(env, account.id, messageId),
-      trashAllJunk: () => imapTrashAllJunk(env, account.id),
-    };
-  }
+  if (account.type === AccountType.Imap) return new ImapProvider(account, env);
+  if (account.type === AccountType.Outlook)
+    return new OutlookProvider(account, env);
+  return new GmailProvider(account, env);
+}
 
-  if (account.type === AccountType.Outlook) {
-    const t = () => msGetAccessToken(env, account);
-    return {
-      markAsRead: withToken(t, msMarkAsRead),
-      addStar: withToken(t, msAddStar),
-      removeStar: withToken(t, msRemoveStar),
-      isStarred: withToken(t, msIsStarred),
-      isJunk: withToken(t, msIsJunk),
-      listUnread: withToken(t, msListUnreadMessages),
-      listStarred: withToken(t, msListStarredMessages),
-      listJunk: withToken(t, msListJunkMessages),
-      markAsJunk: withToken(t, msMarkAsJunk),
-      moveToInbox: withToken(t, msMoveToInbox),
-      trashMessage: withToken(t, msTrashMessage),
-      trashAllJunk: withToken(t, msDeleteAllJunk),
-    };
+/** 为所有已授权账号续订推送通知 */
+export async function renewAllPush(env: Env): Promise<void> {
+  const accounts = await getAllAccounts(env.DB);
+  for (const account of accounts) {
+    if (!account.refresh_token) {
+      console.log(
+        `Skipping push renewal for ${account.email}: no refresh token`,
+      );
+      continue;
+    }
+    const provider = getEmailProvider(account, env);
+    await provider.renewPush();
   }
-
-  // Gmail provider
-  const t = () => getAccessToken(env, account);
-  return {
-    markAsRead: withToken(t, markAsRead),
-    addStar: withToken(t, addStar),
-    removeStar: withToken(t, removeStar),
-    isStarred: withToken(t, gmailIsStarred),
-    isJunk: withToken(t, gmailIsJunk),
-    listUnread: withToken(t, listUnreadMessages),
-    listStarred: withToken(t, listStarredMessages),
-    listJunk: withToken(t, listJunkMessages),
-    markAsJunk: withToken(t, gmailMarkAsJunk),
-    moveToInbox: withToken(t, gmailMoveToInbox),
-    trashMessage: withToken(t, gmailTrashMessage),
-    trashAllJunk: withToken(t, gmailDeleteAllJunk),
-  };
 }

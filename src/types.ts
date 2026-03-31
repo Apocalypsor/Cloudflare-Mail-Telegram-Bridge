@@ -129,12 +129,6 @@ export interface PubSubPushBody {
   subscription: string;
 }
 
-/** Gmail push 通知 payload (base64 解码后) */
-export interface GmailNotification {
-  emailAddress: string;
-  historyId: string;
-}
-
 /** 邮件附件 */
 export type Attachment = {
   filename?: string | null;

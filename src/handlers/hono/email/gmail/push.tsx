@@ -1,6 +1,6 @@
 import { requireSecret } from "@handlers/hono/middleware";
 import { ROUTE_GMAIL_PUSH } from "@handlers/hono/routes";
-import { enqueueSyncNotification } from "@services/email/gmail/sync";
+import { GmailProvider } from "@services/email/gmail";
 import { Hono } from "hono";
 import type { AppEnv, PubSubPushBody } from "@/types";
 
@@ -11,7 +11,7 @@ gmailPush.post(
   requireSecret("GMAIL_PUSH_SECRET"),
   async (c) => {
     const body = await c.req.json<PubSubPushBody>();
-    await enqueueSyncNotification(body, c.env);
+    await GmailProvider.enqueue(body, c.env);
     return c.text("OK");
   },
 );

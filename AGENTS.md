@@ -48,17 +48,28 @@ https://developers.cloudflare.com/workers/runtime-apis/nodejs/
 Retrieve API references and limits from:
 `/kv/` · `/r2/` · `/d1/` · `/durable-objects/` · `/queues/` · `/vectorize/` · `/workers-ai/` · `/agents/`
 
-## Helper Functions
+## Email Provider Architecture
 
-Helper functions must live in the module that owns the domain logic, not in the handler that calls them. Handlers (`src/handlers/`) should only contain routing and request/response orchestration. For example, a function that formats a PostalMime `Address` belongs in `src/services/email/mail-content.ts`, not in the handler that happens to use it. When writing a helper, ask: "which module owns this concept?" and place it there.
+Email operations use an abstract class pattern in `src/services/email/`:
 
-## Theme
+- **`provider.ts`** — `EmailProvider` abstract base class + `getEmailProvider()` factory + `renewAllPush()`
+- **`gmail/`**, **`outlook/`**, **`imap/`** — each follows the same structure:
+  - `index.ts` — concrete Provider class (extends `EmailProvider`) + re-exports from utils
+  - `utils.ts` — low-level helpers (OAuth, REST clients, bridge calls)
+  - `oauth.ts` — OAuth flow (Gmail/Outlook only)
 
-All color values are centralized in `src/assets/theme.ts` (slate/blue palette). Used by the mail preview FAB and any inline CSS injected outside of Tailwind context.
+All email operations (message actions, push management, notification enqueue) are methods on the Provider class. Handlers only do auth + call `Provider.method()`.
 
-## Error Reporting
+When adding new email operations:
+1. Add abstract method to `EmailProvider` in `provider.ts`
+2. Implement in all three provider classes (`GmailProvider`, `OutlookProvider`, `ImapProvider`)
+3. Low-level HTTP helpers go in the provider's `utils.ts`, NOT in `index.ts`
 
-Use `reportErrorToObservability()` from `src/utils/observability.ts` instead of `console.error` / `console.warn` for all error handling. The observability service forwards errors to the monitoring system; `console.error` output may not be visible in production. The only exceptions are inside `observability.ts` itself and in utility functions that don't have access to `env` (e.g., `telegram.ts`).
+## Conventions
+
+- **Handlers** (`src/handlers/`) only do routing and auth. Business logic belongs in `src/services/`.
+- **Error reporting**: Use `reportErrorToObservability()` from `src/utils/observability.ts` instead of `console.error`.
+- **Theme**: Color values in `src/assets/theme.ts`.
 
 ## Documentation Maintenance
 

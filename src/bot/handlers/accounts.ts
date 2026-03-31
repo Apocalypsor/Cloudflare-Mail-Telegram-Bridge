@@ -17,10 +17,9 @@ import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
 import { cleanupAndDeleteAccount } from "@services/account";
-import { renewWatch } from "@services/email/gmail";
 import { generateOAuthUrl } from "@services/email/gmail/oauth";
-import { renewSubscription } from "@services/email/outlook";
 import { generateOAuthUrl as generateMsOAuthUrl } from "@services/email/outlook/oauth";
+import { getEmailProvider } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -253,11 +252,8 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       });
 
     try {
-      if (account.type === AccountType.Outlook) {
-        await renewSubscription(env, account);
-      } else {
-        await renewWatch(env, account);
-      }
+      const provider = getEmailProvider(account, env);
+      await provider.renewPush();
       await ctx.answerCallbackQuery({
         text: t("accounts:oauth.watchRenewed", { email: account.email }),
       });

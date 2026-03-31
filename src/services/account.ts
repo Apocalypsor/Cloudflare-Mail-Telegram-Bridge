@@ -3,9 +3,8 @@ import { deleteFailedEmailsByAccountId } from "@db/failed-emails";
 import { deleteCachedAccessToken } from "@db/kv";
 import { deleteMappingsByAccountId } from "@db/message-map";
 import { deleteUser } from "@db/users";
-import { stopWatch } from "@services/email/gmail";
 import { syncAccounts } from "@services/email/imap";
-import { stopSubscription } from "@services/email/outlook";
+import { getEmailProvider } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import { type Account, AccountType, type Env } from "@/types";
 
@@ -25,26 +24,13 @@ export async function cleanupAndDeleteAccount(
         });
       });
     }
-  } else if (account.type === AccountType.Outlook) {
-    if (account.refresh_token) {
-      try {
-        await stopSubscription(env, account);
-      } catch (err) {
-        await reportErrorToObservability(
-          env,
-          "bot.stop_subscription_failed",
-          err,
-          { accountEmail: account.email },
-        );
-      }
-    }
-    await deleteAccount(env.DB, account.id);
   } else {
     if (account.refresh_token) {
       try {
-        await stopWatch(env, account);
+        const provider = getEmailProvider(account, env);
+        await provider.stopPush();
       } catch (err) {
-        await reportErrorToObservability(env, "bot.stop_watch_failed", err, {
+        await reportErrorToObservability(env, "bot.stop_push_failed", err, {
           accountEmail: account.email,
         });
       }
