@@ -87,11 +87,10 @@ export async function analyzeEmail(
     `   - State directly what happened, what the key data is, and what action is needed\n` +
     linkRule +
     `   - You may use Markdown formatting: **bold**, _italic_, \`code\`\n\n` +
-    `3. "tags": An array of 1-3 single-word tags for this email.\n` +
+    `3. "tags": An array of 1-3 PascalCase tags for this email.\n` +
     `   Rules:\n` +
     `   - Use the SAME LANGUAGE as the email\n` +
-    `   - Each tag must be a SINGLE word with no spaces (use underscore to join if needed, e.g. "Password_Reset"), no "#" prefix\n` +
-    `   - Capitalize the first letter of each tag (e.g. "Github", "Verification", "Password_Reset")\n` +
+    `   - Each tag must be PascalCase (first letter of each word capitalized, no spaces or underscores), no "#" prefix (e.g. "PasswordReset", "Github", "OrderConfirmation")\n` +
     `   - Capture: sender/service name, category (notification, newsletter, promotion, verification), key topic\n\n` +
     `4. "junk": An object with junk/spam classification.\n` +
     `   - "is_junk": true if this is spam, phishing, unsolicited marketing, scam, or bulk promotional email with no personal relevance; false otherwise.\n` +
