@@ -11,6 +11,7 @@ export async function reportErrorToObservability(
 ): Promise<void> {
   const reporter = new TelegramErrorReporter({
     binding: env.OBS_SERVICE,
+    console: true,
   });
 
   await reporter.reportError({
