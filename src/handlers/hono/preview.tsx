@@ -19,13 +19,13 @@ import {
   ROUTE_PREVIEW_API,
 } from "@handlers/hono/routes";
 import { deliverEmailToTelegram, fetchRawEmailByType } from "@services/bridge";
+import { getEmailProvider } from "@services/email/factory";
 import { getAccessToken } from "@services/email/gmail";
 import {
   fetchMailContent,
   formatAddress,
   wrapPlainText,
 } from "@services/email/mail-content";
-import { getEmailProvider } from "@services/email/provider";
 import { analyzeEmail } from "@services/llm";
 import { deleteMessage, setReplyMarkup } from "@services/telegram";
 import { formatBody } from "@utils/format";

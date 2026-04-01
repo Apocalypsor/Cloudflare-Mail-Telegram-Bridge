@@ -2,8 +2,8 @@ import app from "@handlers/hono";
 import { handleQueueBatch } from "@handlers/queue";
 import { retryAllFailedEmails } from "@services/bridge";
 import { isDigestHour, sendDigestNotifications } from "@services/digest";
+import { renewAllPush } from "@services/email/factory";
 import { checkImapBridgeHealth } from "@services/email/imap";
-import { renewAllPush } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Env, QueueMessage } from "@/types";
 

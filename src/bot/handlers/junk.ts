@@ -1,7 +1,7 @@
 import { getAccountById } from "@db/accounts";
 import { deleteMappingByEmailId, getMessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import { getEmailProvider } from "@services/email/provider";
+import { getEmailProvider } from "@services/email/factory";
 import { deleteMessage } from "@services/telegram";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";

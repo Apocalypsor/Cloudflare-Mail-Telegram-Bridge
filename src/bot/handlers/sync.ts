@@ -1,7 +1,7 @@
 import { getOwnAccounts } from "@db/accounts";
 import { getMappingsByEmailIds } from "@db/message-map";
 import { t } from "@i18n";
-import { getEmailProvider } from "@services/email/provider";
+import { getEmailProvider } from "@services/email/factory";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import type { Account, Env } from "@/types";

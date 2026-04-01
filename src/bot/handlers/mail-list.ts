@@ -1,11 +1,8 @@
 import { getOwnAccounts } from "@db/accounts";
 import { getMappingsByEmailIds, type MessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import {
-  type EmailListItem,
-  type EmailProvider,
-  getEmailProvider,
-} from "@services/email/provider";
+import { getEmailProvider } from "@services/email/factory";
+import type { EmailListItem, EmailProvider } from "@services/email/provider";
 import {
   deleteJunkMappings,
   markAllAsRead,

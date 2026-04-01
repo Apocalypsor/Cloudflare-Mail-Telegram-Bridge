@@ -3,8 +3,8 @@ import { deleteFailedEmailsByAccountId } from "@db/failed-emails";
 import { deleteCachedAccessToken } from "@db/kv";
 import { deleteMappingsByAccountId } from "@db/message-map";
 import { deleteUser } from "@db/users";
+import { getEmailProvider } from "@services/email/factory";
 import { syncAccounts } from "@services/email/imap";
-import { getEmailProvider } from "@services/email/provider";
 import { reportErrorToObservability } from "@utils/observability";
 import { type Account, AccountType, type Env } from "@/types";
 
