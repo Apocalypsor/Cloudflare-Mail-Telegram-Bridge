@@ -277,12 +277,6 @@ export async function deliverEmailToTelegram(
   waitUntil(
     (async () => {
       try {
-        const editKeyboard = await buildEmailKeyboard(
-          env,
-          messageId,
-          account.id,
-          false,
-        );
         await editMessageWithAnalysis(
           env,
           tgToken,
@@ -293,7 +287,7 @@ export async function deliverEmailToTelegram(
           subject,
           plainBody,
           formattedBody,
-          editKeyboard,
+          keyboard,
         );
       } catch (err) {
         console.error(
