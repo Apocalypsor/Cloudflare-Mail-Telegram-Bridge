@@ -1,6 +1,6 @@
-import { isAdmin } from "@bot/auth";
-import { formatUserName, userListText } from "@bot/formatters";
-import { clearBotState } from "@bot/state";
+import { isAdmin } from "@bot/utils/auth";
+import { formatUserName, userListText } from "@bot/utils/formatters";
+import { clearBotState } from "@bot/utils/state";
 import {
   countFailedEmails,
   deleteAllFailedEmails,

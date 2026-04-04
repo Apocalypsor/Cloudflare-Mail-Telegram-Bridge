@@ -1,7 +1,7 @@
-import { isAdmin } from "@bot/auth";
 import { HELP_TEXT } from "@bot/commands";
-import { formatUserName } from "@bot/formatters";
 import { mainMenuKeyboard } from "@bot/keyboards";
+import { isAdmin } from "@bot/utils/auth";
+import { formatUserName } from "@bot/utils/formatters";
 import {
   approveUser,
   getUserByTelegramId,

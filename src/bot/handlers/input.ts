@@ -1,5 +1,5 @@
-import { isAdmin } from "@bot/auth";
-import { clearBotState, getBotState, setBotState } from "@bot/state";
+import { isAdmin } from "@bot/utils/auth";
+import { clearBotState, getBotState, setBotState } from "@bot/utils/state";
 import {
   createImapAccount,
   getAuthorizedAccount,

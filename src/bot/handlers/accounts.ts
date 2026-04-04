@@ -1,10 +1,10 @@
-import { isAdmin } from "@bot/auth";
+import { isAdmin } from "@bot/utils/auth";
 import {
   accountDetailKeyboard,
   accountDetailText,
   formatUserName,
-} from "@bot/formatters";
-import { clearBotState, getBotState, setBotState } from "@bot/state";
+} from "@bot/utils/formatters";
+import { clearBotState, getBotState, setBotState } from "@bot/utils/state";
 import {
   createAccount,
   getAllAccounts,

@@ -1,4 +1,7 @@
-import { accountDetailKeyboard, accountDetailText } from "@bot/formatters";
+import {
+  accountDetailKeyboard,
+  accountDetailText,
+} from "@bot/utils/formatters";
 import {
   OAuthCallbackPage,
   OAuthErrorPage,
