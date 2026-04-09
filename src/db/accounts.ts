@@ -27,6 +27,18 @@ export async function getAccountByEmail(
     .first<Account>();
 }
 
+/** 获取所有使用该 email 的账号（同一邮箱可绑定多个账号） */
+export async function getAccountsByEmail(
+  db: D1Database,
+  email: string,
+): Promise<Account[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM accounts WHERE email = ? ORDER BY id")
+    .bind(email)
+    .all<Account>();
+  return results;
+}
+
 /** 获取用户自己绑定的账号 */
 export async function getOwnAccounts(
   db: D1Database,

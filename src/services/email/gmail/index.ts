@@ -1,4 +1,4 @@
-import { getAccountByEmail, getHistoryId, putHistoryId } from "@db/accounts";
+import { getAccountsByEmail, getHistoryId, putHistoryId } from "@db/accounts";
 import {
   getAccessToken,
   gmailGet,
@@ -57,37 +57,39 @@ export class GmailProvider extends EmailProvider {
       `Pub/Sub notification: email=${decoded.emailAddress}, historyId=${decoded.historyId}`,
     );
 
-    const account = await getAccountByEmail(env.DB, decoded.emailAddress);
-    if (!account) {
+    const accounts = await getAccountsByEmail(env.DB, decoded.emailAddress);
+    if (accounts.length === 0) {
       console.log(`No account found for ${decoded.emailAddress}, skipping`);
       return;
     }
 
-    const storedHistoryId = await getHistoryId(env.DB, account.id);
-    if (!storedHistoryId) {
-      await putHistoryId(env.DB, account.id, decoded.historyId);
+    for (const account of accounts) {
+      const storedHistoryId = await getHistoryId(env.DB, account.id);
+      if (!storedHistoryId) {
+        await putHistoryId(env.DB, account.id, decoded.historyId);
+        console.log(
+          `Initialized historyId for ${account.email} (#${account.id}):`,
+          decoded.historyId,
+        );
+        continue;
+      }
+
+      const provider = new GmailProvider(account, env);
+      const messageIds = await provider.fetchNewMessageIds();
+      if (messageIds.length === 0) {
+        console.log(`No new messages for ${account.email} (#${account.id})`);
+        continue;
+      }
+
       console.log(
-        `Initialized historyId for ${account.email}:`,
-        decoded.historyId,
+        `Found ${messageIds.length} new messages for ${account.email} (#${account.id}), enqueueing`,
       );
-      return;
+      await env.EMAIL_QUEUE.sendBatch(
+        messageIds.map((id) => ({
+          body: { accountId: account.id, messageId: id },
+        })),
+      );
     }
-
-    const provider = new GmailProvider(account, env);
-    const messageIds = await provider.fetchNewMessageIds();
-    if (messageIds.length === 0) {
-      console.log(`No new messages for ${account.email}`);
-      return;
-    }
-
-    console.log(
-      `Found ${messageIds.length} new messages for ${account.email}, enqueueing`,
-    );
-    await env.EMAIL_QUEUE.sendBatch(
-      messageIds.map((id) => ({
-        body: { accountId: account.id, messageId: id },
-      })),
-    );
   }
 
   // ─── Push (Gmail Watch) ─────────────────────────────────────────────────
