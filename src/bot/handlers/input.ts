@@ -6,7 +6,7 @@ import {
   updateAccount,
 } from "@db/accounts";
 import { t } from "@i18n";
-import { syncAccounts } from "@services/email/imap";
+import { syncAccounts } from "@providers/imap";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";

@@ -21,4 +21,6 @@ Run `pnpm cf-typegen` after changing bindings in wrangler.jsonc.
 
 - **Handlers** (`src/handlers/`) only do routing and auth. Business logic belongs in `src/services/`.
 - **Error reporting**: Use `reportErrorToObservability()` instead of `console.error`.
-- **Email providers**: Abstract class pattern in `src/services/email/`. New operations: add abstract method to `provider.ts`, implement in all three providers (`gmail/`, `outlook/`, `imap/`). Low-level helpers go in each provider's `utils.ts`.
+- **Email providers**: Abstract class pattern in `src/providers/`. The `EmailProvider` base class lives in `base.ts` and hosts cross-provider statics (`createOAuthHandler`, shared OAuth types). The `getEmailProvider` factory and re-exports live in `index.ts` (imported as `@providers`). Each concrete provider (`gmail/`, `outlook/`, `imap/`) owns its `index.ts` class and a `utils.ts` of provider-local helpers. Gmail and Outlook expose a `static oauth = EmailProvider.createOAuthHandler({...})` field for their OAuth flow — call sites use `GmailProvider.oauth.startOAuth(...)` etc.
+- **Provider dispatch**: Never branch on `account.type` outside of `providers/`. Any per-provider difference belongs as an abstract method on `EmailProvider` (see `fetchRawEmail`, `listUnread`, `enqueue`, etc.). New operations: add abstract method to `base.ts`, implement in all three providers.
+- **Mail preview helpers** (CID inlining, HTML proxy rewriting, preview URL tokens, CORS proxy signing) live in `src/services/mail-preview.ts`.

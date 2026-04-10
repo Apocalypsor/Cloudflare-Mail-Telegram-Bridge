@@ -1,13 +1,14 @@
 import { getAccountById } from "@db/accounts";
-import { callBridge } from "@services/email/imap/utils";
-import { EmailProvider } from "@services/email/provider";
+import { EmailProvider } from "@providers/base";
+import { callBridge } from "@providers/imap/utils";
+import { base64ToArrayBuffer } from "@utils/base64url";
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
 import type { Env } from "@/types";
 
 export {
   checkImapBridgeHealth,
   syncAccounts,
-} from "@services/email/imap/utils";
+} from "@providers/imap/utils";
 
 export class ImapProvider extends EmailProvider {
   // ─── Enqueue ──────────────────────────────────────────────────────────
@@ -144,17 +145,17 @@ export class ImapProvider extends EmailProvider {
     return count;
   }
 
-  /** 拉取单封邮件原文，返回 base64 编码的 RFC 2822 raw email */
+  /** 通过 IMAP bridge 拉取单封邮件原文，返回 ArrayBuffer */
   async fetchRawEmail(
     messageId: string,
     folder?: "inbox" | "junk",
-  ): Promise<string> {
+  ): Promise<ArrayBuffer> {
     const resp = await callBridge(this.env, "POST", "/api/fetch", {
       accountId: this.account.id,
       messageId,
       folder,
     });
     const { rawEmail } = (await resp.json()) as { rawEmail: string };
-    return rawEmail;
+    return base64ToArrayBuffer(rawEmail);
   }
 }

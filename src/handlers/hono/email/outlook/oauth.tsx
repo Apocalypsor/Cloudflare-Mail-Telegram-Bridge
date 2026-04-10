@@ -14,11 +14,7 @@ import {
   ROUTE_OAUTH_MICROSOFT_CALLBACK,
   ROUTE_OAUTH_MICROSOFT_START,
 } from "@handlers/hono/routes";
-import {
-  getOAuthPageProps,
-  processOAuthCallback,
-  startMicrosoftOAuth,
-} from "@services/email/outlook/oauth";
+import { OutlookProvider } from "@providers/outlook";
 import { Api } from "grammy";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -33,7 +29,7 @@ msOauth.get(ROUTE_OAUTH_MICROSOFT, async (c) => {
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  const props = getOAuthPageProps(
+  const props = OutlookProvider.oauth.getOAuthPageProps(
     c.req.raw,
     account.id,
     account.email || `Account #${account.id}`,
@@ -48,11 +44,14 @@ msOauth.get(ROUTE_OAUTH_MICROSOFT_START, async (c) => {
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  return startMicrosoftOAuth(c.req.raw, c.env, account.id);
+  return OutlookProvider.oauth.startOAuth(c.req.raw, c.env, account.id);
 });
 
 msOauth.get(ROUTE_OAUTH_MICROSOFT_CALLBACK, async (c) => {
-  const result = await processOAuthCallback(c.req.raw, c.env);
+  const result = await OutlookProvider.oauth.processOAuthCallback(
+    c.req.raw,
+    c.env,
+  );
   if (!result.ok) {
     return c.html(
       <OAuthErrorPage title={result.title} detail={result.detail} />,

@@ -1,6 +1,6 @@
 import { requireSecret } from "@handlers/hono/middleware";
 import { ROUTE_GMAIL_PUSH } from "@handlers/hono/routes";
-import { GmailProvider } from "@services/email/gmail";
+import { GmailProvider } from "@providers/gmail";
 import { Hono } from "hono";
 import type { AppEnv, PubSubPushBody } from "@/types";
 

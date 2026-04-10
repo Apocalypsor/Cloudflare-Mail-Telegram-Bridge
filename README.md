@@ -255,25 +255,6 @@ pnpm typecheck  # TypeScript 类型检查
 pnpm cf-typegen # 根据 wrangler.jsonc 重新生成 TypeScript 类型
 ```
 
-### Path Aliases
-
-所有跨目录导入使用 TypeScript path alias，避免 `../../` 相对路径：
-
-| Alias           | 对应目录           |
-| --------------- | ------------------ |
-| `@/*`           | `src/*`            |
-| `@utils/*`      | `src/utils/*`      |
-| `@services/*`   | `src/services/*`   |
-| `@bot/*`        | `src/bot/*`        |
-| `@db/*`         | `src/db/*`         |
-| `@handlers/*`   | `src/handlers/*`   |
-| `@components/*` | `src/components/*` |
-| `@assets/*`     | `src/assets/*`     |
-| `@i18n`         | `src/i18n`         |
-| `@i18n/*`       | `src/i18n/*`       |
-
-由 `tsconfig.json` 定义，Wrangler 构建时自动解析。
-
 ### 国际化 (i18n)
 
 所有用户可见的字符串通过 [i18next](https://www.i18next.com/) 管理（`import { t } from "@i18n"`），翻译文件按模块拆分在 `src/i18n/locales/zh/` 下。当前仅中文。
@@ -301,42 +282,6 @@ pnpm cf-typegen # 根据 wrangler.jsonc 重新生成 TypeScript 类型
 | `IMAP_BRIDGE_SECRET`      | IMAP Bridge 中间件共享密钥（IMAP，私有项目，可选）          |
 
 每个邮箱账号的 `type`、`refresh_token`、`chat_id` 等信息存储在 D1 数据库的 `accounts` 表中，通过 Telegram Bot 管理。
-
-## API 端点
-
-**页面路由（GET / HTML）：**
-
-| 方法 | 路径                                | 鉴权     | 说明                                  |
-| ---- | ----------------------------------- | -------- | ------------------------------------- |
-| GET  | `/favicon.png`                      | -        | Favicon                               |
-| GET  | `/login`                            | -        | Telegram Login 登录页                 |
-| GET  | `/login/callback`                   | -        | Telegram Login 回调                   |
-| GET  | `/preview`                          | Session  | HTML→Telegram MarkdownV2 预览工具     |
-| GET  | `/junk-check`                       | Session  | 垃圾邮件检测工具                      |
-| GET  | `/mail/:id?accountId=X&t=TOKEN`     | HMAC     | 查看邮件原文 HTML（含操作 FAB 按钮）  |
-| GET  | `/oauth/google?account=ID`          | Session  | 指定账号的 Google OAuth 授权说明页    |
-| GET  | `/oauth/google/start?account=ID`    | Session  | 发起指定账号的 Google OAuth           |
-| GET  | `/oauth/google/callback`            | KV state | Google OAuth 回调                     |
-| GET  | `/oauth/microsoft?account=ID`       | Session  | 指定账号的 Microsoft OAuth 授权说明页 |
-| GET  | `/oauth/microsoft/start?account=ID` | Session  | 发起指定账号的 Microsoft OAuth        |
-| GET  | `/oauth/microsoft/callback`         | KV state | Microsoft OAuth 回调                  |
-
-**API 路由（均以 `/api` 开头）：**
-
-| 方法 | 路径                               | 鉴权    | 说明                              |
-| ---- | ---------------------------------- | ------- | --------------------------------- |
-| POST | `/api/telegram/webhook?secret=XXX` | Secret  | Telegram Bot webhook              |
-| POST | `/api/gmail/push?secret=XXX`       | Secret  | Gmail Pub/Sub push 回调           |
-| POST | `/api/outlook/push?secret=XXX`     | Secret  | Outlook Graph webhook             |
-| POST | `/api/preview`                     | Session | HTML 格式化预览（JSON 请求/响应） |
-| POST | `/api/junk-check`                  | Session | 垃圾邮件检测（JSON 请求/响应）    |
-| POST | `/api/mail/:id/move-to-inbox`      | HMAC    | 将垃圾邮件移回收件箱并重投递到 TG |
-| POST | `/api/mail/:id/mark-as-junk`       | HMAC    | 标记为垃圾邮件并删除 TG 消息      |
-| POST | `/api/mail/:id/trash`              | HMAC    | 移到回收站                        |
-| POST | `/api/mail/:id/toggle-star`        | HMAC    | 切换星标状态                      |
-| GET  | `/api/cors-proxy?url=X&sig=X`      | Sig     | 邮件 HTML 内图片 CORS 代理        |
-| GET  | `/api/imap/accounts`               | Bearer  | IMAP 中间件拉取账号列表           |
-| POST | `/api/imap/push`                   | Bearer  | IMAP 中间件推送新邮件通知         |
 
 ## Telegram 消息格式
 

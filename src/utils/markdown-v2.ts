@@ -7,6 +7,25 @@ export function escapeMdV2(str: string): string {
   return str.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 }
 
+/** 将文本包裹为 Telegram 可展开引用块（expandable blockquote） */
+export function wrapExpandableQuote(text: string): string {
+  if (!text) return "";
+  let inCode = false;
+  const processed: string[] = [];
+  for (const line of text.split("\n")) {
+    if (/^```/.test(line)) {
+      inCode = !inCode;
+      continue;
+    }
+    let out = inCode ? escapeMdV2(line) : line;
+    if (out.startsWith(">")) out = `\\${out}`;
+    processed.push(out);
+  }
+  return `${processed
+    .map((line, i) => (i === 0 ? `**>${line}` : `>${line}`))
+    .join("\n")}||`;
+}
+
 /** NUL byte used as placeholder delimiter in slot-based rendering */
 const NUL = "\x00";
 const SLOT_RE = new RegExp(`${NUL}(\\d+)${NUL}`, "g");

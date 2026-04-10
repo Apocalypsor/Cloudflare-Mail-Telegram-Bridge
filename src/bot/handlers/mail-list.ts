@@ -1,8 +1,12 @@
 import { getOwnAccounts } from "@db/accounts";
 import { getMappingsByEmailIds, type MessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import { getEmailProvider } from "@services/email/factory";
-import type { EmailListItem, EmailProvider } from "@services/email/provider";
+import {
+  type EmailListItem,
+  type EmailProvider,
+  getEmailProvider,
+} from "@providers";
+import { buildMailPreviewUrl } from "@services/mail-preview";
 import {
   deleteJunkMappings,
   markAllAsRead,
@@ -10,7 +14,6 @@ import {
   trashAllJunkEmails,
 } from "@services/message-actions";
 import { buildTgMessageLink } from "@services/telegram";
-import { buildMailPreviewUrl } from "@utils/hash";
 import { escapeMdV2 } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";

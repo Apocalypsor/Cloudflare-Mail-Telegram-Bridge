@@ -14,11 +14,7 @@ import {
   ROUTE_OAUTH_GOOGLE_CALLBACK,
   ROUTE_OAUTH_GOOGLE_START,
 } from "@handlers/hono/routes";
-import {
-  getOAuthPageProps,
-  processOAuthCallback,
-  startGoogleOAuth,
-} from "@services/email/gmail/oauth";
+import { GmailProvider } from "@providers/gmail";
 import { Api } from "grammy";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -33,7 +29,7 @@ gmailOauth.get(ROUTE_OAUTH_GOOGLE, async (c) => {
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  const props = getOAuthPageProps(
+  const props = GmailProvider.oauth.getOAuthPageProps(
     c.req.raw,
     account.id,
     account.email || `Account #${account.id}`,
@@ -48,11 +44,14 @@ gmailOauth.get(ROUTE_OAUTH_GOOGLE_START, async (c) => {
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  return startGoogleOAuth(c.req.raw, c.env, account.id);
+  return GmailProvider.oauth.startOAuth(c.req.raw, c.env, account.id);
 });
 
 gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
-  const result = await processOAuthCallback(c.req.raw, c.env);
+  const result = await GmailProvider.oauth.processOAuthCallback(
+    c.req.raw,
+    c.env,
+  );
   if (!result.ok) {
     return c.html(
       <OAuthErrorPage title={result.title} detail={result.detail} />,

@@ -1,19 +1,36 @@
 import { getAccountsByEmail, getHistoryId, putHistoryId } from "@db/accounts";
 import {
-  getAccessToken,
-  gmailGet,
-  gmailPost,
-} from "@services/email/gmail/utils";
-import { EmailProvider } from "@services/email/provider";
+  ROUTE_OAUTH_GOOGLE_CALLBACK,
+  ROUTE_OAUTH_GOOGLE_START,
+} from "@handlers/hono/routes";
+import { EmailProvider } from "@providers/base";
+import { getAccessToken, gmailGet, gmailPost } from "@providers/gmail/utils";
+import { base64urlToArrayBuffer, base64urlToString } from "@utils/base64url";
+import { wrapPlainText } from "@utils/format";
 import { HTTPError } from "ky";
-import type { Env } from "@/types";
+import {
+  GMAIL_MODIFY_SCOPE,
+  GOOGLE_OAUTH_AUTHORIZE_URL,
+  GOOGLE_OAUTH_TOKEN_URL,
+} from "@/constants";
+import type { Env, MailMeta } from "@/types";
 
-export { getAccessToken, gmailGet } from "@services/email/gmail/utils";
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+interface GmailPayload {
+  mimeType?: string;
+  headers?: GmailHeader[];
+  body?: { data?: string; attachmentId?: string };
+  parts?: GmailPayload[];
+}
 
 interface GmailMessage {
   id: string;
   labelIds?: string[];
-  payload?: { headers?: { name: string; value: string }[] };
+  payload?: GmailPayload;
 }
 
 interface GmailMessageList {
@@ -37,7 +54,43 @@ interface GmailProfile {
   historyId: string;
 }
 
+export interface FetchMailResult {
+  html: string;
+  cidMap: Map<string, string>;
+  meta: MailMeta;
+}
+
 export class GmailProvider extends EmailProvider {
+  static oauth = EmailProvider.createOAuthHandler({
+    name: "Google",
+    authorizeUrl: GOOGLE_OAUTH_AUTHORIZE_URL,
+    tokenUrl: GOOGLE_OAUTH_TOKEN_URL,
+    scope: GMAIL_MODIFY_SCOPE,
+    startRoute: ROUTE_OAUTH_GOOGLE_START,
+    callbackRoute: ROUTE_OAUTH_GOOGLE_CALLBACK,
+    statePrefix: "",
+    extraAuthorizeParams: {
+      access_type: "offline",
+      include_granted_scopes: "true",
+    },
+    getCredentials: (env) => ({
+      clientId: env.GMAIL_CLIENT_ID,
+      clientSecret: env.GMAIL_CLIENT_SECRET,
+    }),
+    fetchEmail: async (accessToken) => {
+      const profile = await gmailGet<{ emailAddress?: string }>(
+        accessToken,
+        "/users/me/profile",
+      );
+      return profile.emailAddress;
+    },
+    onAuthorized: async (env, account) => {
+      const provider = new GmailProvider(account, env);
+      await provider.renewPush();
+      console.log(`Auto-watch activated for ${account.email}`);
+    },
+  });
+
   private async token(): Promise<string> {
     return getAccessToken(this.env, this.account);
   }
@@ -190,6 +243,64 @@ export class GmailProvider extends EmailProvider {
     return [...messageIds];
   }
 
+  // ─── 邮件正文获取 ──────────────────────────────────────────────────────
+
+  /** 获取原始 MIME 邮件内容（Gmail API format=raw，返回 ArrayBuffer） */
+  async fetchRawEmail(messageId: string): Promise<ArrayBuffer> {
+    const token = await this.token();
+    const msg = await gmailGet<{ raw: string }>(
+      token,
+      `/users/me/messages/${messageId}?format=raw`,
+    );
+    return base64urlToArrayBuffer(msg.raw);
+  }
+
+  /** 从 Gmail API 获取邮件正文 HTML，优先 HTML，fallback 到纯文本 */
+  async fetchMailContent(messageId: string): Promise<FetchMailResult | null> {
+    const token = await this.token();
+    const msg = await gmailGet<{ payload: GmailPayload }>(
+      token,
+      `/users/me/messages/${messageId}?format=full`,
+    );
+    const meta: MailMeta = {
+      subject: extractHeader(msg.payload, "subject"),
+      from: extractHeader(msg.payload, "from"),
+      to: extractHeader(msg.payload, "to"),
+      date: extractHeader(msg.payload, "date"),
+    };
+    const html = extractPartByMime(msg.payload, "text/html");
+
+    const cidMap = new Map<string, string>();
+    collectInlineParts(msg.payload, cidMap);
+
+    // 需要通过附件 API 获取的内联图片
+    const pending: { cid: string; mimeType: string; attachmentId: string }[] =
+      [];
+    collectInlineAttachmentIds(msg.payload, pending);
+    if (pending.length > 0) {
+      await Promise.all(
+        pending.map(async ({ cid, mimeType, attachmentId }) => {
+          const att = await gmailGet<{ data?: string }>(
+            token,
+            `/users/me/messages/${messageId}/attachments/${attachmentId}`,
+          );
+          if (att.data) {
+            // Gmail 返回的是 base64url，转为标准 base64
+            const b64 = att.data.replace(/-/g, "+").replace(/_/g, "/");
+            cidMap.set(cid, `data:${mimeType};base64,${b64}`);
+          }
+        }),
+      );
+    }
+
+    if (html) return { html, cidMap, meta };
+
+    const plain = extractPartByMime(msg.payload, "text/plain");
+    if (plain) return { html: wrapPlainText(plain), cidMap, meta };
+
+    return null;
+  }
+
   // ─── Message actions ──────────────────────────────────────────────────
 
   async markAsRead(messageId: string) {
@@ -322,4 +433,84 @@ export class GmailProvider extends EmailProvider {
       }),
     );
   }
+}
+
+// ─── Gmail payload 解析 helpers ──────────────────────────────────────────────
+
+/** 从 Gmail payload headers 中提取指定头部 */
+function extractHeader(payload: GmailPayload, name: string): string | null {
+  return (
+    payload.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())
+      ?.value ?? null
+  );
+}
+
+/** 递归收集内联图片（body.data 已内嵌的情况） */
+function collectInlineParts(
+  payload: GmailPayload,
+  cidMap: Map<string, string>,
+): void {
+  if (!payload) return;
+  const contentId = payload.headers?.find(
+    (h) => h.name.toLowerCase() === "content-id",
+  )?.value;
+  if (
+    contentId &&
+    payload.body?.data &&
+    payload.mimeType?.startsWith("image/")
+  ) {
+    const cid = contentId.replace(/^<|>$/g, "");
+    const b64 = payload.body.data.replace(/-/g, "+").replace(/_/g, "/");
+    cidMap.set(cid, `data:${payload.mimeType};base64,${b64}`);
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) collectInlineParts(part, cidMap);
+  }
+}
+
+/** 递归收集需要通过附件 API 获取的内联图片 */
+function collectInlineAttachmentIds(
+  payload: GmailPayload,
+  result: { cid: string; mimeType: string; attachmentId: string }[],
+): void {
+  if (!payload) return;
+  const contentId = payload.headers?.find(
+    (h) => h.name.toLowerCase() === "content-id",
+  )?.value;
+  if (
+    contentId &&
+    !payload.body?.data &&
+    payload.body?.attachmentId &&
+    payload.mimeType?.startsWith("image/")
+  ) {
+    result.push({
+      cid: contentId.replace(/^<|>$/g, ""),
+      mimeType: payload.mimeType,
+      attachmentId: payload.body.attachmentId,
+    });
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) collectInlineAttachmentIds(part, result);
+  }
+}
+
+/** 递归提取 payload 中指定 MIME 类型的内容 */
+function extractPartByMime(
+  payload: GmailPayload,
+  mimeType: string,
+): string | null {
+  if (!payload) return null;
+
+  if (payload.mimeType === mimeType && payload.body?.data) {
+    return base64urlToString(payload.body.data);
+  }
+
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const content = extractPartByMime(part, mimeType);
+      if (content) return content;
+    }
+  }
+
+  return null;
 }

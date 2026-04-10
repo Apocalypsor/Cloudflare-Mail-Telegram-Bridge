@@ -1,10 +1,14 @@
 import { getAllAccounts } from "@db/accounts";
-import { GmailProvider } from "@services/email/gmail";
-import { ImapProvider } from "@services/email/imap";
-import { OutlookProvider } from "@services/email/outlook";
-import type { EmailProvider } from "@services/email/provider";
-import type { Account, Env } from "@/types";
-import { AccountType } from "@/types";
+import type { EmailProvider } from "@providers/base";
+import { GmailProvider } from "@providers/gmail";
+import { ImapProvider } from "@providers/imap";
+import { OutlookProvider } from "@providers/outlook";
+import { type Account, AccountType, type Env } from "@/types";
+
+export { type EmailListItem, EmailProvider } from "@providers/base";
+export { GmailProvider } from "@providers/gmail";
+export { ImapProvider } from "@providers/imap";
+export { OutlookProvider } from "@providers/outlook";
 
 export function getEmailProvider(account: Account, env: Env): EmailProvider {
   if (account.type === AccountType.Imap) return new ImapProvider(account, env);

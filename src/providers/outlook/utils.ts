@@ -1,5 +1,5 @@
 import { getCachedAccessToken, putCachedAccessToken } from "@db/kv";
-import type { MsTokenResponse } from "@services/email/outlook/oauth";
+import type { OAuthTokenResponse } from "@providers/base";
 import { http } from "@utils/http";
 import { HTTPError } from "ky";
 import { MS_GRAPH_API, MS_MAIL_SCOPE, MS_OAUTH_TOKEN_URL } from "@/constants";
@@ -19,7 +19,7 @@ export async function getAccessToken(
     );
   }
 
-  let data: MsTokenResponse;
+  let data: OAuthTokenResponse;
   try {
     data = (await http
       .post(MS_OAUTH_TOKEN_URL, {
@@ -31,7 +31,7 @@ export async function getAccessToken(
           scope: MS_MAIL_SCOPE,
         }),
       })
-      .json()) as MsTokenResponse;
+      .json()) as OAuthTokenResponse;
   } catch (err) {
     if (err instanceof HTTPError) {
       throw new Error(

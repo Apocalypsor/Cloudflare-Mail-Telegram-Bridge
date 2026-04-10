@@ -18,28 +18,20 @@ import {
   ROUTE_PREVIEW,
   ROUTE_PREVIEW_API,
 } from "@handlers/hono/routes";
-import { deliverEmailToTelegram, fetchRawEmailByType } from "@services/bridge";
-import { getEmailProvider } from "@services/email/factory";
-import { getAccessToken } from "@services/email/gmail";
-import {
-  fetchMailContent,
-  formatAddress,
-  wrapPlainText,
-} from "@services/email/mail-content";
+import { type GmailProvider, getEmailProvider } from "@providers";
+import { deliverEmailToTelegram } from "@services/bridge";
 import { analyzeEmail } from "@services/llm";
-import { deleteMessage, setReplyMarkup } from "@services/telegram";
-import { formatBody } from "@utils/format";
-import {
-  verifyMailToken,
-  verifyMailTokenById,
-  verifyProxySignature,
-} from "@utils/hash";
 import {
   buildCidMapFromAttachments,
   type CidMap,
   proxyImages,
   replaceCidReferences,
-} from "@utils/html";
+  verifyMailToken,
+  verifyMailTokenById,
+  verifyProxySignature,
+} from "@services/mail-preview";
+import { deleteMessage, setReplyMarkup } from "@services/telegram";
+import { formatAddress, formatBody, wrapPlainText } from "@utils/format";
 import { http } from "@utils/http";
 import { Hono } from "hono";
 import { raw } from "hono/html";
@@ -167,8 +159,9 @@ preview.get(ROUTE_MAIL, async (c) => {
 
   if (account.type === AccountType.Gmail) {
     if (!account.refresh_token) return c.text("Account not authorized", 403);
-    const accessToken = await getAccessToken(c.env, account);
-    const result = await fetchMailContent(accessToken, messageId);
+    const result = await (provider as GmailProvider).fetchMailContent(
+      messageId,
+    );
     if (result) {
       html = result.html;
       cidMap = result.cidMap;
@@ -178,10 +171,8 @@ preview.get(ROUTE_MAIL, async (c) => {
     // IMAP + Outlook: 获取原始 MIME 并解析
     if (account.type !== AccountType.Imap && !account.refresh_token)
       return c.text("Account not authorized", 403);
-    const rawEmail = await fetchRawEmailByType(
-      account,
+    const rawEmail = await provider.fetchRawEmail(
       messageId,
-      c.env,
       inJunk ? "junk" : "inbox",
     );
     const email = await new PostalMime().parse(rawEmail);
@@ -229,7 +220,8 @@ preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
 
     // 重新投递到 TG 频道
     c.executionCtx.waitUntil(
-      fetchRawEmailByType(account, messageId, c.env)
+      provider
+        .fetchRawEmail(messageId)
         .then((raw) =>
           deliverEmailToTelegram(
             raw,

@@ -1,7 +1,7 @@
 import { getImapAccounts } from "@db/accounts";
 import { requireBearer } from "@handlers/hono/middleware";
 import { ROUTE_IMAP_ACCOUNTS, ROUTE_IMAP_PUSH } from "@handlers/hono/routes";
-import { ImapProvider } from "@services/email/imap";
+import { ImapProvider } from "@providers/imap";
 import { Hono } from "hono";
 import type { AppEnv } from "@/types";
 

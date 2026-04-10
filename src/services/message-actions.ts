@@ -5,7 +5,7 @@ import {
   getMessageMapping,
   type MessageMapping,
 } from "@db/message-map";
-import { getEmailProvider } from "@services/email/factory";
+import { getEmailProvider } from "@providers";
 import { deleteMessage, setReplyMarkup } from "@services/telegram";
 import { reportErrorToObservability } from "@utils/observability";
 import type { InlineKeyboard } from "grammy";

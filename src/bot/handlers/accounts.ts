@@ -16,10 +16,10 @@ import {
 import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
+import { getEmailProvider } from "@providers";
+import { GmailProvider } from "@providers/gmail";
+import { OutlookProvider } from "@providers/outlook";
 import { cleanupAndDeleteAccount } from "@services/account";
-import { getEmailProvider } from "@services/email/factory";
-import { generateOAuthUrl } from "@services/email/gmail/oauth";
-import { generateOAuthUrl as generateMsOAuthUrl } from "@services/email/outlook/oauth";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -207,8 +207,8 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
       const isOutlook = account.type === AccountType.Outlook;
       const oauthUrl = isOutlook
-        ? await generateMsOAuthUrl(env, accountId, origin)
-        : await generateOAuthUrl(env, accountId, origin);
+        ? await OutlookProvider.oauth.generateOAuthUrl(env, accountId, origin)
+        : await GmailProvider.oauth.generateOAuthUrl(env, accountId, origin);
       const providerName = isOutlook ? "Microsoft" : "Google";
 
       const kb = new InlineKeyboard()
@@ -495,7 +495,11 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       await clearBotState(env, userId);
 
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
-      const oauthUrl = await generateOAuthUrl(env, account.id, origin);
+      const oauthUrl = await GmailProvider.oauth.generateOAuthUrl(
+        env,
+        account.id,
+        origin,
+      );
       const kb = new InlineKeyboard()
         .url(t("accounts:button.clickAuthGoogle"), oauthUrl)
         .row()
@@ -552,7 +556,11 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       await clearBotState(env, userId);
 
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
-      const oauthUrl = await generateMsOAuthUrl(env, account.id, origin);
+      const oauthUrl = await OutlookProvider.oauth.generateOAuthUrl(
+        env,
+        account.id,
+        origin,
+      );
       const kb = new InlineKeyboard()
         .url(t("accounts:button.clickAuthMicrosoft"), oauthUrl)
         .row()

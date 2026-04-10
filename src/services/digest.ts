@@ -1,6 +1,6 @@
 import { getAllAccounts } from "@db/accounts";
 import { t } from "@i18n";
-import { getEmailProvider } from "@services/email/factory";
+import { getEmailProvider } from "@providers";
 import { sendTextMessage } from "@services/telegram";
 import { escapeMdV2 } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";

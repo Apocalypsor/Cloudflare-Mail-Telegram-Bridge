@@ -4,6 +4,7 @@ import {
   markdownToMdV2,
 } from "@utils/markdown-v2";
 import { parseHTML } from "linkedom";
+import type { Address } from "postal-mime";
 import TurndownService from "turndown";
 import { MAX_BODY_CHARS, MAX_LINKS } from "@/constants";
 
@@ -164,4 +165,22 @@ export function prepareBody(rawBody: string): string {
   return stripped.length > MAX_BODY_CHARS
     ? `${stripped.slice(0, MAX_BODY_CHARS)}...`
     : stripped;
+}
+
+// ─── 邮件正文包装 / 地址格式化 ──────────────────────────────────────────────
+
+/** 将 PostalMime Address 格式化为可读字符串 */
+export function formatAddress(addr: Address): string {
+  if (addr.address)
+    return addr.name ? `${addr.name} <${addr.address}>` : addr.address;
+  return addr.name;
+}
+
+/** 将纯文本包裹成可读的 HTML 页面 */
+export function wrapPlainText(text: string): string {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:monospace;white-space:pre-wrap;word-break:break-word;max-width:800px;margin:2em auto;padding:0 1em;line-height:1.5;color:#333}</style></head><body>${escaped}</body></html>`;
 }

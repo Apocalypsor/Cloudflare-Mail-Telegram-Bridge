@@ -1,8 +1,8 @@
 import { getAccountById } from "@db/accounts";
 import { getMessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import { getEmailProvider } from "@services/email/factory";
-import { generateMailTokenById } from "@utils/hash";
+import { getEmailProvider } from "@providers";
+import { generateMailTokenById } from "@services/mail-preview";
 import { InlineKeyboard } from "grammy";
 import type { Env } from "@/types";
 

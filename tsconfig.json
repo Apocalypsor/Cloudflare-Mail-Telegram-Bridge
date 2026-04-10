@@ -43,6 +43,8 @@
       "@/*": ["./src/*"],
       "@utils/*": ["./src/utils/*"],
       "@services/*": ["./src/services/*"],
+      "@providers": ["./src/providers"],
+      "@providers/*": ["./src/providers/*"],
       "@bot/*": ["./src/bot/*"],
       "@db/*": ["./src/db/*"],
       "@handlers/*": ["./src/handlers/*"],

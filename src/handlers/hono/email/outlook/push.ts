@@ -1,5 +1,5 @@
 import { ROUTE_OUTLOOK_PUSH } from "@handlers/hono/routes";
-import { OutlookProvider } from "@services/email/outlook";
+import { OutlookProvider } from "@providers/outlook";
 import { timingSafeEqual } from "@utils/hash";
 import { Hono } from "hono";
 import type { AppEnv } from "@/types";

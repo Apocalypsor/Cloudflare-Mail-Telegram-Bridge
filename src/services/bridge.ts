@@ -8,12 +8,7 @@ import {
 } from "@db/failed-emails";
 import { getMessageMapping, putMessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import { getAccessToken, gmailGet } from "@services/email/gmail";
-import { ImapProvider } from "@services/email/imap";
-import {
-  fetchRawMime,
-  getAccessToken as msGetAccessToken,
-} from "@services/email/outlook";
+import { getEmailProvider } from "@providers";
 import { analyzeEmail } from "@services/llm";
 import {
   deleteMessage,
@@ -24,18 +19,12 @@ import {
   TG_CAPTION_LIMIT,
   TG_MSG_LIMIT,
 } from "@services/telegram";
-import { base64ToArrayBuffer, base64urlToArrayBuffer } from "@utils/base64url";
 import { formatBody, htmlToMarkdown, toTelegramMdV2 } from "@utils/format";
-import { escapeMdV2 } from "@utils/markdown-v2";
+import { escapeMdV2, wrapExpandableQuote } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
 import PostalMime from "postal-mime";
 import { MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE } from "@/constants";
-import {
-  type Account,
-  AccountType,
-  type Env,
-  type QueueMessage,
-} from "@/types";
+import type { Account, Env, QueueMessage } from "@/types";
 
 // ---------------------------------------------------------------------------
 // 私有 helper
@@ -51,25 +40,6 @@ function getEmailPlainBody(email: { text?: string; html?: string }): string {
     }
   }
   return "";
-}
-
-/** 将文本包裹为 Telegram 可展开引用块（expandable blockquote） */
-export function wrapExpandableQuote(text: string): string {
-  if (!text) return "";
-  let inCode = false;
-  const processed: string[] = [];
-  for (const line of text.split("\n")) {
-    if (/^```/.test(line)) {
-      inCode = !inCode;
-      continue;
-    }
-    let out = inCode ? escapeMdV2(line) : line;
-    if (out.startsWith(">")) out = `\\${out}`;
-    processed.push(out);
-  }
-  return `${processed
-    .map((line, i) => (i === 0 ? `**>${line}` : `>${line}`))
-    .join("\n")}||`;
 }
 
 function buildTelegramHeader(
@@ -183,31 +153,6 @@ async function editMessageWithAnalysis(
 
   const summarySection = `*${escapeMdV2(t("bridge:aiSummary"))}*\n\n${toTelegramMdV2(result.summary)}`;
   await editMsg(header + summarySection + tagsLine);
-}
-
-/** 按账号类型拉取原始邮件 */
-export async function fetchRawEmailByType(
-  account: Account,
-  messageId: string,
-  env: Env,
-  imapFolder?: "inbox" | "junk",
-): Promise<ArrayBuffer> {
-  if (account.type === AccountType.Imap) {
-    const provider = new ImapProvider(account, env);
-    const base64 = await provider.fetchRawEmail(messageId, imapFolder);
-    return base64ToArrayBuffer(base64);
-  }
-  if (account.type === AccountType.Outlook) {
-    const token = await msGetAccessToken(env, account);
-    return fetchRawMime(token, messageId);
-  }
-  // Gmail
-  const token = await getAccessToken(env, account);
-  const gmailMsg = await gmailGet<{ raw: string }>(
-    token,
-    `/users/me/messages/${messageId}?format=raw`,
-  );
-  return base64urlToArrayBuffer(gmailMsg.raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +277,8 @@ export async function processEmailMessage(
     return;
   }
 
-  const rawEmail = await fetchRawEmailByType(account, msg.messageId, env);
+  const provider = getEmailProvider(account, env);
+  const rawEmail = await provider.fetchRawEmail(msg.messageId);
 
   await deliverEmailToTelegram(
     rawEmail,
@@ -356,7 +302,8 @@ async function reanalyzeEmail(
   tgMessageId: number,
   isCaption: boolean,
 ): Promise<void> {
-  const rawEmail = await fetchRawEmailByType(account, emailMessageId, env);
+  const provider = getEmailProvider(account, env);
+  const rawEmail = await provider.fetchRawEmail(emailMessageId);
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
 

@@ -7,18 +7,27 @@ import {
   refreshMsSubAccountMapping,
 } from "@db/kv";
 import {
+  ROUTE_OAUTH_MICROSOFT_CALLBACK,
+  ROUTE_OAUTH_MICROSOFT_START,
+} from "@handlers/hono/routes";
+import { EmailProvider } from "@providers/base";
+import {
+  fetchRawMime,
   getAccessToken,
   graphGet,
   graphPatch,
   graphPost,
-} from "@services/email/outlook/utils";
-import { EmailProvider } from "@services/email/provider";
+} from "@providers/outlook/utils";
 import { http } from "@utils/http";
 import { HTTPError } from "ky";
-import { MS_GRAPH_API, MS_SUBSCRIPTION_LIFETIME_MINUTES } from "@/constants";
+import {
+  MS_GRAPH_API,
+  MS_MAIL_SCOPE,
+  MS_OAUTH_AUTHORIZE_URL,
+  MS_OAUTH_TOKEN_URL,
+  MS_SUBSCRIPTION_LIFETIME_MINUTES,
+} from "@/constants";
 import type { Env } from "@/types";
-
-export { fetchRawMime, getAccessToken } from "@services/email/outlook/utils";
 
 interface GraphMessage {
   id: string;
@@ -36,6 +45,34 @@ interface GraphFolder {
 }
 
 export class OutlookProvider extends EmailProvider {
+  static oauth = EmailProvider.createOAuthHandler({
+    name: "Microsoft",
+    authorizeUrl: MS_OAUTH_AUTHORIZE_URL,
+    tokenUrl: MS_OAUTH_TOKEN_URL,
+    scope: MS_MAIL_SCOPE,
+    startRoute: ROUTE_OAUTH_MICROSOFT_START,
+    callbackRoute: ROUTE_OAUTH_MICROSOFT_CALLBACK,
+    statePrefix: "ms:",
+    extraAuthorizeParams: { response_mode: "query" },
+    getCredentials: (env) => ({
+      clientId: env.MS_CLIENT_ID as string,
+      clientSecret: env.MS_CLIENT_SECRET as string,
+    }),
+    extraTokenBody: () => ({ scope: MS_MAIL_SCOPE }),
+    fetchEmail: async (accessToken) => {
+      const profile = await graphGet<{
+        mail?: string;
+        userPrincipalName?: string;
+      }>(accessToken, "/me");
+      return profile.mail || profile.userPrincipalName;
+    },
+    onAuthorized: async (env, account) => {
+      const provider = new OutlookProvider(account, env);
+      await provider.renewPush();
+      console.log(`Outlook subscription activated for ${account.email}`);
+    },
+  });
+
   private async token(): Promise<string> {
     return getAccessToken(this.env, this.account);
   }
@@ -185,6 +222,12 @@ export class OutlookProvider extends EmailProvider {
     }
     await deleteMsSubscription(this.env.EMAIL_KV, this.account.id);
     console.log(`Outlook subscription stopped for ${this.account.email}`);
+  }
+
+  // ─── 邮件正文获取 ──────────────────────────────────────────────────────
+
+  async fetchRawEmail(messageId: string): Promise<ArrayBuffer> {
+    return fetchRawMime(await this.token(), messageId);
   }
 
   // ─── Message actions ──────────────────────────────────────────────────

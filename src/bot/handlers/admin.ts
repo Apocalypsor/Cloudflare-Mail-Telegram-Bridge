@@ -15,9 +15,9 @@ import {
   rejectUser,
 } from "@db/users";
 import { t } from "@i18n";
+import { renewAllPush } from "@providers";
 import { deleteUserWithAccounts } from "@services/account";
 import { retryAllFailedEmails, retryFailedEmail } from "@services/bridge";
-import { renewAllPush } from "@services/email/factory";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
