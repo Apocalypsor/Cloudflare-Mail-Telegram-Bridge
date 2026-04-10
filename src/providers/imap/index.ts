@@ -123,11 +123,18 @@ export class ImapProvider extends EmailProvider {
     });
   }
 
-  async moveToInbox(messageId: string) {
-    await callBridge(this.env, "POST", "/api/move-to-inbox", {
+  async moveToInbox(messageId: string): Promise<string> {
+    const resp = await callBridge(this.env, "POST", "/api/move-to-inbox", {
       accountId: this.account.id,
       messageId,
     });
+    const { newMessageId } = (await resp.json()) as { newMessageId?: string };
+    if (!newMessageId) {
+      throw new Error(
+        "IMAP bridge /api/move-to-inbox did not return newMessageId",
+      );
+    }
+    return newMessageId;
   }
 
   async trashMessage(messageId: string) {

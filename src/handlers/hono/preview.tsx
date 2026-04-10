@@ -33,6 +33,7 @@ import {
 import { deleteMessage, setReplyMarkup } from "@services/telegram";
 import { formatAddress, formatBody, wrapPlainText } from "@utils/format";
 import { http } from "@utils/http";
+import { reportErrorToObservability } from "@utils/observability";
 import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -216,28 +217,36 @@ preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
   if (!account) return c.json({ ok: false, error: "账号未找到" }, 404);
   try {
     const provider = getEmailProvider(account, c.env);
-    await provider.moveToInbox(messageId);
+    // IMAP/Outlook move 之后原 id 失效（IMAP 换 UID，Outlook Graph 换 id），
+    // 所以必须在 move 之前先把 raw 从垃圾箱拉下来，然后用 move 返回的新 id 建 mapping。
+    const raw = await provider.fetchRawEmail(messageId, "junk");
+    const newMessageId = await provider.moveToInbox(messageId);
 
-    // 重新投递到 TG 频道
     c.executionCtx.waitUntil(
-      provider
-        .fetchRawEmail(messageId)
-        .then((raw) =>
-          deliverEmailToTelegram(
-            raw,
-            messageId,
-            account as Account,
-            c.env,
-            c.executionCtx.waitUntil.bind(c.executionCtx),
-          ),
-        )
-        .catch((err) =>
-          console.error("Re-deliver after move-to-inbox failed:", err),
+      deliverEmailToTelegram(
+        raw,
+        newMessageId,
+        account as Account,
+        c.env,
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      ).catch((err) =>
+        reportErrorToObservability(
+          c.env,
+          "preview.redeliver_after_move_failed",
+          err,
+          { accountId: account.id },
         ),
+      ),
     );
 
     return c.json({ ok: true, message: "已移至收件箱并重新投递" });
-  } catch {
+  } catch (err) {
+    await reportErrorToObservability(
+      c.env,
+      "preview.move_to_inbox_failed",
+      err,
+      { accountId: account.id },
+    );
     return c.json({ ok: false, error: "操作失败" }, 500);
   }
 });

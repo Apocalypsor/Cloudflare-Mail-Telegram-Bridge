@@ -19,9 +19,11 @@ import {
   graphPost,
 } from "@providers/outlook/utils";
 import { http } from "@utils/http";
+import { reportErrorToObservability } from "@utils/observability";
 import { HTTPError } from "ky";
 import {
   MS_GRAPH_API,
+  MS_GRAPH_API_BETA,
   MS_MAIL_SCOPE,
   MS_OAUTH_AUTHORIZE_URL,
   MS_OAUTH_TOKEN_URL,
@@ -305,10 +307,34 @@ export class OutlookProvider extends EmailProvider {
     });
   }
 
-  async moveToInbox(messageId: string) {
-    await graphPost(await this.token(), `/me/messages/${messageId}/move`, {
-      destinationId: "Inbox",
-    });
+  async moveToInbox(messageId: string): Promise<string> {
+    const token = await this.token();
+    try {
+      const moved = await http
+        .post(`${MS_GRAPH_API_BETA}/me/messages/${messageId}/reportMessage`, {
+          headers: { Authorization: `Bearer ${token}` },
+          json: { IsMessageMoveRequested: true, ReportAction: "notJunk" },
+        })
+        .json<GraphMessage>();
+      if (moved?.id) return moved.id;
+    } catch (err) {
+      // beta reportMessage 未就绪时降级到 v1.0 /move（仍会换 id，但不反馈 EOP）
+      await reportErrorToObservability(
+        this.env,
+        "outlook.report_not_junk_failed",
+        err,
+        { accountId: this.account.id },
+      );
+    }
+    const moved = await graphPost<GraphMessage>(
+      token,
+      `/me/messages/${messageId}/move`,
+      { destinationId: "Inbox" },
+    );
+    if (!moved?.id) {
+      throw new Error("Outlook move response missing new message id");
+    }
+    return moved.id;
   }
 
   async trashMessage(messageId: string) {

@@ -375,7 +375,7 @@ export class GmailProvider extends EmailProvider {
     );
   }
 
-  async moveToInbox(messageId: string) {
+  async moveToInbox(messageId: string): Promise<string> {
     await gmailPost(
       await this.token(),
       `/users/me/messages/${messageId}/modify`,
@@ -384,6 +384,7 @@ export class GmailProvider extends EmailProvider {
         removeLabelIds: ["SPAM"],
       },
     );
+    return messageId;
   }
 
   async trashMessage(messageId: string) {

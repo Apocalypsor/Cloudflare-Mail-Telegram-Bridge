@@ -73,7 +73,7 @@ export abstract class EmailProvider {
   abstract listStarred(maxResults?: number): Promise<EmailListItem[]>;
   abstract listJunk(maxResults?: number): Promise<EmailListItem[]>;
   abstract markAsJunk(messageId: string): Promise<void>;
-  abstract moveToInbox(messageId: string): Promise<void>;
+  abstract moveToInbox(messageId: string): Promise<string>;
   abstract trashMessage(messageId: string): Promise<void>;
   abstract trashAllJunk(): Promise<number>;
 
