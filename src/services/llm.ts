@@ -80,7 +80,10 @@ export async function analyzeEmail(
     `Analyze the following email and return a JSON object with these fields:\n\n` +
     `1. "verification_code": If the email contains a verification code, OTP, passcode, security code, or similar one-time code, extract the exact code (digits/letters only). Otherwise set to null.\n` +
     `   - If a verification code is found, set "summary" to an empty string (skip summarization to save tokens).\n\n` +
-    `2. "summary": A bullet-point summary of the email (3-6 bullets), using the SAME LANGUAGE as the email.\n` +
+    `2. "summary": A bullet-point summary of the email (3-6 bullets).\n` +
+    `   Language rules:\n` +
+    `   - If the email is in English, write the summary in English\n` +
+    `   - If the email is in any other language, write the summary in 简体中文\n` +
     `   Rules:\n` +
     `   - Each bullet starts with "• "\n` +
     `   - Do not use "the user" as subject, no lead-ins like "the email says"\n` +
@@ -89,7 +92,7 @@ export async function analyzeEmail(
     `   - You may use Markdown formatting: **bold**, _italic_, \`code\`\n\n` +
     `3. "tags": An array of 1-3 PascalCase tags for this email.\n` +
     `   Rules:\n` +
-    `   - Use the SAME LANGUAGE as the email\n` +
+    `   - If the email is in English, write tags in English; otherwise write tags in 简体中文\n` +
     `   - Each tag must be PascalCase (first letter of each word capitalized, no spaces or underscores), no "#" prefix (e.g. "PasswordReset", "Github", "OrderConfirmation")\n` +
     `   - Capture: sender/service name, category (notification, newsletter, promotion, verification), key topic\n\n` +
     `4. "junk": An object with junk/spam classification.\n` +
