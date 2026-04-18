@@ -29,4 +29,9 @@ export default {
     deleteResultWithFailed:
       "🗑 已删除 {{success}} 封垃圾邮件，{{failed}} 个账号失败",
   },
+  archived: {
+    icon: "📥",
+    label: "归档",
+    empty: "📥 没有归档邮件（Gmail 需先在账号详情里设置归档标签）",
+  },
 };

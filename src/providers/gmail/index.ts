@@ -358,6 +358,33 @@ export class GmailProvider extends EmailProvider {
     return this.listByQuery(token, `in:spam`, maxResults);
   }
 
+  async listArchived(maxResults: number = 20) {
+    const labelId = this.account.archive_folder;
+    if (!labelId) return [];
+    const token = await this.token();
+    const data = await gmailGet<GmailMessageList>(
+      token,
+      `/users/me/messages?labelIds=${encodeURIComponent(labelId)}&maxResults=${maxResults}`,
+    );
+    if (!data.messages) return [];
+    return Promise.all(
+      data.messages.map(async ({ id }) => {
+        try {
+          const msg = await gmailGet<GmailMessage>(
+            token,
+            `/users/me/messages/${id}?format=METADATA&metadataHeaders=Subject`,
+          );
+          const subjectHeader = msg.payload?.headers?.find(
+            (h) => h.name.toLowerCase() === "subject",
+          );
+          return { id, subject: subjectHeader?.value };
+        } catch {
+          return { id };
+        }
+      }),
+    );
+  }
+
   async markAsJunk(messageId: string) {
     await gmailPost(
       await this.token(),
@@ -379,6 +406,36 @@ export class GmailProvider extends EmailProvider {
       },
     );
     return messageId;
+  }
+
+  canArchive(): boolean {
+    return !!this.account.archive_folder;
+  }
+
+  async archiveMessage(messageId: string) {
+    const labelId = this.account.archive_folder;
+    if (!labelId) {
+      throw new Error("Gmail archive requires archive_folder (label ID)");
+    }
+    await gmailPost(
+      await this.token(),
+      `/users/me/messages/${messageId}/modify`,
+      {
+        addLabelIds: [labelId],
+        removeLabelIds: ["INBOX"],
+      },
+    );
+  }
+
+  /** 列出账号下所有用户标签（过滤系统标签），用于归档标签选择 UI */
+  async listLabels(): Promise<{ id: string; name: string }[]> {
+    const data = await gmailGet<{
+      labels?: { id: string; name: string; type?: string }[];
+    }>(await this.token(), "/users/me/labels");
+    if (!data.labels) return [];
+    return data.labels
+      .filter((l) => l.type === "user")
+      .map(({ id, name }) => ({ id, name }));
   }
 
   async trashMessage(messageId: string) {

@@ -27,6 +27,9 @@ export function accountDetailText(
     text += `Chat ID: ${account.chat_id}\n`;
     text += t("accounts:detail.status", { status });
   }
+  if (account.type === AccountType.Gmail) {
+    text += `\n${t("archive:gmailLabelLine", { label: account.archive_folder || t("common:label.notSet") })}`;
+  }
   if (ownerName !== undefined) {
     text += `\n${t("accounts:detail.owner", { name: ownerName || t("common:label.none") })}`;
   }
@@ -49,6 +52,9 @@ export function accountDetailKeyboard(account: Account): InlineKeyboard {
     }
     kb.row();
     kb.text(t("accounts:button.edit"), `acc:${account.id}:edit`);
+    if (account.type === AccountType.Gmail && account.refresh_token) {
+      kb.text(t("archive:gmailLabelButton"), `acc:${account.id}:arc`);
+    }
     kb.row();
     kb.text(t("accounts:button.delete"), `acc:${account.id}:del`);
     kb.row();

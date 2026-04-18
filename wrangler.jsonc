@@ -72,7 +72,8 @@
     ]
   },
   /**
-   * Cron Trigger — 每小时执行：检查 IMAP 中间件健康；凌晨额外续订 Gmail watch
+   * Cron Triggers
+   *  - 每小时：检查 IMAP 中间件健康、重试失败邮件；凌晨额外续订 Gmail watch；早晚摘要
    */
   "triggers": {
     "crons": ["0 * * * *"]

@@ -1,5 +1,5 @@
 import { getAccountById } from "@db/accounts";
-import { EmailProvider } from "@providers/base";
+import { type EmailListItem, EmailProvider } from "@providers/base";
 import { callBridge } from "@providers/imap/utils";
 import { base64ToArrayBuffer } from "@utils/base64url";
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
@@ -116,6 +116,11 @@ export class ImapProvider extends EmailProvider {
     return messages ?? [];
   }
 
+  async listArchived(_maxResults: number = 20): Promise<EmailListItem[]> {
+    // IMAP bridge 暂未支持按文件夹列邮件；待 bridge 加 /api/list-folder 后实现
+    return [];
+  }
+
   async markAsJunk(messageId: string) {
     await callBridge(this.env, "POST", "/api/mark-as-junk", {
       accountId: this.account.id,
@@ -141,6 +146,14 @@ export class ImapProvider extends EmailProvider {
     await callBridge(this.env, "POST", "/api/trash", {
       accountId: this.account.id,
       messageId,
+    });
+  }
+
+  async archiveMessage(messageId: string) {
+    await callBridge(this.env, "POST", "/api/archive", {
+      accountId: this.account.id,
+      messageId,
+      folder: this.account.archive_folder ?? "Archive",
     });
   }
 

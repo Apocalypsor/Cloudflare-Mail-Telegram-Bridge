@@ -11,6 +11,7 @@ import {
   ROUTE_JUNK_CHECK,
   ROUTE_JUNK_CHECK_API,
   ROUTE_MAIL,
+  ROUTE_MAIL_ARCHIVE,
   ROUTE_MAIL_MARK_JUNK,
   ROUTE_MAIL_MOVE_TO_INBOX,
   ROUTE_MAIL_TOGGLE_STAR,
@@ -140,6 +141,7 @@ preview.get(ROUTE_MAIL, async (c) => {
     token: token as string,
     inJunk,
     starred,
+    canArchive: provider.canArchive(),
     accountEmail: account.email,
   };
 
@@ -310,6 +312,54 @@ preview.post(ROUTE_MAIL_MARK_JUNK, async (c) => {
 
     return c.json({ ok: true, message: "已标记为垃圾邮件" });
   } catch {
+    return c.json({ ok: false, error: "操作失败" }, 500);
+  }
+});
+
+preview.post(ROUTE_MAIL_ARCHIVE, async (c) => {
+  const messageId = c.req.param("id");
+  const body = (await c.req.json()) as { accountId?: number; token?: string };
+  if (!messageId || !body.accountId || !body.token)
+    return c.json({ ok: false, error: "参数缺失" }, 400);
+  const valid = await verifyMailTokenById(
+    c.env.ADMIN_SECRET,
+    messageId,
+    body.accountId,
+    body.token,
+  );
+  if (!valid) return c.json({ ok: false, error: "无效的 token" }, 403);
+  const account = await getAccountById(c.env.DB, body.accountId);
+  if (!account) return c.json({ ok: false, error: "账号未找到" }, 404);
+  try {
+    const provider = getEmailProvider(account, c.env);
+    if (!provider.canArchive())
+      return c.json(
+        { ok: false, error: "Gmail 归档需要在账号设置里指定归档标签" },
+        400,
+      );
+    await provider.archiveMessage(messageId);
+
+    // 删除对应的 TG 消息和映射
+    const mappings = await getMappingsByEmailIds(c.env.DB, body.accountId, [
+      messageId,
+    ]);
+    if (mappings.length > 0) {
+      const m = mappings[0];
+      await deleteMessage(
+        c.env.TELEGRAM_BOT_TOKEN,
+        m.tg_chat_id,
+        m.tg_message_id,
+      ).catch(() => {});
+      await deleteMappingByEmailId(c.env.DB, messageId, body.accountId).catch(
+        () => {},
+      );
+    }
+
+    return c.json({ ok: true, message: "已归档" });
+  } catch (err) {
+    await reportErrorToObservability(c.env, "preview.archive_failed", err, {
+      accountId: account.id,
+    });
     return c.json({ ok: false, error: "操作失败" }, 500);
   }
 });

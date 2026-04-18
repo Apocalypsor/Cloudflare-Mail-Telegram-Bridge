@@ -70,10 +70,22 @@ export abstract class EmailProvider {
   abstract listUnread(maxResults?: number): Promise<EmailListItem[]>;
   abstract listStarred(maxResults?: number): Promise<EmailListItem[]>;
   abstract listJunk(maxResults?: number): Promise<EmailListItem[]>;
+  abstract listArchived(maxResults?: number): Promise<EmailListItem[]>;
   abstract markAsJunk(messageId: string): Promise<void>;
   abstract moveToInbox(messageId: string): Promise<string>;
   abstract trashMessage(messageId: string): Promise<void>;
   abstract trashAllJunk(): Promise<number>;
+
+  /**
+   * 将邮件归档（移出收件箱）。
+   * Gmail 默认不支持（"归档"等同于丢进 All Mail），需要用户在账号设置里指定 archive_folder（label ID）才能启用。
+   * Outlook 使用 well-known "archive" 文件夹；IMAP 使用 account.archive_folder 或 fallback "Archive"。
+   */
+  abstract archiveMessage(messageId: string): Promise<void>;
+  /** 当前账号是否可执行归档（Gmail 未配置 archive_folder 时返回 false） */
+  canArchive(): boolean {
+    return true;
+  }
 
   /**
    * 获取原始 MIME 邮件内容。

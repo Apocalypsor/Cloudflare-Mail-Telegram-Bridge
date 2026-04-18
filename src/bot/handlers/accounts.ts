@@ -11,12 +11,13 @@ import {
   getAuthorizedAccount,
   getOwnAccounts,
   getVisibleAccounts,
+  setArchiveFolder,
   updateAccount,
 } from "@db/accounts";
 import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
-import { getEmailProvider, oauthOf } from "@providers";
+import { type GmailProvider, getEmailProvider, oauthOf } from "@providers";
 import { cleanupAndDeleteAccount } from "@services/account";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
@@ -439,6 +440,86 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
     });
     await ctx.answerCallbackQuery({
       text: t("accounts:edit.ownerAssigned", { owner: newOwner }),
+    });
+  });
+
+  // Gmail archive label picker
+  bot.callbackQuery(/^acc:(\d+):arc$/, async (ctx) => {
+    const { account } = await resolveAccount(env, ctx.from.id, ctx.match?.[1]);
+    if (!account || account.type !== AccountType.Gmail)
+      return ctx.answerCallbackQuery({
+        text: t("common:error.accountNotFound"),
+      });
+    if (!account.refresh_token)
+      return ctx.answerCallbackQuery({
+        text: t("accounts:oauth.notAuthorized"),
+      });
+
+    let labels: { id: string; name: string }[];
+    try {
+      const provider = getEmailProvider(account, env) as GmailProvider;
+      labels = await provider.listLabels();
+    } catch (err) {
+      await reportErrorToObservability(
+        env,
+        "bot.list_gmail_labels_failed",
+        err,
+      );
+      return ctx.answerCallbackQuery({
+        text: t("archive:listLabelsFailed"),
+      });
+    }
+
+    const kb = new InlineKeyboard();
+    if (account.archive_folder) {
+      kb.text(t("archive:clearLabel"), `arc:${account.id}:clear`).row();
+    }
+    for (const label of labels) {
+      const current = label.id === account.archive_folder ? " ✅" : "";
+      kb.text(`${label.name}${current}`, `arc:${account.id}:${label.id}`).row();
+    }
+    kb.text(t("common:button.back"), `acc:${account.id}`);
+
+    await ctx.editMessageText(
+      t("archive:pickerPrompt", {
+        current: account.archive_folder || t("common:label.notSet"),
+      }),
+      { reply_markup: kb },
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // Save selected archive label
+  bot.callbackQuery(/^arc:(\d+):(.+)$/, async (ctx) => {
+    const { accountId, account } = await resolveAccount(
+      env,
+      ctx.from.id,
+      ctx.match?.[1],
+    );
+    if (!account || account.type !== AccountType.Gmail)
+      return ctx.answerCallbackQuery({
+        text: t("common:error.accountNotFound"),
+      });
+
+    const choice = ctx.match?.[2];
+    const newValue = choice === "clear" ? null : choice;
+    await setArchiveFolder(env.DB, accountId, newValue);
+
+    let ownerName: string | undefined;
+    if (isAdmin(String(ctx.from.id), env) && account.telegram_user_id) {
+      const owner = await getUserByTelegramId(env.DB, account.telegram_user_id);
+      ownerName = owner?.username
+        ? `@${owner.username}`
+        : formatUserName(owner ?? { first_name: account.telegram_user_id });
+    } else if (isAdmin(String(ctx.from.id), env)) {
+      ownerName = "";
+    }
+    const updated = { ...account, archive_folder: newValue };
+    await ctx.editMessageText(accountDetailText(updated, ownerName), {
+      reply_markup: accountDetailKeyboard(updated),
+    });
+    await ctx.answerCallbackQuery({
+      text: newValue ? t("archive:labelSaved") : t("archive:labelCleared"),
     });
   });
 

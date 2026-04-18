@@ -178,6 +178,21 @@ export async function putHistoryId(
     .run();
 }
 
+// ─── Archive Folder ──────────────────────────────────────────────────────────
+
+export async function setArchiveFolder(
+  db: D1Database,
+  accountId: number,
+  archiveFolder: string | null,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE accounts SET archive_folder = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(archiveFolder, accountId)
+    .run();
+}
+
 /** 创建 IMAP 账号 */
 export async function createImapAccount(
   db: D1Database,

@@ -20,6 +20,8 @@ export interface Account {
   imap_secure: number | null; // 0 | 1
   imap_user: string | null;
   imap_pass: string | null;
+  /** 归档目标：Gmail = label ID（NULL 时禁用归档）；IMAP = 文件夹名（NULL 时回退到 "Archive"）；Outlook 不用 */
+  archive_folder: string | null;
   created_at: string;
   updated_at: string;
 }

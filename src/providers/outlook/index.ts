@@ -295,6 +295,15 @@ export class OutlookProvider extends EmailProvider {
     return data.value.map((m) => ({ id: m.id, subject: m.subject }));
   }
 
+  async listArchived(maxResults: number = 20) {
+    const data = await graphGet<GraphMessageList>(
+      await this.token(),
+      `/me/mailFolders('archive')/messages?$select=id,subject&$top=${maxResults}`,
+    );
+    if (!data.value) return [];
+    return data.value.map((m) => ({ id: m.id, subject: m.subject }));
+  }
+
   async markAsJunk(messageId: string) {
     await graphPost(await this.token(), `/me/messages/${messageId}/move`, {
       destinationId: "JunkEmail",
@@ -334,6 +343,12 @@ export class OutlookProvider extends EmailProvider {
   async trashMessage(messageId: string) {
     await graphPost(await this.token(), `/me/messages/${messageId}/move`, {
       destinationId: "DeletedItems",
+    });
+  }
+
+  async archiveMessage(messageId: string) {
+    await graphPost(await this.token(), `/me/messages/${messageId}/move`, {
+      destinationId: "archive",
     });
   }
 

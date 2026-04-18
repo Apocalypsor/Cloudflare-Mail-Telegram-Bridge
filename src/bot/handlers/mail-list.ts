@@ -337,6 +337,18 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
   });
 
   registerList(bot, env, {
+    name: "archived",
+    fetcher: (p) => p.listArchived(MAX_PER_ACCOUNT),
+    config: {
+      icon: t("mailList:archived.icon"),
+      label: t("mailList:archived.label"),
+      emptyText: t("mailList:archived.empty"),
+      errorEvent: "bot.archived_query_failed",
+    },
+    hideTgLinks: true,
+  });
+
+  registerList(bot, env, {
     name: "junk",
     fetcher: (p) => p.listJunk(MAX_PER_ACCOUNT),
     config: {
