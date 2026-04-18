@@ -89,7 +89,7 @@ pnpm install
 1. 进入 **APIs & Services → Credentials**
 2. 点击 **Create Credentials → OAuth client ID**
 3. 应用类型选择 **Web application**
-4. Authorized redirect URIs 添加 `https://YOUR_WORKER_DOMAIN/oauth/google/callback`
+4. Authorized redirect URIs 添加 `https://YOUR_WORKER_DOMAIN/oauth/gmail/callback`
 5. 记录 `Client ID` 和 `Client Secret`
 
 #### 2c. 创建 Pub/Sub Topic 和 Subscription
@@ -114,7 +114,7 @@ gcloud pubsub subscriptions create gmail-push-sub \
 
 1. 打开 [Microsoft Entra ID](https://entra.microsoft.com) → Applications → App registrations → **New registration**
 2. 名称随意，账户类型选 **Accounts in any organizational directory and personal Microsoft accounts**
-3. Redirect URI 添加 **Web** 类型：`https://YOUR_WORKER_DOMAIN/oauth/microsoft/callback`
+3. Redirect URI 添加 **Web** 类型：`https://YOUR_WORKER_DOMAIN/oauth/outlook/callback`
 4. 注册后记下 **Application (client) ID**
 5. 进入 **Certificates & secrets** → New client secret → 记下 Value
 6. 进入 **API permissions** → Add a permission → Microsoft Graph → Delegated permissions → 勾选 `Mail.ReadWrite`、`offline_access`、`User.Read`

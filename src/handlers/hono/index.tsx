@@ -1,9 +1,8 @@
 import { FAVICON_BASE64 } from "@assets/favicon";
 import auth from "@handlers/hono/auth";
-import gmailOauth from "@handlers/hono/email/gmail/oauth";
 import gmailPush from "@handlers/hono/email/gmail/push";
 import imapRoutes from "@handlers/hono/email/imap/index";
-import msOauth from "@handlers/hono/email/outlook/oauth";
+import oauth from "@handlers/hono/email/oauth";
 import outlookPush from "@handlers/hono/email/outlook/push";
 import preview from "@handlers/hono/preview";
 import telegram from "@handlers/hono/telegram";
@@ -37,9 +36,8 @@ app.onError(async (error, c) => {
 app.route("", auth);
 app.route("", telegram);
 app.route("", gmailPush);
-app.route("", gmailOauth);
 app.route("", outlookPush);
-app.route("", msOauth);
+app.route("", oauth);
 app.route("", imapRoutes);
 app.route("", preview);
 

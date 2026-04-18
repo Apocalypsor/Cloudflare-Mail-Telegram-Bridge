@@ -4,25 +4,21 @@ export function OAuthSetupPage({
   startUrl,
   callbackUrl,
   accountEmail,
-  provider = "Gmail",
 }: {
   startUrl: string;
   callbackUrl: string;
   accountEmail: string;
-  provider?: string;
 }) {
   return (
-    <Layout title={`${provider} OAuth 授权`}>
+    <Layout title="OAuth 授权">
       <Card class="max-w-3xl">
-        <h1 class="text-2xl font-bold text-slate-100 mb-3">
-          {provider} OAuth 授权
-        </h1>
+        <h1 class="text-2xl font-bold text-slate-100 mb-3">OAuth 授权</h1>
         <p class="text-sm text-slate-400 leading-relaxed">
           为账号{" "}
           <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">
             {accountEmail}
           </code>{" "}
-          授权 {provider} 访问权限。回调成功后{" "}
+          授权邮箱访问权限。回调成功后{" "}
           <code class="px-1.5 py-0.5 bg-slate-900 rounded text-blue-300 text-xs">
             refresh_token
           </code>{" "}
@@ -36,7 +32,7 @@ export function OAuthSetupPage({
               {callbackUrl}
             </code>
           </li>
-          <li>点击下方按钮，完成 {provider} 授权。</li>
+          <li>点击下方按钮完成授权。</li>
           <li>
             <strong class="text-slate-200">
               请确认登录的是 {accountEmail}

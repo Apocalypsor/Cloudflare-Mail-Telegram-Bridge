@@ -10,48 +10,68 @@ import {
 import { getAccountById } from "@db/accounts";
 import { deleteOAuthBotMsg, getOAuthBotMsg } from "@db/kv";
 import {
-  ROUTE_OAUTH_GOOGLE,
-  ROUTE_OAUTH_GOOGLE_CALLBACK,
-  ROUTE_OAUTH_GOOGLE_START,
+  PARAM_PROVIDER,
+  ROUTE_OAUTH_CALLBACK,
+  ROUTE_OAUTH_SETUP,
+  ROUTE_OAUTH_START,
 } from "@handlers/hono/routes";
-import { GmailProvider } from "@providers/gmail";
+import { PROVIDERS } from "@providers";
+import type { OAuthHandler } from "@providers/base";
 import { Api } from "grammy";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { AppEnv } from "@/types";
+import type { AccountType, AppEnv } from "@/types";
 
-const gmailOauth = new Hono<AppEnv>();
+/** 从 URL path param 解析对应 provider 的 OAuth handler（未知 / 无 OAuth → null） */
+function resolveOAuthFromUrl(c: Context<AppEnv>): OAuthHandler | null {
+  const slug = c.req.param(PARAM_PROVIDER) as AccountType | undefined;
+  return (slug && PROVIDERS[slug]?.oauth) || null;
+}
 
-gmailOauth.get(ROUTE_OAUTH_GOOGLE, async (c) => {
+const oauth = new Hono<AppEnv>();
+
+oauth.get(ROUTE_OAUTH_SETUP, async (c) => {
+  if (!resolveOAuthFromUrl(c)) return c.text("Unknown OAuth provider", 404);
+
   const accountId = parseInt(c.req.query("account") || "0", 10);
   if (Number.isNaN(accountId) || accountId <= 0)
     return c.text("Invalid account ID", 400);
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  const props = GmailProvider.oauth.getOAuthPageProps(
-    c.req.raw,
-    account.id,
-    account.email || `Account #${account.id}`,
+  // setup page 本身命中 /oauth/:provider，start / callback 就在同级子路径
+  const url = new URL(c.req.url);
+  const startUrl = new URL(`${url.pathname}/start`, url.origin);
+  startUrl.searchParams.set("account", String(account.id));
+  const callbackUrl = `${url.origin}${url.pathname}/callback`;
+
+  return c.html(
+    <OAuthSetupPage
+      startUrl={startUrl.toString()}
+      callbackUrl={callbackUrl}
+      accountEmail={account.email || `Account #${account.id}`}
+    />,
   );
-  return c.html(<OAuthSetupPage {...props} />);
 });
 
-gmailOauth.get(ROUTE_OAUTH_GOOGLE_START, async (c) => {
+oauth.get(ROUTE_OAUTH_START, async (c) => {
+  const oauthHandler = resolveOAuthFromUrl(c);
+  if (!oauthHandler) return c.text("Unknown OAuth provider", 404);
+
   const accountId = parseInt(c.req.query("account") || "0", 10);
   if (Number.isNaN(accountId) || accountId <= 0)
     return c.text("Invalid account ID", 400);
   const account = await getAccountById(c.env.DB, accountId);
   if (!account) return c.text("Account not found", 404);
 
-  return GmailProvider.oauth.startOAuth(c.req.raw, c.env, account.id);
+  return oauthHandler.startOAuth(c.req.raw, c.env, account.id);
 });
 
-gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
-  const result = await GmailProvider.oauth.processOAuthCallback(
-    c.req.raw,
-    c.env,
-  );
+oauth.get(ROUTE_OAUTH_CALLBACK, async (c) => {
+  const oauthHandler = resolveOAuthFromUrl(c);
+  if (!oauthHandler) return c.text("Unknown OAuth provider", 404);
+
+  const result = await oauthHandler.processOAuthCallback(c.req.raw, c.env);
   if (!result.ok) {
     return c.html(
       <OAuthErrorPage title={result.title} detail={result.detail} />,
@@ -91,4 +111,4 @@ gmailOauth.get(ROUTE_OAUTH_GOOGLE_CALLBACK, async (c) => {
   );
 });
 
-export default gmailOauth;
+export default oauth;

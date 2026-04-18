@@ -15,13 +15,15 @@ export const ROUTE_OUTLOOK_PUSH = "/api/outlook/push";
 export const ROUTE_LOGIN = "/login";
 export const ROUTE_LOGIN_CALLBACK = "/login/callback";
 
+// ── Path param names ─────────────────────────────────────────────────────────
+export const PARAM_PROVIDER = "provider";
+
 // ── Page routes (GET / HTML) ─────────────────────────────────────────────────
-export const ROUTE_OAUTH_GOOGLE = "/oauth/google";
-export const ROUTE_OAUTH_GOOGLE_START = "/oauth/google/start";
-export const ROUTE_OAUTH_GOOGLE_CALLBACK = "/oauth/google/callback";
-export const ROUTE_OAUTH_MICROSOFT = "/oauth/microsoft";
-export const ROUTE_OAUTH_MICROSOFT_START = "/oauth/microsoft/start";
-export const ROUTE_OAUTH_MICROSOFT_CALLBACK = "/oauth/microsoft/callback";
+// OAuth 路由按 AccountType 聚合：/oauth/gmail/*, /oauth/outlook/*, ...
+export const ROUTE_OAUTH_SETUP = `/oauth/:${PARAM_PROVIDER}`;
+export const ROUTE_OAUTH_START = `/oauth/:${PARAM_PROVIDER}/start`;
+export const ROUTE_OAUTH_CALLBACK = `/oauth/:${PARAM_PROVIDER}/callback`;
+
 export const ROUTE_PREVIEW = "/preview";
 export const ROUTE_MAIL = "/mail/:id";
 export const ROUTE_JUNK_CHECK = "/junk-check";

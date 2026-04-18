@@ -45,8 +45,6 @@ export interface OAuthProviderConfig {
   authorizeUrl: string;
   tokenUrl: string;
   scope: string;
-  startRoute: string;
-  callbackRoute: string;
   statePrefix: string;
   extraAuthorizeParams?: Record<string, string>;
   getCredentials(env: Env): { clientId: string; clientSecret: string };
@@ -96,32 +94,12 @@ export abstract class EmailProvider {
     throw new Error("enqueue not implemented");
   }
 
-  /** 基于 provider config 构造 OAuth 授权流程的 handler（开始 / 回调 / 页面 props） */
+  /** 基于 provider config 构造 OAuth 授权流程的 handler（开始 / 回调） */
   static createOAuthHandler(config: OAuthProviderConfig) {
-    function getCallbackUrl(origin: string): string {
-      return new URL(config.callbackRoute, origin).toString();
-    }
-
-    function getOAuthPageProps(
-      request: Request,
-      accountId: number,
-      accountEmail: string,
-    ) {
-      const origin = new URL(request.url).origin;
-      const startUrl = new URL(config.startRoute, origin);
-      startUrl.searchParams.set("account", String(accountId));
-
-      return {
-        startUrl: startUrl.toString(),
-        callbackUrl: getCallbackUrl(origin),
-        accountEmail,
-      };
-    }
-
     async function generateOAuthUrl(
       env: Env,
       accountId: number,
-      origin: string,
+      callbackUrl: string,
     ): Promise<string> {
       const state = crypto.randomUUID();
       await putOAuthState(env.EMAIL_KV, config.statePrefix, state, accountId);
@@ -129,7 +107,7 @@ export abstract class EmailProvider {
       const { clientId } = config.getCredentials(env);
       const authUrl = new URL(config.authorizeUrl);
       authUrl.searchParams.set("client_id", clientId);
-      authUrl.searchParams.set("redirect_uri", getCallbackUrl(origin));
+      authUrl.searchParams.set("redirect_uri", callbackUrl);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", config.scope);
       authUrl.searchParams.set("prompt", "consent");
@@ -146,12 +124,11 @@ export abstract class EmailProvider {
       env: Env,
       accountId: number,
     ): Promise<Response> {
-      const url = await generateOAuthUrl(
-        env,
-        accountId,
-        new URL(request.url).origin,
-      );
-      return Response.redirect(url, 302);
+      // start 路由命中 /oauth/:provider/start，callback 就是把 /start 换成 /callback
+      const url = new URL(request.url);
+      const callbackUrl = `${url.origin}${url.pathname.replace(/\/start$/, "/callback")}`;
+      const authorizeUrl = await generateOAuthUrl(env, accountId, callbackUrl);
+      return Response.redirect(authorizeUrl, 302);
     }
 
     async function processOAuthCallback(
@@ -209,7 +186,8 @@ export abstract class EmailProvider {
       let accountEmail = account?.email || "unknown";
 
       const { clientId, clientSecret } = config.getCredentials(env);
-      const redirectUri = getCallbackUrl(requestUrl.origin);
+      // 当前请求就是 OAuth server 回调进来的 URL，redirect_uri 直接用它（去掉 query）
+      const redirectUri = `${requestUrl.origin}${requestUrl.pathname}`;
       const tokenResp = await http.post(config.tokenUrl, {
         body: new URLSearchParams({
           code,
@@ -304,10 +282,20 @@ export abstract class EmailProvider {
     }
 
     return {
-      getOAuthPageProps,
       generateOAuthUrl,
       startOAuth,
       processOAuthCallback,
     };
   }
+}
+
+export type OAuthHandler = ReturnType<typeof EmailProvider.createOAuthHandler>;
+
+/**
+ * 具体 EmailProvider 子类的构造器类型。
+ * 支持 OAuth 的子类要提供 static `oauth`（IMAP 没有）。
+ */
+export interface EmailProviderClass {
+  new (account: Account, env: Env): EmailProvider;
+  oauth?: OAuthHandler;
 }

@@ -1,8 +1,4 @@
 import { getAccountsByEmail, getHistoryId, putHistoryId } from "@db/accounts";
-import {
-  ROUTE_OAUTH_GOOGLE_CALLBACK,
-  ROUTE_OAUTH_GOOGLE_START,
-} from "@handlers/hono/routes";
 import { EmailProvider } from "@providers/base";
 import { getAccessToken, gmailGet, gmailPost } from "@providers/gmail/utils";
 import { base64urlToArrayBuffer, base64urlToString } from "@utils/base64url";
@@ -66,8 +62,6 @@ export class GmailProvider extends EmailProvider {
     authorizeUrl: GOOGLE_OAUTH_AUTHORIZE_URL,
     tokenUrl: GOOGLE_OAUTH_TOKEN_URL,
     scope: GMAIL_MODIFY_SCOPE,
-    startRoute: ROUTE_OAUTH_GOOGLE_START,
-    callbackRoute: ROUTE_OAUTH_GOOGLE_CALLBACK,
     statePrefix: "",
     extraAuthorizeParams: {
       access_type: "offline",

@@ -16,9 +16,7 @@ import {
 import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
-import { getEmailProvider } from "@providers";
-import { GmailProvider } from "@providers/gmail";
-import { OutlookProvider } from "@providers/outlook";
+import { getEmailProvider, oauthOf } from "@providers";
 import { cleanupAndDeleteAccount } from "@services/account";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
@@ -205,11 +203,14 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
 
     try {
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
-      const isOutlook = account.type === AccountType.Outlook;
-      const oauthUrl = isOutlook
-        ? await OutlookProvider.oauth.generateOAuthUrl(env, accountId, origin)
-        : await GmailProvider.oauth.generateOAuthUrl(env, accountId, origin);
-      const providerName = isOutlook ? "Microsoft" : "Google";
+      const callbackUrl = `${origin}/oauth/${account.type}/callback`;
+      const oauthUrl = await oauthOf(account.type).generateOAuthUrl(
+        env,
+        accountId,
+        callbackUrl,
+      );
+      const providerName =
+        account.type === AccountType.Outlook ? "Microsoft" : "Google";
 
       const kb = new InlineKeyboard()
         .url(t("accounts:button.clickAuth"), oauthUrl)
@@ -495,10 +496,10 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       await clearBotState(env, userId);
 
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
-      const oauthUrl = await GmailProvider.oauth.generateOAuthUrl(
+      const oauthUrl = await oauthOf(AccountType.Gmail).generateOAuthUrl(
         env,
         account.id,
-        origin,
+        `${origin}/oauth/${AccountType.Gmail}/callback`,
       );
       const kb = new InlineKeyboard()
         .url(t("accounts:button.clickAuthGoogle"), oauthUrl)
@@ -556,10 +557,10 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       await clearBotState(env, userId);
 
       const origin = env.WORKER_URL?.replace(/\/$/, "") || "";
-      const oauthUrl = await OutlookProvider.oauth.generateOAuthUrl(
+      const oauthUrl = await oauthOf(AccountType.Outlook).generateOAuthUrl(
         env,
         account.id,
-        origin,
+        `${origin}/oauth/${AccountType.Outlook}/callback`,
       );
       const kb = new InlineKeyboard()
         .url(t("accounts:button.clickAuthMicrosoft"), oauthUrl)

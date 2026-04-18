@@ -6,10 +6,6 @@ import {
   putMsSubscription,
   refreshMsSubAccountMapping,
 } from "@db/kv";
-import {
-  ROUTE_OAUTH_MICROSOFT_CALLBACK,
-  ROUTE_OAUTH_MICROSOFT_START,
-} from "@handlers/hono/routes";
 import { EmailProvider } from "@providers/base";
 import {
   fetchRawMime,
@@ -52,8 +48,6 @@ export class OutlookProvider extends EmailProvider {
     authorizeUrl: MS_OAUTH_AUTHORIZE_URL,
     tokenUrl: MS_OAUTH_TOKEN_URL,
     scope: MS_MAIL_SCOPE,
-    startRoute: ROUTE_OAUTH_MICROSOFT_START,
-    callbackRoute: ROUTE_OAUTH_MICROSOFT_CALLBACK,
     statePrefix: "ms:",
     extraAuthorizeParams: { response_mode: "query" },
     getCredentials: (env) => ({
