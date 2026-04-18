@@ -28,6 +28,12 @@ export default {
     clickAuth: "🔗 点击授权",
     clickAuthGoogle: "🔗 点击授权 Google",
     clickAuthMicrosoft: "🔗 点击授权 Microsoft",
+    disable: "⏸ 禁用",
+    enable: "▶ 启用",
+  },
+  disabled: {
+    toggledOn: "⏸ 账号已禁用，新邮件将暂停转发",
+    toggledOff: "▶ 账号已启用",
   },
   add: {
     title: "➕ 添加账号",

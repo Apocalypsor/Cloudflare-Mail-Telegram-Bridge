@@ -130,7 +130,9 @@ async function buildListText(
   hasItems: boolean;
   pendingTasks?: (() => Promise<void>)[];
 }> {
-  const accounts = await getOwnAccounts(env.DB, userId);
+  const accounts = (await getOwnAccounts(env.DB, userId)).filter(
+    (a) => !a.disabled,
+  );
   if (accounts.length === 0)
     return { text: t("common:label.noAccounts"), hasItems: false };
 

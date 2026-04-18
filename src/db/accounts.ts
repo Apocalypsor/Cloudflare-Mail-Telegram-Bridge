@@ -144,12 +144,28 @@ export async function updateAccount(
   }
 }
 
-/** 获取所有 IMAP 账号（供中间件拉取） */
+/** 获取所有启用状态的 IMAP 账号（供中间件拉取，disabled 账号会被跳过） */
 export async function getImapAccounts(db: D1Database): Promise<Account[]> {
   const { results } = await db
-    .prepare("SELECT * FROM accounts WHERE type = 'imap' ORDER BY id")
+    .prepare(
+      "SELECT * FROM accounts WHERE type = 'imap' AND disabled = 0 ORDER BY id",
+    )
     .all<Account>();
   return results;
+}
+
+/** 切换账号启用 / 禁用状态 */
+export async function setAccountDisabled(
+  db: D1Database,
+  accountId: number,
+  disabled: boolean,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE accounts SET disabled = ?, updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(disabled ? 1 : 0, accountId)
+    .run();
 }
 
 // ─── History ID ─────────────────────────────────────────────────────────────
@@ -184,12 +200,13 @@ export async function setArchiveFolder(
   db: D1Database,
   accountId: number,
   archiveFolder: string | null,
+  archiveFolderName: string | null,
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE accounts SET archive_folder = ?, updated_at = datetime('now') WHERE id = ?",
+      "UPDATE accounts SET archive_folder = ?, archive_folder_name = ?, updated_at = datetime('now') WHERE id = ?",
     )
-    .bind(archiveFolder, accountId)
+    .bind(archiveFolder, archiveFolderName, accountId)
     .run();
 }
 

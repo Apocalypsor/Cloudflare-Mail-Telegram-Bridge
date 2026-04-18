@@ -116,9 +116,16 @@ export class ImapProvider extends EmailProvider {
     return messages ?? [];
   }
 
-  async listArchived(_maxResults: number = 20): Promise<EmailListItem[]> {
-    // IMAP bridge 暂未支持按文件夹列邮件；待 bridge 加 /api/list-folder 后实现
-    return [];
+  async listArchived(maxResults: number = 20): Promise<EmailListItem[]> {
+    const resp = await callBridge(this.env, "POST", "/api/list-folder", {
+      accountId: this.account.id,
+      folder: this.account.archive_folder ?? undefined,
+      maxResults,
+    });
+    const { messages } = (await resp.json()) as {
+      messages: { id: string; subject?: string }[];
+    };
+    return messages ?? [];
   }
 
   async markAsJunk(messageId: string) {
@@ -153,7 +160,8 @@ export class ImapProvider extends EmailProvider {
     await callBridge(this.env, "POST", "/api/archive", {
       accountId: this.account.id,
       messageId,
-      folder: this.account.archive_folder ?? "Archive",
+      // 只在用户明确配置过时传；否则让 bridge 自动探测 \Archive special-use
+      folder: this.account.archive_folder ?? undefined,
     });
   }
 

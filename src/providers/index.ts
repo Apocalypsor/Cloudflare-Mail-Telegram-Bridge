@@ -41,10 +41,14 @@ export function oauthOf(type: AccountType): OAuthHandler {
   return oauth;
 }
 
-/** 为所有已授权账号续订推送通知 */
+/** 为所有已授权且未禁用的账号续订推送通知 */
 export async function renewAllPush(env: Env): Promise<void> {
   const accounts = await getAllAccounts(env.DB);
   for (const account of accounts) {
+    if (account.disabled) {
+      console.log(`Skipping push renewal for ${account.email}: disabled`);
+      continue;
+    }
     if (!account.refresh_token) {
       console.log(
         `Skipping push renewal for ${account.email}: no refresh token`,
