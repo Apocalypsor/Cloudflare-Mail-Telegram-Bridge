@@ -143,8 +143,23 @@ preview.get(ROUTE_MAIL, async (c) => {
     accountEmail: account.email,
   };
 
-  // KV 缓存（所有类型共用）
-  const cached = await getCachedMailData(c.env.EMAIL_KV, messageId);
+  // folder 提示：list handler 会为 /archived / /junk 的预览链接带上 folder，
+  // 用来给 IMAP 指定 UID 所在的文件夹（per-folder scope，INBOX / junk / archive 的 UID 不通用）
+  const folderParam = c.req.query("folder");
+  const fetchFolder: "inbox" | "junk" | "archive" =
+    folderParam === "archive"
+      ? "archive"
+      : folderParam === "junk" || inJunk
+        ? "junk"
+        : "inbox";
+
+  // KV 缓存键带上 accountId + folder —— IMAP UID 在不同文件夹里会撞，必须区分
+  const cached = await getCachedMailData(
+    c.env.EMAIL_KV,
+    account.id,
+    fetchFolder,
+    messageId,
+  );
   if (cached) {
     const proxied = await proxyImages(cached.html, c.env.ADMIN_SECRET);
     return c.html(
@@ -158,21 +173,15 @@ preview.get(ROUTE_MAIL, async (c) => {
   if (PROVIDERS[account.type].oauth && !account.refresh_token)
     return c.text("Account not authorized", 403);
 
-  // folder 提示：list handler 会为 /archived / /junk 的预览链接带上 folder，
-  // 用来给 IMAP 指定 UID 所在的文件夹（per-folder scope，INBOX / junk / archive 的 UID 不通用）
-  const folderParam = c.req.query("folder");
-  const fetchFolder: "inbox" | "junk" | "archive" =
-    folderParam === "archive"
-      ? "archive"
-      : folderParam === "junk" || inJunk
-        ? "junk"
-        : "inbox";
   const result = await provider.fetchForPreview(messageId, fetchFolder);
   if (!result) return c.text("No content in this email", 404);
   let { html, cidMap, meta } = result;
 
   html = replaceCidReferences(html, cidMap);
-  await putCachedMailData(c.env.EMAIL_KV, messageId, { html, meta });
+  await putCachedMailData(c.env.EMAIL_KV, account.id, fetchFolder, messageId, {
+    html,
+    meta,
+  });
   const proxied = await proxyImages(html, c.env.ADMIN_SECRET);
   return c.html(
     <MailPage meta={meta} {...pageProps}>

@@ -48,8 +48,14 @@ export async function deleteCachedAccessToken(
 
 // ─── Mail HTML Cache ────────────────────────────────────────────────────────
 
-function kvMailHtmlKey(messageId: string): string {
-  return `mail_html:${messageId}`;
+// IMAP 的 messageId 是 per-folder UID，必须带 accountId + folder 否则不同文件夹
+// 的同号 UID 会错误命中同一条缓存
+function kvMailHtmlKey(
+  accountId: number,
+  folder: string,
+  messageId: string,
+): string {
+  return `mail_html:${accountId}:${folder}:${messageId}`;
 }
 
 interface CachedMailData {
@@ -59,9 +65,11 @@ interface CachedMailData {
 
 export async function getCachedMailData(
   kv: KVNamespace,
+  accountId: number,
+  folder: string,
   messageId: string,
 ): Promise<CachedMailData | null> {
-  const raw = await kv.get(kvMailHtmlKey(messageId));
+  const raw = await kv.get(kvMailHtmlKey(accountId, folder, messageId));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as CachedMailData;
@@ -73,12 +81,16 @@ export async function getCachedMailData(
 
 export async function putCachedMailData(
   kv: KVNamespace,
+  accountId: number,
+  folder: string,
   messageId: string,
   data: CachedMailData,
 ): Promise<void> {
-  await kv.put(kvMailHtmlKey(messageId), JSON.stringify(data), {
-    expirationTtl: MAIL_HTML_CACHE_TTL,
-  });
+  await kv.put(
+    kvMailHtmlKey(accountId, folder, messageId),
+    JSON.stringify(data),
+    { expirationTtl: MAIL_HTML_CACHE_TTL },
+  );
 }
 
 // ─── OAuth State ────────────────────────────────────────────────────────────
