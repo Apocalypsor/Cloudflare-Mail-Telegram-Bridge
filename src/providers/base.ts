@@ -57,11 +57,12 @@ export abstract class EmailProvider {
 
   /**
    * 获取原始 MIME 邮件内容。
-   * `folder` 仅 IMAP 使用（Gmail/Outlook 通过全局 messageId 定位，无需 folder）。
+   * `folder` 仅 IMAP 使用 —— IMAP UID 是 per-folder 的，必须明确来源文件夹
+   * （Gmail/Outlook 通过全局 messageId 定位，无需 folder）。
    */
   abstract fetchRawEmail(
     messageId: string,
-    folder?: "inbox" | "junk",
+    folder?: "inbox" | "junk" | "archive",
   ): Promise<ArrayBuffer>;
 
   /**
@@ -71,7 +72,7 @@ export abstract class EmailProvider {
    */
   async fetchForPreview(
     messageId: string,
-    folder: "inbox" | "junk",
+    folder: "inbox" | "junk" | "archive",
   ): Promise<PreviewContent | null> {
     const rawEmail = await this.fetchRawEmail(messageId, folder);
     const email = await new PostalMime().parse(rawEmail);

@@ -158,10 +158,16 @@ preview.get(ROUTE_MAIL, async (c) => {
   if (PROVIDERS[account.type].oauth && !account.refresh_token)
     return c.text("Account not authorized", 403);
 
-  const result = await provider.fetchForPreview(
-    messageId,
-    inJunk ? "junk" : "inbox",
-  );
+  // folder 提示：list handler 会为 /archived / /junk 的预览链接带上 folder，
+  // 用来给 IMAP 指定 UID 所在的文件夹（per-folder scope，INBOX / junk / archive 的 UID 不通用）
+  const folderParam = c.req.query("folder");
+  const fetchFolder: "inbox" | "junk" | "archive" =
+    folderParam === "archive"
+      ? "archive"
+      : folderParam === "junk" || inJunk
+        ? "junk"
+        : "inbox";
+  const result = await provider.fetchForPreview(messageId, fetchFolder);
   if (!result) return c.text("No content in this email", 404);
   let { html, cidMap, meta } = result;
 

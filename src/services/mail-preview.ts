@@ -179,13 +179,15 @@ export async function verifyMailTokenById(
   return timingSafeEqual(expected, token);
 }
 
-/** 生成邮件 web 预览链接（已签名） */
+/** 生成邮件 web 预览链接（已签名）。`folder` 用于告诉预览页从哪个文件夹取邮件（仅 IMAP 需要）。 */
 export async function buildMailPreviewUrl(
   workerUrl: string,
   adminSecret: string,
   emailId: string,
   accountId: number,
+  folder?: "inbox" | "junk" | "archive",
 ): Promise<string> {
   const token = await generateMailTokenById(adminSecret, emailId, accountId);
-  return `${workerUrl.replace(/\/$/, "")}/mail/${emailId}?accountId=${accountId}&t=${token}`;
+  const base = `${workerUrl.replace(/\/$/, "")}/mail/${emailId}?accountId=${accountId}&t=${token}`;
+  return folder ? `${base}&folder=${folder}` : base;
 }

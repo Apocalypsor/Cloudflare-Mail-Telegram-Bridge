@@ -27,6 +27,7 @@ async function buildPreviewLink(
   env: Env,
   emailId: string,
   accountId: number,
+  folder?: "inbox" | "junk" | "archive",
 ): Promise<string | undefined> {
   if (!env.WORKER_URL) return undefined;
   return buildMailPreviewUrl(
@@ -34,6 +35,7 @@ async function buildPreviewLink(
     env.ADMIN_SECRET,
     emailId,
     accountId,
+    folder,
   );
 }
 
@@ -70,6 +72,7 @@ async function queryAccount(
     account: Account,
   ) => Promise<void>,
   hideTgLinks = false,
+  previewFolder?: "inbox" | "junk" | "archive",
 ): Promise<ListResult> {
   try {
     const provider = getEmailProvider(account, env);
@@ -95,7 +98,12 @@ async function queryAccount(
             mapping && !hideTgLinks
               ? buildTgMessageLink(mapping.tg_chat_id, mapping.tg_message_id)
               : undefined,
-          previewLink: await buildPreviewLink(env, msg.id, account.id),
+          previewLink: await buildPreviewLink(
+            env,
+            msg.id,
+            account.id,
+            previewFolder,
+          ),
         };
       }),
     );
@@ -125,6 +133,7 @@ async function buildListText(
     account: Account,
   ) => Promise<void>,
   hideTgLinks = false,
+  previewFolder?: "inbox" | "junk" | "archive",
 ): Promise<{
   text: string;
   hasItems: boolean;
@@ -145,6 +154,7 @@ async function buildListText(
         config.errorEvent,
         afterMappings,
         hideTgLinks,
+        previewFolder,
       ),
     ),
   );
@@ -222,6 +232,8 @@ interface ListDef {
   ) => Promise<void>;
   /** 隐藏 TG 消息链接（如 junk 列表，TG 消息已被自动删除） */
   hideTgLinks?: boolean;
+  /** 预览链接要告诉 worker 从哪个文件夹取邮件（IMAP UID per-folder 所需） */
+  previewFolder?: "inbox" | "junk" | "archive";
   actionKeyboard?: InlineKeyboard;
   action?: {
     callbackName: string;
@@ -246,6 +258,7 @@ function registerList(bot: Bot, env: Env, def: ListDef) {
       def.config,
       def.afterMappings,
       def.hideTgLinks,
+      def.previewFolder,
     );
 
   const schedulePendingTasks = (tasks?: (() => Promise<void>)[]) => {
@@ -348,6 +361,7 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
       errorEvent: "bot.archived_query_failed",
     },
     hideTgLinks: true,
+    previewFolder: "archive",
   });
 
   registerList(bot, env, {
@@ -361,6 +375,7 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
     },
     afterMappings: (mappings, _account) => deleteJunkMappings(env, mappings),
     hideTgLinks: true,
+    previewFolder: "junk",
     actionKeyboard: new InlineKeyboard().text(
       t("mailList:junk.deleteAll"),
       "delete_all_junk",

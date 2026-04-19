@@ -222,12 +222,17 @@ export class ImapProvider extends EmailProvider {
   /** 通过 IMAP bridge 拉取单封邮件原文，返回 ArrayBuffer */
   async fetchRawEmail(
     messageId: string,
-    folder?: "inbox" | "junk",
+    folder?: "inbox" | "junk" | "archive",
   ): Promise<ArrayBuffer> {
     const resp = await callBridge(this.env, "POST", "/api/fetch", {
       accountId: this.account.id,
       messageId,
       folder,
+      // archive 的 UID 只在归档文件夹里有意义，带上用户配的 archive_folder 让 bridge 定位
+      archiveFolder:
+        folder === "archive"
+          ? (this.account.archive_folder ?? undefined)
+          : undefined,
     });
     const { rawEmail } = (await resp.json()) as { rawEmail: string };
     return base64ToArrayBuffer(rawEmail);
