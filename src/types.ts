@@ -20,6 +20,12 @@ export interface Account {
   imap_secure: number | null; // 0 | 1
   imap_user: string | null;
   imap_pass: string | null;
+  /** 归档目标：Gmail = label ID（NULL 时禁用归档）；IMAP = 文件夹名（NULL 时回退到 "Archive"）；Outlook 不用 */
+  archive_folder: string | null;
+  /** 归档目标的人类可读名称（仅 Gmail 需要：label ID 用户不可读，存这份用于 UI 展示） */
+  archive_folder_name: string | null;
+  /** 1 = 暂停：push/队列/定时任务/列表都会跳过；账号配置保留，可随时恢复 */
+  disabled: number;
   created_at: string;
   updated_at: string;
 }

@@ -10,6 +10,7 @@ interface MailPageProps {
   token: string;
   inJunk: boolean;
   starred: boolean;
+  canArchive: boolean;
   children: Child;
 }
 
@@ -21,6 +22,7 @@ export function MailPage({
   token,
   inJunk,
   starred,
+  canArchive,
   children,
 }: MailPageProps) {
   return (
@@ -33,6 +35,7 @@ export function MailPage({
         token={token}
         inJunk={inJunk}
         starred={starred}
+        canArchive={canArchive}
       />
     </>
   );
@@ -131,6 +134,7 @@ const FAB_CSS = `
 #mail-fab .fab-btn.del{background:var(--fab-danger)}
 #mail-fab .fab-btn.star{background:#f59e0b}
 #mail-fab .fab-btn.starred{background:#22c55e}
+#mail-fab .fab-btn.archive{background:#6366f1}
 #mail-fab .fab-status{
   background:var(--fab-bg);color:var(--fab-muted);
   padding:8px 16px;border-radius:16px;font-size:13px;
@@ -192,12 +196,14 @@ function MailFab({
   token,
   inJunk,
   starred,
+  canArchive,
 }: {
   messageId: string;
   accountId: number;
   token: string;
   inJunk: boolean;
   starred: boolean;
+  canArchive: boolean;
 }) {
   return (
     <>
@@ -230,13 +236,24 @@ function MailFab({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              class="fab-btn del"
-              onclick="mailAction('mark-as-junk',this)"
-            >
-              🚫 标记为垃圾
-            </button>
+            <>
+              {canArchive && (
+                <button
+                  type="button"
+                  class="fab-btn archive"
+                  onclick="mailAction('archive',this)"
+                >
+                  📥 归档
+                </button>
+              )}
+              <button
+                type="button"
+                class="fab-btn del"
+                onclick="mailAction('mark-as-junk',this)"
+              >
+                🚫 标记为垃圾
+              </button>
+            </>
           )}
         </div>
         <button type="button" class="fab-main" onclick="toggleFab(this)">

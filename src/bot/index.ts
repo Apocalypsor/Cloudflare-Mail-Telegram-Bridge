@@ -1,5 +1,6 @@
 import { registerAccountHandlers } from "@bot/handlers/accounts";
 import { registerAdminHandlers } from "@bot/handlers/admin";
+import { registerArchiveHandler } from "@bot/handlers/archive";
 import { registerInputHandler } from "@bot/handlers/input";
 import { registerJunkHandler } from "@bot/handlers/junk";
 import { registerMailListHandlers } from "@bot/handlers/mail-list";
@@ -54,6 +55,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
   registerReactionHandler(bot, env);
   registerStarHandler(bot, env);
   registerJunkHandler(bot, env);
+  registerArchiveHandler(bot, env);
   registerRefreshHandler(bot, env);
   registerSyncHandler(bot, env);
   registerMailListHandlers(bot, env);

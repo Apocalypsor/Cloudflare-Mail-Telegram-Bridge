@@ -27,6 +27,7 @@ export default {
   status: {
     authorized: "✅ 已授权",
     notAuthorized: "❌ 未授权",
+    disabled: "⏸ 已禁用",
   },
   label: {
     noAccounts: "📭 暂无绑定的邮箱账号",

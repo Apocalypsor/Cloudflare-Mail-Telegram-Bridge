@@ -295,6 +295,12 @@ export async function processEmailMessage(
     );
     return;
   }
+  if (account.disabled) {
+    console.log(
+      `Account ${msg.accountId} is disabled, dropping message ${msg.messageId}`,
+    );
+    return;
+  }
 
   const provider = getEmailProvider(account, env);
   const rawEmail = await provider.fetchRawEmail(msg.messageId);

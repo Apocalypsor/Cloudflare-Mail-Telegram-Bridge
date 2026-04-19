@@ -47,7 +47,9 @@ async function syncAccount(
 
 /** 同步用户所有账号的未读邮件 */
 async function syncAllAccounts(env: Env, userId: string): Promise<string> {
-  const accounts = await getOwnAccounts(env.DB, userId);
+  const accounts = (await getOwnAccounts(env.DB, userId)).filter(
+    (a) => !a.disabled,
+  );
   if (accounts.length === 0) return t("common:label.noAccounts");
 
   const results = await Promise.all(

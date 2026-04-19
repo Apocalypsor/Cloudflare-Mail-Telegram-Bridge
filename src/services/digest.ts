@@ -54,10 +54,11 @@ export async function sendDigestNotifications(
   const accounts = await getAllAccounts(env.DB);
   if (accounts.length === 0) return;
 
-  // 按 telegram_user_id 分组，跳过没有用户 ID 的账号
+  // 按 telegram_user_id 分组，跳过没有用户 ID 或已禁用的账号
   const userGroups = new Map<string, Account[]>();
   for (const account of accounts) {
     if (!account.telegram_user_id) continue;
+    if (account.disabled) continue;
     const group = userGroups.get(account.telegram_user_id) ?? [];
     group.push(account);
     userGroups.set(account.telegram_user_id, group);

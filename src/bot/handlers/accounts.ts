@@ -11,12 +11,15 @@ import {
   getAuthorizedAccount,
   getOwnAccounts,
   getVisibleAccounts,
+  setAccountDisabled,
+  setArchiveFolder,
   updateAccount,
 } from "@db/accounts";
 import { putOAuthBotMsg } from "@db/kv";
 import { getAllUsers, getUserByTelegramId } from "@db/users";
 import { t } from "@i18n";
-import { getEmailProvider, oauthOf } from "@providers";
+import { type GmailProvider, getEmailProvider, oauthOf } from "@providers";
+import { syncAccounts } from "@providers/imap";
 import { cleanupAndDeleteAccount } from "@services/account";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
@@ -38,8 +41,13 @@ export function accountListKeyboard(
 ): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const acc of accounts) {
-    const status =
-      acc.type === AccountType.Imap ? "📬" : acc.refresh_token ? "✅" : "❌";
+    const status = acc.disabled
+      ? "⏸"
+      : acc.type === AccountType.Imap
+        ? "📬"
+        : acc.refresh_token
+          ? "✅"
+          : "❌";
     const display = acc.email || `#${acc.id}`;
     kb.text(`${status} ${display}`, `acc:${acc.id}`).row();
   }
@@ -183,6 +191,52 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
       reply_markup: accountDetailKeyboard(account),
     });
     await ctx.answerCallbackQuery();
+  });
+
+  // Toggle account enable / disable
+  bot.callbackQuery(/^acc:(\d+):t$/, async (ctx) => {
+    const { accountId, admin, account } = await resolveAccount(
+      env,
+      ctx.from.id,
+      ctx.match?.[1],
+    );
+    if (!account)
+      return ctx.answerCallbackQuery({
+        text: t("common:error.accountNotFound"),
+      });
+
+    const nowDisabled = !account.disabled;
+    await setAccountDisabled(env.DB, accountId, nowDisabled);
+
+    // IMAP: 立即通知 bridge reconcile 连接（不等下次 sync）
+    if (account.type === AccountType.Imap) {
+      await syncAccounts(env).catch((err) =>
+        reportErrorToObservability(
+          env,
+          "bot.imap_sync_after_toggle_failed",
+          err,
+        ),
+      );
+    }
+
+    let ownerName: string | undefined;
+    if (admin && account.telegram_user_id) {
+      const owner = await getUserByTelegramId(env.DB, account.telegram_user_id);
+      ownerName = owner?.username
+        ? `@${owner.username}`
+        : formatUserName(owner ?? { first_name: account.telegram_user_id });
+    } else if (admin) {
+      ownerName = "";
+    }
+    const updated = { ...account, disabled: nowDisabled ? 1 : 0 };
+    await ctx.editMessageText(accountDetailText(updated, ownerName), {
+      reply_markup: accountDetailKeyboard(updated),
+    });
+    await ctx.answerCallbackQuery({
+      text: nowDisabled
+        ? t("accounts:disabled.toggledOn")
+        : t("accounts:disabled.toggledOff"),
+    });
   });
 
   // OAuth authorization (Gmail / Outlook)
@@ -439,6 +493,113 @@ export function registerAccountHandlers(bot: Bot, env: Env) {
     });
     await ctx.answerCallbackQuery({
       text: t("accounts:edit.ownerAssigned", { owner: newOwner }),
+    });
+  });
+
+  // Gmail archive label picker
+  bot.callbackQuery(/^acc:(\d+):arc$/, async (ctx) => {
+    const { account } = await resolveAccount(env, ctx.from.id, ctx.match?.[1]);
+    if (!account || account.type !== AccountType.Gmail)
+      return ctx.answerCallbackQuery({
+        text: t("common:error.accountNotFound"),
+      });
+    if (!account.refresh_token)
+      return ctx.answerCallbackQuery({
+        text: t("accounts:oauth.notAuthorized"),
+      });
+
+    let labels: { id: string; name: string }[];
+    try {
+      const provider = getEmailProvider(account, env) as GmailProvider;
+      labels = await provider.listLabels();
+    } catch (err) {
+      await reportErrorToObservability(
+        env,
+        "bot.list_gmail_labels_failed",
+        err,
+      );
+      return ctx.answerCallbackQuery({
+        text: t("archive:listLabelsFailed"),
+      });
+    }
+
+    const kb = new InlineKeyboard();
+    if (account.archive_folder) {
+      kb.text(t("archive:clearLabel"), `arc:${account.id}:clear`).row();
+    }
+    for (const label of labels) {
+      const current = label.id === account.archive_folder ? " ✅" : "";
+      kb.text(`${label.name}${current}`, `arc:${account.id}:${label.id}`).row();
+    }
+    kb.text(t("common:button.back"), `acc:${account.id}`);
+
+    await ctx.editMessageText(
+      t("archive:pickerPrompt", {
+        current:
+          account.archive_folder_name ||
+          account.archive_folder ||
+          t("common:label.notSet"),
+      }),
+      { reply_markup: kb },
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // Save selected archive label
+  bot.callbackQuery(/^arc:(\d+):(.+)$/, async (ctx) => {
+    const { accountId, account } = await resolveAccount(
+      env,
+      ctx.from.id,
+      ctx.match?.[1],
+    );
+    if (!account || account.type !== AccountType.Gmail)
+      return ctx.answerCallbackQuery({
+        text: t("common:error.accountNotFound"),
+      });
+
+    const choice = ctx.match?.[2];
+    let newId: string | null;
+    let newName: string | null;
+    if (choice === "clear") {
+      newId = null;
+      newName = null;
+    } else {
+      newId = choice ?? null;
+      // 回查一次 labels，用 ID 取到对应 name 再存（Gmail API 归档需要 ID，但 UI 要展示 name）
+      try {
+        const provider = getEmailProvider(account, env) as GmailProvider;
+        const labels = await provider.listLabels();
+        newName = labels.find((l) => l.id === newId)?.name ?? null;
+      } catch (err) {
+        await reportErrorToObservability(
+          env,
+          "bot.resolve_gmail_label_name_failed",
+          err,
+        );
+        newName = null;
+      }
+    }
+    await setArchiveFolder(env.DB, accountId, newId, newName);
+
+    let ownerName: string | undefined;
+    if (isAdmin(String(ctx.from.id), env) && account.telegram_user_id) {
+      const owner = await getUserByTelegramId(env.DB, account.telegram_user_id);
+      ownerName = owner?.username
+        ? `@${owner.username}`
+        : formatUserName(owner ?? { first_name: account.telegram_user_id });
+    } else if (isAdmin(String(ctx.from.id), env)) {
+      ownerName = "";
+    }
+    const updated = {
+      ...account,
+      archive_folder: newId,
+      archive_folder_name: newName,
+    };
+    await ctx.editMessageText(accountDetailText(updated, ownerName), {
+      reply_markup: accountDetailKeyboard(updated),
+    });
+    await ctx.answerCallbackQuery({
+      text: newId ? t("archive:labelSaved") : t("archive:labelCleared"),
     });
   });
 

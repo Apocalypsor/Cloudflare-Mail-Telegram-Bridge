@@ -1,5 +1,5 @@
 import { getAccountById } from "@db/accounts";
-import { EmailProvider } from "@providers/base";
+import { type EmailListItem, EmailProvider } from "@providers/base";
 import { callBridge } from "@providers/imap/utils";
 import { base64ToArrayBuffer } from "@utils/base64url";
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
@@ -116,6 +116,18 @@ export class ImapProvider extends EmailProvider {
     return messages ?? [];
   }
 
+  async listArchived(maxResults: number = 20): Promise<EmailListItem[]> {
+    const resp = await callBridge(this.env, "POST", "/api/list-folder", {
+      accountId: this.account.id,
+      folder: this.account.archive_folder ?? undefined,
+      maxResults,
+    });
+    const { messages } = (await resp.json()) as {
+      messages: { id: string; subject?: string }[];
+    };
+    return messages ?? [];
+  }
+
   async markAsJunk(messageId: string) {
     await callBridge(this.env, "POST", "/api/mark-as-junk", {
       accountId: this.account.id,
@@ -141,6 +153,15 @@ export class ImapProvider extends EmailProvider {
     await callBridge(this.env, "POST", "/api/trash", {
       accountId: this.account.id,
       messageId,
+    });
+  }
+
+  async archiveMessage(messageId: string) {
+    await callBridge(this.env, "POST", "/api/archive", {
+      accountId: this.account.id,
+      messageId,
+      // 只在用户明确配置过时传；否则让 bridge 自动探测 \Archive special-use
+      folder: this.account.archive_folder ?? undefined,
     });
   }
 

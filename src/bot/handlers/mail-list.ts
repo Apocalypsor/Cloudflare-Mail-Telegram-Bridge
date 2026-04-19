@@ -130,7 +130,9 @@ async function buildListText(
   hasItems: boolean;
   pendingTasks?: (() => Promise<void>)[];
 }> {
-  const accounts = await getOwnAccounts(env.DB, userId);
+  const accounts = (await getOwnAccounts(env.DB, userId)).filter(
+    (a) => !a.disabled,
+  );
   if (accounts.length === 0)
     return { text: t("common:label.noAccounts"), hasItems: false };
 
@@ -334,6 +336,18 @@ export function registerMailListHandlers(bot: Bot, env: Env) {
     },
     afterMappings: (mappings, account) =>
       syncStarButtonsForMappings(env, mappings, account),
+  });
+
+  registerList(bot, env, {
+    name: "archived",
+    fetcher: (p) => p.listArchived(MAX_PER_ACCOUNT),
+    config: {
+      icon: t("mailList:archived.icon"),
+      label: t("mailList:archived.label"),
+      emptyText: t("mailList:archived.empty"),
+      errorEvent: "bot.archived_query_failed",
+    },
+    hideTgLinks: true,
   });
 
   registerList(bot, env, {

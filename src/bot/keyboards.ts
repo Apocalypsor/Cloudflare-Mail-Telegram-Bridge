@@ -13,6 +13,7 @@ export function starKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text(t("keyboards:mail.star"), "star")
     .text(t("keyboards:mail.junk"), "junk_mark")
+    .text(t("keyboards:mail.archive"), "archive")
     .text(t("keyboards:mail.refresh"), "refresh");
 }
 
@@ -20,6 +21,7 @@ export function starredKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text(t("keyboards:mail.starred"), "unstar")
     .text(t("keyboards:mail.junk"), "junk_mark")
+    .text(t("keyboards:mail.archive"), "archive")
     .text(t("keyboards:mail.refresh"), "refresh");
 }
 
@@ -28,7 +30,9 @@ export function starKeyboardWithMailUrl(mailUrl: string): InlineKeyboard {
   return new InlineKeyboard()
     .text(t("keyboards:mail.star"), "star")
     .text(t("keyboards:mail.junk"), "junk_mark")
+    .text(t("keyboards:mail.archive"), "archive")
     .text(t("keyboards:mail.refresh"), "refresh")
+    .row()
     .url(t("keyboards:mail.viewOriginal"), mailUrl);
 }
 
@@ -36,7 +40,9 @@ export function starredKeyboardWithMailUrl(mailUrl: string): InlineKeyboard {
   return new InlineKeyboard()
     .text(t("keyboards:mail.starred"), "unstar")
     .text(t("keyboards:mail.junk"), "junk_mark")
+    .text(t("keyboards:mail.archive"), "archive")
     .text(t("keyboards:mail.refresh"), "refresh")
+    .row()
     .url(t("keyboards:mail.viewOriginal"), mailUrl);
 }
 
@@ -92,6 +98,8 @@ export function mainMenuKeyboard(admin: boolean): InlineKeyboard {
     .row()
     .text(t("keyboards:menu.starred"), "starred")
     .text(t("keyboards:menu.junk"), "junk")
+    .row()
+    .text(t("keyboards:menu.archived"), "archived")
     .row();
   if (admin) {
     kb.text(t("keyboards:menu.userManagement"), "users")

@@ -8,6 +8,9 @@ export function accountDetailText(
   ownerName?: string,
 ): string {
   let text = `${t("accounts:detail.title", { id: account.id })}\n\n`;
+  if (account.disabled) {
+    text += `${t("common:status.disabled")}\n\n`;
+  }
   if (account.type === AccountType.Imap) {
     text += `${t("accounts:detail.typeLabel", { type: t("accounts:detail.typeImap") })}\n`;
     text += `${t("accounts:detail.email", { email: account.email || t("common:label.notSet") })}\n`;
@@ -27,6 +30,14 @@ export function accountDetailText(
     text += `Chat ID: ${account.chat_id}\n`;
     text += t("accounts:detail.status", { status });
   }
+  if (account.type === AccountType.Gmail) {
+    // 优先展示 label 名称；迁移前的老数据只有 ID 时退而展示 ID；都没有则显示未设置
+    const archiveLabel =
+      account.archive_folder_name ||
+      account.archive_folder ||
+      t("common:label.notSet");
+    text += `\n${t("archive:gmailLabelLine", { label: archiveLabel })}`;
+  }
   if (ownerName !== undefined) {
     text += `\n${t("accounts:detail.owner", { name: ownerName || t("common:label.none") })}`;
   }
@@ -35,8 +46,12 @@ export function accountDetailText(
 
 export function accountDetailKeyboard(account: Account): InlineKeyboard {
   const kb = new InlineKeyboard();
+  const toggleLabel = account.disabled
+    ? t("accounts:button.enable")
+    : t("accounts:button.disable");
   if (account.type === AccountType.Imap) {
-    kb.text(t("accounts:button.edit"), `acc:${account.id}:edit`).row();
+    kb.text(t("accounts:button.edit"), `acc:${account.id}:edit`);
+    kb.text(toggleLabel, `acc:${account.id}:t`).row();
     kb.text(t("accounts:button.delete"), `acc:${account.id}:del`).row();
     kb.text(t("common:button.backToAccounts"), "accs");
   } else {
@@ -49,7 +64,11 @@ export function accountDetailKeyboard(account: Account): InlineKeyboard {
     }
     kb.row();
     kb.text(t("accounts:button.edit"), `acc:${account.id}:edit`);
+    if (account.type === AccountType.Gmail && account.refresh_token) {
+      kb.text(t("archive:gmailLabelButton"), `acc:${account.id}:arc`);
+    }
     kb.row();
+    kb.text(toggleLabel, `acc:${account.id}:t`);
     kb.text(t("accounts:button.delete"), `acc:${account.id}:del`);
     kb.row();
     kb.text(t("common:button.backToAccounts"), "accs");
