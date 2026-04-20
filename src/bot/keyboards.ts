@@ -139,10 +139,7 @@ export async function buildEmailKeyboard(
 
 /** 主菜单键盘 */
 export function mainMenuKeyboard(admin: boolean, env: Env): InlineKeyboard {
-  const kb = new InlineKeyboard().text(
-    t("keyboards:menu.accountManagement"),
-    "accs",
-  );
+  const kb = new InlineKeyboard();
   // 邮件列表 + 提醒：私聊里 web_app 直接打开 Mini App。
   // 没配 WORKER_URL 时回退到 callback（文本回复，靠 /unread 等命令）。
   // /start 默认私聊，inline web_app 在私聊有效。
@@ -169,7 +166,10 @@ export function mainMenuKeyboard(admin: boolean, env: Env): InlineKeyboard {
       .text(t("keyboards:menu.junk"), "junk")
       .text(t("keyboards:menu.archived"), "archived");
   }
-  kb.row().text(t("keyboards:menu.sync"), "sync").row();
+  kb.row()
+    .text(t("keyboards:menu.sync"), "sync")
+    .text(t("keyboards:menu.accountManagement"), "accs")
+    .row();
   if (admin) {
     kb.text(t("keyboards:menu.userManagement"), "users")
       .text(t("keyboards:menu.globalOps"), "admin")
