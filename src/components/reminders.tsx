@@ -1,4 +1,8 @@
-import { ROUTE_REMINDERS_API } from "@handlers/hono/routes";
+import {
+  ROUTE_REMINDERS_API,
+  ROUTE_REMINDERS_API_EMAIL_CONTEXT,
+  ROUTE_REMINDERS_API_RESOLVE_CONTEXT,
+} from "@handlers/hono/routes";
 
 const REMINDERS_CSS = `
 :root {
@@ -27,12 +31,15 @@ body {
 h1 { font-size: 20px; font-weight: 600; margin: 4px 0 16px; }
 .section { background: var(--surface); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
 label, .section-title { display: block; font-size: 13px; color: var(--hint); margin-bottom: 6px; }
+.email-card { padding: 12px 14px; border-left: 3px solid var(--button); background: var(--surface); border-radius: 8px; margin-bottom: 14px; }
+.email-card .subject { font-size: 15px; font-weight: 600; word-break: break-word; }
+.email-card .from { font-size: 12px; color: var(--hint); margin-top: 2px; }
 input[type="text"], input[type="datetime-local"], textarea {
   width: 100%; padding: 11px 12px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
   font-size: 15px; font-family: inherit; outline: none;
 }
-textarea { min-height: 80px; resize: vertical; }
+textarea { min-height: 70px; resize: vertical; }
 input:focus, textarea:focus { border-color: var(--button); }
 .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .preset {
@@ -52,18 +59,20 @@ input:focus, textarea:focus { border-color: var(--button); }
 .status.ok { color: #22c55e; }
 .list { list-style: none; padding: 0; margin: 0; }
 .list li {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: flex-start; justify-content: space-between;
   padding: 10px 0; border-bottom: 1px solid var(--border); gap: 10px;
 }
 .list li:last-child { border-bottom: 0; }
 .list .meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .list .meta .when { font-size: 12px; color: var(--hint); margin-bottom: 2px; }
+.list .meta .subject { font-size: 13px; color: var(--hint); margin-top: 2px; word-break: break-word; }
 .list .meta .text { font-size: 14px; word-break: break-word; }
 .list .del {
   background: transparent; border: none; color: var(--danger);
   font-size: 18px; cursor: pointer; padding: 4px 8px;
 }
-.empty { color: var(--hint); font-size: 13px; padding: 6px 0; }
+.empty, .fatal { color: var(--hint); font-size: 13px; padding: 6px 0; }
+.fatal { color: var(--danger); }
 .helper { color: var(--hint); font-size: 12px; margin-top: 6px; }
 `;
 
@@ -73,18 +82,59 @@ function remindersScript(): string {
   var tg = window.Telegram && window.Telegram.WebApp;
   if (tg) { tg.ready(); tg.expand(); }
   var initData = (tg && tg.initData) || "";
+  var startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
 
   var $ = function(id){ return document.getElementById(id); };
   var fmt2 = function(n){ return n < 10 ? "0" + n : "" + n; };
 
-  // 当前时间 + 1 分钟，作为初始默认值（避免一打开就是过去）
+  // 邮件上下文有两种来源：
+  //  1) URL query (私聊场景，inline web_app 直接打开)
+  //  2) start_param (群聊场景，t.me/<bot>?startapp=chatid_msgid 跳进来) → 调
+  //     resolve-context 接口换成 (accountId, messageId, token)
+  var qs = new URLSearchParams(location.search);
+  var ctx = {
+    accountId: Number(qs.get("accountId")),
+    messageId: qs.get("messageId") || "",
+    token: qs.get("token") || "",
+  };
+  var hasUrlCtx = ctx.accountId && ctx.messageId && ctx.token;
+
+  function fatal(msg) {
+    document.body.innerHTML = '<div class="wrap"><div class="fatal">' + msg + '</div></div>';
+  }
+
+  async function init() {
+    if (!hasUrlCtx) {
+      if (!startParam) {
+        fatal("请从邮件消息上的 ⏰ 按钮打开本页面");
+        return false;
+      }
+      try {
+        var r = await fetch("${ROUTE_REMINDERS_API_RESOLVE_CONTEXT}?start=" + encodeURIComponent(startParam), {
+          headers: { "x-telegram-init-data": initData },
+        });
+        if (!r.ok) {
+          var err = await r.json().catch(function(){ return {}; });
+          fatal(err.error || "解析邮件信息失败");
+          return false;
+        }
+        var d = await r.json();
+        ctx.accountId = d.accountId;
+        ctx.messageId = d.messageId;
+        ctx.token = d.token;
+      } catch (e) {
+        fatal("网络错误");
+        return false;
+      }
+    }
+    return true;
+  }
+
   function defaultLocal() {
     var d = new Date(Date.now() + 60000);
     return d.getFullYear() + "-" + fmt2(d.getMonth()+1) + "-" + fmt2(d.getDate())
       + "T" + fmt2(d.getHours()) + ":" + fmt2(d.getMinutes());
   }
-  $("when").value = defaultLocal();
-  $("when").min = defaultLocal();
 
   function applyPreset(mins, btn) {
     var d;
@@ -117,6 +167,29 @@ function remindersScript(): string {
       + " " + fmt2(d.getHours()) + ":" + fmt2(d.getMinutes());
   }
 
+  function ctxQuery() {
+    return "?accountId=" + ctx.accountId
+      + "&messageId=" + encodeURIComponent(ctx.messageId)
+      + "&token=" + encodeURIComponent(ctx.token);
+  }
+
+  async function loadEmailContext() {
+    try {
+      var r = await fetch("${ROUTE_REMINDERS_API_EMAIL_CONTEXT}" + ctxQuery(), {
+        headers: { "x-telegram-init-data": initData },
+      });
+      if (!r.ok) throw new Error("ctx");
+      var d = await r.json();
+      var card = $("email-card");
+      $("email-subject").textContent = d.subject || "(无主题)";
+      $("email-from").textContent = d.accountEmail ? "账号: " + d.accountEmail : "";
+      card.style.display = "block";
+    } catch (e) {
+      $("email-subject").textContent = "邮件信息加载失败";
+      $("email-card").style.display = "block";
+    }
+  }
+
   function renderList(items) {
     var ul = $("list");
     ul.innerHTML = "";
@@ -129,8 +202,15 @@ function remindersScript(): string {
       var li = document.createElement("li");
       var meta = document.createElement("div"); meta.className = "meta";
       var when = document.createElement("div"); when.className = "when"; when.textContent = fmtWhen(it.remind_at);
-      var text = document.createElement("div"); text.className = "text"; text.textContent = it.text;
-      meta.appendChild(when); meta.appendChild(text);
+      meta.appendChild(when);
+      if (it.email_subject) {
+        var sub = document.createElement("div"); sub.className = "subject"; sub.textContent = "📧 " + it.email_subject;
+        meta.appendChild(sub);
+      }
+      if (it.text) {
+        var text = document.createElement("div"); text.className = "text"; text.textContent = it.text;
+        meta.appendChild(text);
+      }
       var del = document.createElement("button");
       del.className = "del"; del.type = "button"; del.title = "删除"; del.textContent = "🗑";
       del.addEventListener("click", function(){ deleteItem(it.id, li); });
@@ -142,7 +222,7 @@ function remindersScript(): string {
   async function loadList() {
     try {
       var r = await fetch("${ROUTE_REMINDERS_API}", { headers: { "x-telegram-init-data": initData } });
-      if (!r.ok) throw new Error("加载失败");
+      if (!r.ok) throw new Error("list");
       var d = await r.json();
       renderList(d.reminders || []);
     } catch (e) {
@@ -169,7 +249,6 @@ function remindersScript(): string {
   $("save").addEventListener("click", async function(){
     var text = $("text").value.trim();
     var when = $("when").value;
-    if (!text) { setStatus("请填写提醒内容", "error"); return; }
     if (!when) { setStatus("请选择时间", "error"); return; }
     var local = new Date(when);
     if (isNaN(local.getTime())) { setStatus("时间格式错误", "error"); return; }
@@ -184,7 +263,13 @@ function remindersScript(): string {
           "content-type": "application/json",
           "x-telegram-init-data": initData,
         },
-        body: JSON.stringify({ text: text, remind_at: local.toISOString() }),
+        body: JSON.stringify({
+          text: text,
+          remind_at: local.toISOString(),
+          accountId: ctx.accountId,
+          messageId: ctx.messageId,
+          token: ctx.token,
+        }),
       });
       var data = await r.json().catch(function(){ return {}; });
       if (!r.ok || !data.ok) {
@@ -204,7 +289,13 @@ function remindersScript(): string {
     }
   });
 
-  loadList();
+  init().then(function(ready){
+    if (!ready) return;
+    $("when").value = defaultLocal();
+    $("when").min = defaultLocal();
+    loadEmailContext();
+    loadList();
+  });
 })();
 `;
 }
@@ -218,26 +309,22 @@ export function RemindersPage() {
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
-        <title>提醒 — Telemail</title>
+        <title>邮件提醒 — Telemail</title>
         <link rel="icon" type="image/png" href="/favicon.png" />
         <script src="https://telegram.org/js/telegram-web-app.js" />
         <style dangerouslySetInnerHTML={{ __html: REMINDERS_CSS }} />
       </head>
       <body>
         <div class="wrap">
-          <h1>⏰ 设置提醒</h1>
+          <h1>⏰ 邮件提醒</h1>
+
+          <div id="email-card" class="email-card" style="display:none">
+            <div id="email-subject" class="subject" />
+            <div id="email-from" class="from" />
+          </div>
 
           <div class="section">
-            <label for="text">提醒内容</label>
-            <textarea
-              id="text"
-              maxlength={1000}
-              placeholder="例如：取快递、吃药、开会..."
-            />
-
-            <label for="when" style="margin-top:12px">
-              提醒时间
-            </label>
+            <label for="when">提醒时间</label>
             <input id="when" type="datetime-local" />
             <div class="presets">
               <button type="button" class="preset" data-mins="10">
@@ -259,7 +346,15 @@ export function RemindersPage() {
                 明早 09:00
               </button>
             </div>
-            <div class="helper">时间按你设备的本地时区</div>
+
+            <label for="text" style="margin-top:14px">
+              备注（可选）
+            </label>
+            <textarea
+              id="text"
+              maxlength={1000}
+              placeholder="可留空 —— 不填只发送邮件主题和链接"
+            />
 
             <button
               id="save"
@@ -267,13 +362,14 @@ export function RemindersPage() {
               class="btn-primary"
               style="margin-top:14px"
             >
-              保存
+              保存提醒
             </button>
             <div id="status" class="status" />
+            <div class="helper">时间按你设备的本地时区</div>
           </div>
 
           <div class="section">
-            <div class="section-title">待提醒</div>
+            <div class="section-title">所有待提醒</div>
             <ul id="list" class="list">
               <div class="empty">加载中…</div>
             </ul>

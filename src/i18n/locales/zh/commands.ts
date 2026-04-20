@@ -7,7 +7,6 @@ export default {
   starred: "查看星标邮件",
   junk: "查看垃圾邮件",
   archived: "查看归档邮件",
-  remind: "设置定时提醒",
   users: "查看用户列表（管理员）",
   helpTitle: "📬 *Telemail 帮助*",
   helpCommands: "*命令列表*",

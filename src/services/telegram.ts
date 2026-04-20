@@ -65,18 +65,21 @@ async function tgPost<T = unknown>(
   }
 }
 
-/** 发送纯文字消息，返回 message_id */
+/** 发送纯文字消息，返回 message_id。`extras` 用于透传 reply_to_message_id /
+ *  link_preview_options 等可选字段（与 chat_id/text/parse_mode 同层）。 */
 export async function sendTextMessage(
   token: string,
   chatId: string,
   text: string,
   replyMarkup?: unknown,
+  extras?: Record<string, unknown>,
 ): Promise<number> {
   const url = `${TG_API_BASE}${token}/sendMessage`;
   const payload: Record<string, unknown> = {
     chat_id: chatId,
     text,
     parse_mode: "MarkdownV2",
+    ...extras,
   };
   if (replyMarkup) payload.reply_markup = replyMarkup;
   const data = await tgPost<{ message_id: number }>(

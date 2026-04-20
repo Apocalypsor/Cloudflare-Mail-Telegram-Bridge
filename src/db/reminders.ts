@@ -5,22 +5,51 @@ export interface Reminder {
   text: string;
   /** ISO 8601 UTC */
   remind_at: string;
+  /** 邮件上下文（NULL = 通用提醒） */
+  account_id: number | null;
+  email_message_id: string | null;
+  email_subject: string | null;
+  tg_chat_id: string | null;
+  tg_message_id: number | null;
   sent_at: string | null;
   created_at: string;
+}
+
+/** 创建提醒的输入：邮件上下文五个字段同时为 NULL = 通用提醒；同时 set = 邮件提醒 */
+export interface CreateReminderInput {
+  telegramUserId: string;
+  text: string;
+  remindAtIso: string;
+  /** 以下五个字段绑定一封邮件；要么全 set，要么全 omit */
+  accountId?: number;
+  emailMessageId?: string;
+  emailSubject?: string;
+  tgChatId?: string;
+  tgMessageId?: number;
 }
 
 /** 创建提醒，返回新行 id */
 export async function createReminder(
   db: D1Database,
-  telegramUserId: string,
-  text: string,
-  remindAtIso: string,
+  input: CreateReminderInput,
 ): Promise<number> {
   const result = await db
     .prepare(
-      `INSERT INTO reminders (telegram_user_id, text, remind_at) VALUES (?, ?, ?)`,
+      `INSERT INTO reminders (
+        telegram_user_id, text, remind_at,
+        account_id, email_message_id, email_subject, tg_chat_id, tg_message_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(telegramUserId, text, remindAtIso)
+    .bind(
+      input.telegramUserId,
+      input.text,
+      input.remindAtIso,
+      input.accountId ?? null,
+      input.emailMessageId ?? null,
+      input.emailSubject ?? null,
+      input.tgChatId ?? null,
+      input.tgMessageId ?? null,
+    )
     .run();
   return Number(result.meta.last_row_id);
 }

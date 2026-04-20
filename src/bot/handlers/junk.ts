@@ -91,6 +91,8 @@ export function registerJunkHandler(bot: Bot, env: Env) {
         account.id,
         starred,
         accountCanArchive(account),
+        mapping.tg_chat_id,
+        mapping.tg_message_id,
       );
       await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
       await ctx.answerCallbackQuery();

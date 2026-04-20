@@ -86,6 +86,39 @@ export async function reconcileMessageState(
     mapping.tg_message_id,
     state.starred,
   );
+
+  // 顺便用最新代码重建键盘 —— 这是 refresh 的语义之一：让消息和当前
+  // 配置/版本同步（比如新加的 ⏰ 按钮、归档标签刚刚配好可以解锁 📥 等）。
+  // setReplyMarkup 在键盘没变化时会返回 "message is not modified"，吞掉。
+  try {
+    const keyboard = await buildEmailKeyboard(
+      env,
+      mapping.email_message_id,
+      account.id,
+      state.starred,
+      accountCanArchive(account),
+      mapping.tg_chat_id,
+      mapping.tg_message_id,
+    );
+    await setReplyMarkup(
+      env.TELEGRAM_BOT_TOKEN,
+      mapping.tg_chat_id,
+      mapping.tg_message_id,
+      keyboard,
+    );
+  } catch (err) {
+    if (
+      !(err instanceof Error && err.message.includes("message is not modified"))
+    ) {
+      await reportErrorToObservability(
+        env,
+        "reconcile.refresh_keyboard_failed",
+        err,
+        { accountId: account.id, messageId: mapping.email_message_id },
+      );
+    }
+  }
+
   return { status: "inbox", starred: state.starred };
 }
 
@@ -147,6 +180,8 @@ export async function toggleStar(
     account.id,
     starred,
     accountCanArchive(account),
+    mapping.tg_chat_id,
+    mapping.tg_message_id,
   );
   return { ok: true, keyboard, emailMessageId: mapping.email_message_id };
 }
@@ -271,6 +306,8 @@ export async function syncStarButtonsForMappings(
         account.id,
         true,
         canArchive,
+        m.tg_chat_id,
+        m.tg_message_id,
       );
       await setReplyMarkup(
         env.TELEGRAM_BOT_TOKEN,

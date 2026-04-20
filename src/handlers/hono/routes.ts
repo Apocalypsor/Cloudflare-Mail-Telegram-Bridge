@@ -29,7 +29,14 @@ export const ROUTE_MAIL_TOGGLE_STAR = "/api/mail/:id/toggle-star";
 export const ROUTE_MAIL_ARCHIVE = "/api/mail/:id/archive";
 export const ROUTE_MAIL_UNARCHIVE = "/api/mail/:id/unarchive";
 
-// ── Reminders Mini App ───────────────────────────────────────────────────────
-export const ROUTE_REMINDERS = "/reminders";
+// ── Mini App ─────────────────────────────────────────────────────────────────
+// 单页路由，目前只承载 reminder 功能；以后可在同一页内基于 start_param / 路径
+// 参数加更多功能。BotFather `/newapp` 注册时 Web App URL 填
+// `${WORKER_URL}/telegram-app`。
+export const ROUTE_MINI_APP = "/telegram-app";
+// API 路径继续按功能命名（reminder API 不会被复用到其他功能）
 export const ROUTE_REMINDERS_API = "/api/reminders";
 export const ROUTE_REMINDERS_API_ITEM = "/api/reminders/:id";
+export const ROUTE_REMINDERS_API_EMAIL_CONTEXT = "/api/reminders/email-context";
+export const ROUTE_REMINDERS_API_RESOLVE_CONTEXT =
+  "/api/reminders/resolve-context";

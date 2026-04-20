@@ -382,6 +382,8 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
         account.id,
         body.starred,
         accountCanArchive(account),
+        m.tg_chat_id,
+        m.tg_message_id,
       );
       await setReplyMarkup(
         c.env.TELEGRAM_BOT_TOKEN,
