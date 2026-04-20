@@ -6,7 +6,13 @@ import {
   type MessageMapping,
 } from "@db/message-map";
 import { accountCanArchive, getEmailProvider } from "@providers";
-import { deleteMessage, setReplyMarkup } from "@services/telegram";
+import type { MessageLocation, MessageState } from "@providers/types";
+import {
+  deleteMessage,
+  pinChatMessage,
+  setReplyMarkup,
+  unpinChatMessage,
+} from "@services/telegram";
 import { reportErrorToObservability } from "@utils/observability";
 import type { InlineKeyboard } from "grammy";
 import type { Account, Env } from "@/types";
@@ -14,6 +20,96 @@ import type { Account, Env } from "@/types";
 type ToggleStarResult =
   | { ok: true; keyboard: InlineKeyboard; emailMessageId: string }
   | { ok: false; reason: string };
+
+/** 删除 TG 消息 + mapping（邮件不再归属 INBOX 时统一清理） */
+async function removeFromTelegram(
+  env: Env,
+  mapping: MessageMapping,
+): Promise<void> {
+  await deleteMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    mapping.tg_chat_id,
+    mapping.tg_message_id,
+  ).catch(() => {});
+  await deleteMappingByEmailId(
+    env.DB,
+    mapping.email_message_id,
+    mapping.account_id,
+  ).catch(() => {});
+}
+
+/**
+ * 把远端状态对账到 TG：查 provider 里这条邮件现在的位置
+ *  - junk / archive / deleted →  删 TG 消息 + mapping
+ *  - inbox                    →  同步 star keyboard + pin 状态
+ *
+ * 所有需要「远端变更同步回 TG」的入口（refresh、未来的扩展触点）都走这一个函数。
+ * 各 provider 在 `resolveMessageState` 内部尽量合并成少量 API 调用。
+ */
+export async function reconcileMessageState(
+  env: Env,
+  account: Account,
+  mapping: MessageMapping,
+): Promise<
+  | { status: "removed"; location: Exclude<MessageLocation, "inbox"> }
+  | { status: "inbox"; starred: boolean }
+> {
+  const provider = getEmailProvider(account, env);
+  let state: MessageState;
+  try {
+    state = await provider.resolveMessageState(mapping.email_message_id);
+  } catch (err) {
+    // provider 自己没把「找不到」转成 deleted（或网络错误）—— 不删 TG 消息，让上层感知
+    await reportErrorToObservability(
+      env,
+      "reconcile.resolve_state_failed",
+      err,
+      {
+        accountId: account.id,
+        messageId: mapping.email_message_id,
+      },
+    );
+    throw err;
+  }
+
+  if (state.location !== "inbox") {
+    await removeFromTelegram(env, mapping);
+    return { status: "removed", location: state.location };
+  }
+
+  await syncStarPinState(
+    env,
+    mapping.tg_chat_id,
+    mapping.tg_message_id,
+    state.starred,
+  );
+  return { status: "inbox", starred: state.starred };
+}
+
+/**
+ * 同步 TG 消息的置顶状态以匹配星标状态。best-effort —— 失败仅上报观测、不抛出，
+ * 避免因缺少 `can_pin_messages` 权限等环境问题打断星标主流程。
+ */
+export async function syncStarPinState(
+  env: Env,
+  chatId: string,
+  tgMessageId: number,
+  starred: boolean,
+): Promise<void> {
+  try {
+    if (starred) {
+      await pinChatMessage(env.TELEGRAM_BOT_TOKEN, chatId, tgMessageId);
+    } else {
+      await unpinChatMessage(env.TELEGRAM_BOT_TOKEN, chatId, tgMessageId);
+    }
+  } catch (err) {
+    await reportErrorToObservability(env, "tg.pin_sync_failed", err, {
+      chatId,
+      tgMessageId,
+      starred,
+    });
+  }
+}
 
 /** 切换星标并返回新的 keyboard */
 export async function toggleStar(
@@ -34,6 +130,13 @@ export async function toggleStar(
   } else {
     await provider.removeStar(mapping.email_message_id);
   }
+
+  await syncStarPinState(
+    env,
+    mapping.tg_chat_id,
+    mapping.tg_message_id,
+    starred,
+  );
 
   const keyboard = await buildEmailKeyboard(
     env,
@@ -176,17 +279,21 @@ export async function syncStarButtonsForMappings(
       if (
         err instanceof Error &&
         err.message.includes("message is not modified")
-      )
+      ) {
+        // keyboard 已是最新，但 pin 状态仍可能漂移（用户刚在 web 端加星），继续同步
+      } else {
+        await reportErrorToObservability(
+          env,
+          "bot.sync_star_button_failed",
+          err,
+          {
+            chatId: m.tg_chat_id,
+            messageId: m.tg_message_id,
+          },
+        );
         continue;
-      await reportErrorToObservability(
-        env,
-        "bot.sync_star_button_failed",
-        err,
-        {
-          chatId: m.tg_chat_id,
-          messageId: m.tg_message_id,
-        },
-      );
+      }
     }
+    await syncStarPinState(env, m.tg_chat_id, m.tg_message_id, true);
   }
 }

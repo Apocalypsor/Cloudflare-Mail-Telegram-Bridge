@@ -19,6 +19,7 @@ import {
   graphPatch,
   graphPost,
 } from "@providers/outlook/utils";
+import type { MessageState } from "@providers/types";
 import { timingSafeEqual } from "@utils/hash";
 import { http } from "@utils/http";
 import { reportErrorToObservability } from "@utils/observability";
@@ -288,6 +289,46 @@ export class OutlookProvider extends EmailProvider {
       `/me/mailFolders('JunkEmail')?$select=id`,
     );
     return msg.parentFolderId === junkFolder.id;
+  }
+
+  /**
+   * Outlook 需要先拿 parentFolderId + flag，再对比 4 个 well-known folder 的 id；
+   * 这些文件夹 id 在账号生命周期内稳定，但首次查要并行跑 5 个请求。
+   */
+  async resolveMessageState(messageId: string): Promise<MessageState> {
+    const token = await this.token();
+    try {
+      const [msg, junk, archive, deleted, inbox] = await Promise.all([
+        graphGet<GraphMessage>(
+          token,
+          `/me/messages/${messageId}?$select=flag,parentFolderId`,
+        ),
+        graphGet<GraphFolder>(token, `/me/mailFolders('JunkEmail')?$select=id`),
+        graphGet<GraphFolder>(token, `/me/mailFolders('archive')?$select=id`),
+        graphGet<GraphFolder>(
+          token,
+          `/me/mailFolders('DeletedItems')?$select=id`,
+        ),
+        graphGet<GraphFolder>(token, `/me/mailFolders('Inbox')?$select=id`),
+      ]);
+      const parent = msg.parentFolderId;
+      if (parent === deleted.id) return { location: "deleted" };
+      if (parent === junk.id) return { location: "junk" };
+      if (parent === archive.id) return { location: "archive" };
+      if (parent === inbox.id) {
+        return {
+          location: "inbox",
+          starred: msg.flag?.flagStatus === "flagged",
+        };
+      }
+      // 其他用户自定义文件夹 —— 统一视作归档（从 INBOX 里移出去了）
+      return { location: "archive" };
+    } catch (err) {
+      if (err instanceof HTTPError && err.response.status === 404) {
+        return { location: "deleted" };
+      }
+      throw err;
+    }
   }
 
   async listUnread(maxResults: number = 20) {

@@ -1,4 +1,4 @@
-import { buildEmailKeyboard, resolveStarredKeyboard } from "@bot/keyboards";
+import { buildEmailKeyboard } from "@bot/keyboards";
 import { getAccountById } from "@db/accounts";
 import {
   deleteFailedEmail,
@@ -8,12 +8,18 @@ import {
 } from "@db/failed-emails";
 import {
   getMessageMapping,
+  type MessageMapping,
   putMessageMapping,
   updateShortSummary,
 } from "@db/message-map";
 import { t } from "@i18n";
 import { accountCanArchive, getEmailProvider } from "@providers";
+import type { MessageLocation } from "@providers/types";
 import { analyzeEmail, type EmailAnalysis } from "@services/llm";
+import {
+  reconcileMessageState,
+  syncStarPinState,
+} from "@services/message-actions";
 import {
   deleteMessage,
   editMessageCaption,
@@ -175,6 +181,18 @@ export async function deliverEmailToTelegram(
   const tgToken = env.TELEGRAM_BOT_TOKEN;
   const chatId = account.chat_id;
 
+  // 先查远端状态 —— 队列入队和处理之间可能已被用户在远端 junk/archive/delete；
+  // 只有仍在 inbox 的才投递，顺带拿到 starred 给初始 keyboard，避免 TG 键盘从 ☆ → ★ 闪烁
+  const provider = getEmailProvider(account, env);
+  const state = await provider.resolveMessageState(messageId).catch(() => null);
+  if (state && state.location !== "inbox") {
+    console.log(
+      `Skip delivery: message=${messageId} already at ${state.location} on remote`,
+    );
+    return;
+  }
+  const initialStarred = state?.location === "inbox" ? state.starred : false;
+
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
 
@@ -193,7 +211,7 @@ export async function deliverEmailToTelegram(
     env,
     messageId,
     account.id,
-    false,
+    initialStarred,
     accountCanArchive(account),
   );
 
@@ -216,6 +234,11 @@ export async function deliverEmailToTelegram(
     email_message_id: messageId,
     account_id: account.id,
   });
+
+  if (inserted && initialStarred) {
+    // 新消息投递完 + 初始就是 star → 同步置顶
+    await syncStarPinState(env, chatId, sentMessageId, true);
+  }
 
   // 唯一索引冲突 → 说明另一个并发请求已经投递过，撤回本次重复消息
   if (!inserted) {
@@ -324,17 +347,29 @@ export async function processEmailMessage(
 // 失败邮件重试
 // ---------------------------------------------------------------------------
 
-/** 重新拉取邮件并执行 LLM 分析，编辑 Telegram 消息 */
+type ReanalyzeResult =
+  | { status: "analyzed" }
+  | { status: "removed"; location: Exclude<MessageLocation, "inbox"> };
+
+/**
+ * 重新拉取邮件并执行 LLM 分析，编辑 Telegram 消息。
+ * 第一步先做全状态对账（junk / archive / deleted / inbox）—— 不在收件箱的直接清理
+ * 返回，跳过后续拉邮件 + LLM 分析。
+ */
 async function reanalyzeEmail(
   env: Env,
   account: Account,
-  emailMessageId: string,
-  chatId: string,
-  tgMessageId: number,
+  mapping: MessageMapping,
   isCaption: boolean,
-): Promise<void> {
+): Promise<ReanalyzeResult> {
+  const reconcile = await reconcileMessageState(env, account, mapping);
+  if (reconcile.status === "removed") {
+    return { status: "removed", location: reconcile.location };
+  }
+
+  const { email_message_id, tg_chat_id, tg_message_id } = mapping;
   const provider = getEmailProvider(account, env);
-  const rawEmail = await provider.fetchRawEmail(emailMessageId);
+  const rawEmail = await provider.fetchRawEmail(email_message_id);
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
 
@@ -343,21 +378,21 @@ async function reanalyzeEmail(
     account,
     isCaption,
   );
-  if (!plainBody.trim()) return;
+  if (!plainBody.trim()) return { status: "analyzed" };
 
-  const keyboard = await resolveStarredKeyboard(
+  const keyboard = await buildEmailKeyboard(
     env,
-    chatId,
-    tgMessageId,
-    emailMessageId,
+    email_message_id,
     account.id,
+    reconcile.starred,
+    accountCanArchive(account),
   );
 
   const analysis = await editMessageWithAnalysis(
     env,
     env.TELEGRAM_BOT_TOKEN,
-    chatId,
-    tgMessageId,
+    tg_chat_id,
+    tg_message_id,
     isCaption,
     header,
     subject,
@@ -369,12 +404,13 @@ async function reanalyzeEmail(
     await updateShortSummary(
       env.DB,
       account.id,
-      emailMessageId,
+      email_message_id,
       analysis.shortSummary,
     ).catch((e) =>
       reportErrorToObservability(env, "bridge.update_short_summary_error", e),
     );
   }
+  return { status: "analyzed" };
 }
 
 /** 重试单封失败邮件的 LLM 摘要处理，成功后自动删除失败记录 */
@@ -388,25 +424,32 @@ export async function retryFailedEmail(
   if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL)
     throw new Error("LLM not configured");
 
-  await reanalyzeEmail(
-    env,
-    account,
-    failed.email_message_id,
-    failed.tg_chat_id,
-    failed.tg_message_id,
-    !!failed.is_caption,
-  );
+  // 失败队列中的条目没直接持有 mapping —— 但 tg_chat_id / tg_message_id / email_message_id
+  // 都在 failed 记录里，够拼出一个用于对账的 mapping。account_id 直接用 failed.account_id。
+  const mapping: MessageMapping = {
+    tg_chat_id: failed.tg_chat_id,
+    tg_message_id: failed.tg_message_id,
+    email_message_id: failed.email_message_id,
+    account_id: failed.account_id,
+    short_summary: null,
+  };
 
+  await reanalyzeEmail(env, account, mapping, !!failed.is_caption);
+
+  // removed 也算「处理完」—— 邮件已不在 inbox，没必要再重试
   await deleteFailedEmail(env.DB, failed.id);
 }
 
-/** 刷新邮件：重新拉取并执行 LLM 分析 */
+/** 刷新邮件：先对账远端状态（junk/archive/deleted/inbox），仅 inbox 时重新 LLM 分析 */
 export async function refreshEmail(
   env: Env,
   chatId: string,
   tgMessageId: number,
   isCaption: boolean,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<
+  | { ok: true; removed?: "junk" | "archive" | "deleted" }
+  | { ok: false; reason: string }
+> {
   if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL) {
     return { ok: false, reason: t("bridge:refreshNoLlm") };
   }
@@ -421,15 +464,10 @@ export async function refreshEmail(
     return { ok: false, reason: t("common:error.accountNotFoundShort") };
   }
 
-  await reanalyzeEmail(
-    env,
-    account,
-    mapping.email_message_id,
-    chatId,
-    tgMessageId,
-    isCaption,
-  );
-
+  const result = await reanalyzeEmail(env, account, mapping, isCaption);
+  if (result.status === "removed") {
+    return { ok: true, removed: result.location };
+  }
   return { ok: true };
 }
 

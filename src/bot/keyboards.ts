@@ -1,7 +1,4 @@
-import { getAccountById } from "@db/accounts";
-import { getMessageMapping } from "@db/message-map";
 import { t } from "@i18n";
-import { accountCanArchive, getEmailProvider } from "@providers";
 import { generateMailTokenById } from "@services/mail-preview";
 import { InlineKeyboard } from "grammy";
 import type { Env } from "@/types";
@@ -23,6 +20,29 @@ function addCoreButtons(
   return kb;
 }
 
+/**
+ * 从已有 reply_markup 推断当前星标状态 —— 读星按钮的 callback_data：
+ * "star" 表示当前未星标（按钮动作是加星），"unstar" 表示当前已星标。
+ * 用于在非星标场景（如 junk_cancel 还原键盘）避免查远端 `isStarred()`。
+ */
+export function readStarredFromReplyMarkup(replyMarkup: unknown): boolean {
+  if (!replyMarkup || typeof replyMarkup !== "object") return false;
+  const rows = (replyMarkup as { inline_keyboard?: unknown }).inline_keyboard;
+  if (!Array.isArray(rows)) return false;
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    for (const btn of row) {
+      const data =
+        btn && typeof btn === "object"
+          ? (btn as { callback_data?: unknown }).callback_data
+          : undefined;
+      if (data === "unstar") return true;
+      if (data === "star") return false;
+    }
+  }
+  return false;
+}
+
 /** 根据星标状态构建邮件消息键盘 */
 export async function buildEmailKeyboard(
   env: Env,
@@ -42,31 +62,6 @@ export async function buildEmailKeyboard(
     kb.row().url(t("keyboards:mail.viewOriginal"), mailUrl);
   }
   return kb;
-}
-
-/** 从邮件源查询当前星标状态后构建键盘（LLM 处理后编辑消息使用） */
-export async function resolveStarredKeyboard(
-  env: Env,
-  chatId: string,
-  tgMessageId: number,
-  emailMessageId: string,
-  accountId: number,
-): Promise<InlineKeyboard> {
-  const mapping = await getMessageMapping(env.DB, chatId, tgMessageId);
-  if (!mapping)
-    return buildEmailKeyboard(env, emailMessageId, accountId, false, false);
-  const account = await getAccountById(env.DB, mapping.account_id);
-  if (!account)
-    return buildEmailKeyboard(env, emailMessageId, accountId, false, false);
-  const provider = getEmailProvider(account, env);
-  const starred = await provider.isStarred(emailMessageId);
-  return buildEmailKeyboard(
-    env,
-    emailMessageId,
-    accountId,
-    starred,
-    accountCanArchive(account),
-  );
 }
 
 // ── 主菜单键盘 ──────────────────────────────────────────────────────────────

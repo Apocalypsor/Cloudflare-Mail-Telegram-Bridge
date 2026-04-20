@@ -31,6 +31,7 @@ import {
   verifyMailTokenById,
   verifyProxySignature,
 } from "@services/mail-preview";
+import { syncStarPinState } from "@services/message-actions";
 import { deleteMessage, setReplyMarkup } from "@services/telegram";
 import { formatBody } from "@utils/format";
 import { http } from "@utils/http";
@@ -369,7 +370,7 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
       await provider.removeStar(messageId);
     }
 
-    // 同步更新 Telegram 消息的星标按钮
+    // 同步更新 Telegram 消息的星标按钮 + 置顶状态
     const mappings = await getMappingsByEmailIds(c.env.DB, account.id, [
       messageId,
     ]);
@@ -388,6 +389,12 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
         m.tg_message_id,
         keyboard,
       ).catch(() => {});
+      await syncStarPinState(
+        c.env,
+        m.tg_chat_id,
+        m.tg_message_id,
+        body.starred,
+      );
     }
 
     return c.json({

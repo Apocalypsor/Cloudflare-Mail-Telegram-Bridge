@@ -10,6 +10,14 @@ export interface EmailListItem {
   subject?: string;
 }
 
+/** 邮件当前所在位置 —— 对账时用这个值决定 TG 侧如何处理 */
+export type MessageLocation = "inbox" | "junk" | "archive" | "deleted";
+
+/** `resolveMessageState` 返回：位置 + （inbox 时的）星标状态 */
+export type MessageState =
+  | { location: "inbox"; starred: boolean }
+  | { location: "junk" | "archive" | "deleted" };
+
 /** 邮件 web 预览用的渲染内容 */
 export interface PreviewContent {
   html: string;

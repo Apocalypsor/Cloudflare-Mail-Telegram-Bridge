@@ -220,6 +220,49 @@ export async function editMessageCaption(
   await tgPost(url, payload, "editMessageCaption");
 }
 
+/**
+ * 置顶消息。幂等：已置顶或消息不存在时静默返回；其它错误（无权限等）抛出。
+ * 默认 disable_notification=true，避免每次 ⭐ 都刷一条「已置顶」提示。
+ */
+export async function pinChatMessage(
+  token: string,
+  chatId: string,
+  messageId: number,
+): Promise<void> {
+  const url = `${TG_API_BASE}${token}/pinChatMessage`;
+  try {
+    await tgPost(
+      url,
+      { chat_id: chatId, message_id: messageId, disable_notification: true },
+      "pinChatMessage",
+    );
+  } catch (err) {
+    if (err instanceof Error && /already pinned|not found/i.test(err.message))
+      return;
+    throw err;
+  }
+}
+
+/** 取消置顶指定消息。幂等：未置顶或消息不存在时静默返回。 */
+export async function unpinChatMessage(
+  token: string,
+  chatId: string,
+  messageId: number,
+): Promise<void> {
+  const url = `${TG_API_BASE}${token}/unpinChatMessage`;
+  try {
+    await tgPost(
+      url,
+      { chat_id: chatId, message_id: messageId },
+      "unpinChatMessage",
+    );
+  } catch (err) {
+    if (err instanceof Error && /not found|not pinned/i.test(err.message))
+      return;
+    throw err;
+  }
+}
+
 /** 设置/更新消息的 inline keyboard */
 export async function setReplyMarkup(
   token: string,

@@ -4,6 +4,7 @@ import { registerArchiveHandler } from "@bot/handlers/archive";
 import { registerInputHandler } from "@bot/handlers/input";
 import { registerJunkHandler } from "@bot/handlers/junk";
 import { registerMailListHandlers } from "@bot/handlers/mail-list";
+import { registerPinCleanupHandler } from "@bot/handlers/pin-cleanup";
 import { registerReactionHandler } from "@bot/handlers/reaction";
 import { registerRefreshHandler } from "@bot/handlers/refresh";
 import { registerStarHandler } from "@bot/handlers/star";
@@ -59,6 +60,7 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
   registerRefreshHandler(bot, env);
   registerSyncHandler(bot, env);
   registerMailListHandlers(bot, env);
+  registerPinCleanupHandler(bot, env);
   // 输入处理必须最后注册（catch-all text handler）
   registerInputHandler(bot, env);
 

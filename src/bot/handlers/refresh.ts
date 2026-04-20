@@ -26,6 +26,12 @@ export function registerRefreshHandler(bot: Bot, env: Env) {
         return;
       }
 
+      if (result.removed) {
+        // TG 消息已经在 reconcile 里被删掉；callback 在开头已答过 "refreshing…"，
+        // 这里发一条新消息告知原因，避免消息凭空消失的歧义
+        await ctx.reply(t(`bridge:removed.${result.removed}`)).catch(() => {});
+      }
+
       console.log(`Refreshed: chat=${msg.chat.id}, message=${msg.message_id}`);
     } catch (err) {
       await reportErrorToObservability(env, "bot.refresh_failed", err);

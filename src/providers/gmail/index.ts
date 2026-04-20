@@ -10,7 +10,7 @@ import type {
   GmailWatchResponse,
 } from "@providers/gmail/types";
 import { getAccessToken, gmailGet, gmailPost } from "@providers/gmail/utils";
-import type { PreviewContent } from "@providers/types";
+import type { MessageState, PreviewContent } from "@providers/types";
 import { base64urlToArrayBuffer, base64urlToString } from "@utils/base64url";
 import { wrapPlainText } from "@utils/format";
 import type { Hono } from "hono";
@@ -331,6 +331,30 @@ export class GmailProvider extends EmailProvider {
       `/users/me/messages/${messageId}?format=MINIMAL`,
     );
     return msg.labelIds?.includes("SPAM") ?? false;
+  }
+
+  /**
+   * Gmail 的 labelIds 已经包含了所有状态信息，一次 API 调用搞定。
+   * 注：Gmail 「归档」= 不在 INBOX 也不在 SPAM/TRASH；用户配置的 archive_folder
+   * 只是可选的附加 label，即使没配，只要消息离开 INBOX 我们也视为归档。
+   */
+  async resolveMessageState(messageId: string): Promise<MessageState> {
+    try {
+      const msg = await gmailGet<GmailMessage>(
+        await this.token(),
+        `/users/me/messages/${messageId}?format=MINIMAL`,
+      );
+      const labels = msg.labelIds ?? [];
+      if (labels.includes("TRASH")) return { location: "deleted" };
+      if (labels.includes("SPAM")) return { location: "junk" };
+      if (!labels.includes("INBOX")) return { location: "archive" };
+      return { location: "inbox", starred: labels.includes("STARRED") };
+    } catch (err) {
+      if (err instanceof HTTPError && err.response.status === 404) {
+        return { location: "deleted" };
+      }
+      throw err;
+    }
   }
 
   async listUnread(maxResults: number = 20) {

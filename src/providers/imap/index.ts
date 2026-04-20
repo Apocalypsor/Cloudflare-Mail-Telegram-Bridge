@@ -2,7 +2,7 @@ import { getAccountById, getImapAccounts } from "@db/accounts";
 import { requireBearer } from "@handlers/hono/middleware";
 import { EmailProvider } from "@providers/base";
 import { callBridge, syncAccounts } from "@providers/imap/utils";
-import type { EmailListItem } from "@providers/types";
+import type { EmailListItem, MessageState } from "@providers/types";
 import { base64ToArrayBuffer } from "@utils/base64url";
 import type { Hono } from "hono";
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
@@ -127,6 +127,25 @@ export class ImapProvider extends EmailProvider {
     });
     const { junk } = (await resp.json()) as { junk: boolean };
     return junk;
+  }
+
+  /**
+   * IMAP UID 是 per-folder 的，bridge 又只按 INBOX UID 寻址 —— 这里只能 best-effort：
+   * 先看 `/api/is-junk`，再看 `/api/is-starred`，都通过就当作 inbox。
+   *
+   * **不吞 error**（和 Gmail/Outlook 的契约保持一致）：bridge 瞬时不可达 / 鉴权失败
+   * 等错误直接向上抛，由 `reconcileMessageState` 捕获后不动 TG 消息。如果吞成
+   * `deleted`，reconcile 会误删 TG + mapping，bridge 一次抖动就丢用户数据。
+   *
+   * 遗留限制：用户在外部邮件客户端把邮件移进 archive（UID 在 INBOX 已失效）时，
+   * 此方法可能返回 `{ inbox, starred: false }`（bridge 的 isJunk/isStarred 搜不到
+   * 就返回 false，而不是抛错）。TG 消息会留着直到下次正确对账 —— 不丢数据，只是
+   * 残留。彻底解决需要用 RFC Message-Id 做跨 folder 检索（Step B）。
+   */
+  async resolveMessageState(messageId: string): Promise<MessageState> {
+    if (await this.isJunk(messageId)) return { location: "junk" };
+    const starred = await this.isStarred(messageId);
+    return { location: "inbox", starred };
   }
 
   async listUnread(maxResults: number = 20) {

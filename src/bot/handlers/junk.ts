@@ -1,8 +1,8 @@
-import { resolveStarredKeyboard } from "@bot/keyboards";
+import { buildEmailKeyboard, readStarredFromReplyMarkup } from "@bot/keyboards";
 import { resolveMessageAccount } from "@bot/utils/message-context";
 import { deleteMappingByEmailId } from "@db/message-map";
 import { t } from "@i18n";
-import { getEmailProvider } from "@providers";
+import { accountCanArchive, getEmailProvider } from "@providers";
 import { deleteMessage } from "@services/telegram";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
@@ -11,9 +11,11 @@ import type { Env } from "@/types";
 
 /**
  * 标记为垃圾邮件 inline button，两步确认：
- *  - `junk_mark`    用户点 🚫 → 改成 [⚠️ 确认] [❌ 取消]
- *  - `junk_confirm` 点确认 → 真的标记为垃圾、删 TG 消息 + mapping
- *  - `junk_cancel`  点取消 → 恢复原来的邮件键盘
+ *  - `junk_mark`     用户点 🚫 → 改成 [⚠️ 确认] [❌ 取消]，取消按钮的 callback_data
+ *                    里带上当时的 star 状态（`junk_cancel:0|1`）
+ *  - `junk_confirm`  点确认 → 真的标记为垃圾、删 TG 消息 + mapping
+ *  - `junk_cancel:s` 点取消 → 从 callback_data 还原 star 状态、重建键盘。*不* 查远端
+ *                    isStarred、*不* 动 pin 状态 —— junk 操作保持和 star/pin 解耦
  */
 export function registerJunkHandler(bot: Bot, env: Env) {
   bot.callbackQuery("junk_mark", async (ctx) => {
@@ -28,9 +30,10 @@ export function registerJunkHandler(bot: Bot, env: Env) {
       await ctx.answerCallbackQuery({ text: resolved.error });
       return;
     }
+    const starred = readStarredFromReplyMarkup(msg.reply_markup);
     const kb = new InlineKeyboard()
       .text(t("junk:confirm"), "junk_confirm")
-      .text(t("common:button.cancel"), "junk_cancel");
+      .text(t("common:button.cancel"), `junk_cancel:${starred ? "1" : "0"}`);
     await ctx.editMessageReplyMarkup({ reply_markup: kb });
     await ctx.answerCallbackQuery({ text: t("junk:confirmPrompt") });
   });
@@ -70,22 +73,24 @@ export function registerJunkHandler(bot: Bot, env: Env) {
     }
   });
 
-  bot.callbackQuery("junk_cancel", async (ctx) => {
+  bot.callbackQuery(/^junk_cancel:(0|1)$/, async (ctx) => {
     const msg = ctx.callbackQuery.message;
     if (!msg) return;
     try {
+      const starred = ctx.match[1] === "1";
       const chatId = String(msg.chat.id);
       const resolved = await resolveMessageAccount(env, chatId, msg.message_id);
       if (!resolved.ok) {
         await ctx.answerCallbackQuery({ text: resolved.error });
         return;
       }
-      const keyboard = await resolveStarredKeyboard(
+      const { mapping, account } = resolved;
+      const keyboard = await buildEmailKeyboard(
         env,
-        chatId,
-        msg.message_id,
-        resolved.mapping.email_message_id,
-        resolved.account.id,
+        mapping.email_message_id,
+        account.id,
+        starred,
+        accountCanArchive(account),
       );
       await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
       await ctx.answerCallbackQuery();
