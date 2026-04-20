@@ -1,3 +1,4 @@
+import { ROUTE_MINI_APP_LIST } from "@handlers/hono/routes";
 import { t } from "@i18n";
 import {
   getMailList,
@@ -145,9 +146,30 @@ function register(bot: Bot, env: Env, def: RegisterDef) {
   };
 
   bot.command(def.type, async (ctx) => {
+    const display = DISPLAY[def.type];
+    // 配了 WORKER_URL 就回一个 web_app 按钮打开 Mini App（私聊有效）。
+    // 没配则回退到老的文本回复路径。
+    if (env.WORKER_URL) {
+      const url = `${env.WORKER_URL.replace(/\/$/, "")}${ROUTE_MINI_APP_LIST.replace(":type", def.type)}`;
+      return ctx.reply(
+        t("mailList:intro", { icon: display.icon, label: display.label }),
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: t("mailList:openInMiniApp", { label: display.label }),
+                  web_app: { url },
+                },
+              ],
+            ],
+          },
+        },
+      );
+    }
     const userId = String(ctx.from?.id);
     const msg = await ctx.reply(
-      t("mailList:querying", { label: DISPLAY[def.type].label }),
+      t("mailList:querying", { label: display.label }),
     );
     const { text, hasItems, pendingSideEffects } = await queryAndFormat(userId);
     await ctx.api.editMessageText(msg.chat.id, msg.message_id, text, {
