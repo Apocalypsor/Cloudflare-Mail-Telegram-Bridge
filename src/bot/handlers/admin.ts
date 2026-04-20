@@ -1,5 +1,5 @@
 import { isAdmin } from "@bot/utils/auth";
-import { formatUserName, userListText } from "@bot/utils/formatters";
+import { formatUserName } from "@bot/utils/formatters";
 import { clearBotState } from "@bot/utils/state";
 import {
   countFailedEmails,
@@ -22,6 +22,19 @@ import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import type { Env, TelegramUser } from "@/types";
+
+function userListText(users: TelegramUser[]): string {
+  if (users.length === 0) return t("admin:users.noUsers");
+
+  let text = `${t("admin:users.title", { count: users.length })}\n\n`;
+  for (const u of users) {
+    const status = u.approved === 1 ? "✅" : "⏳";
+    const name = formatUserName(u);
+    const username = u.username ? ` @${u.username}` : "";
+    text += `${status} ${name}${username}\n   ID: ${u.telegram_id}\n`;
+  }
+  return text;
+}
 
 function userListKeyboard(
   users: TelegramUser[],

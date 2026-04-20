@@ -1,5 +1,4 @@
 import { HELP_TEXT } from "@bot/commands";
-import { mainMenuKeyboard } from "@bot/keyboards";
 import { isAdmin } from "@bot/utils/auth";
 import { formatUserName } from "@bot/utils/formatters";
 import {
@@ -8,11 +7,55 @@ import {
   rejectUser,
   upsertUser,
 } from "@db/users";
+import {
+  ROUTE_MINI_APP_LIST,
+  ROUTE_MINI_APP_REMINDERS,
+} from "@handlers/hono/routes";
 import { t } from "@i18n";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import type { Env } from "@/types";
+
+/** 主菜单键盘：邮件列表 + 提醒 Mini App 入口 + 账号/用户管理。
+ *  /start 默认私聊，inline web_app 按钮在私聊有效；没配 WORKER_URL 时回退
+ *  到文本命令（callback_data 对应 /unread 等路由）。 */
+function mainMenuKeyboard(admin: boolean, env: Env): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  if (env.WORKER_URL) {
+    const base = env.WORKER_URL.replace(/\/$/, "");
+    const listUrl = (type: string) =>
+      `${base}${ROUTE_MINI_APP_LIST.replace(":type", type)}`;
+    kb.row()
+      .webApp(t("keyboards:menu.unread"), listUrl("unread"))
+      .webApp(t("keyboards:menu.starred"), listUrl("starred"))
+      .row()
+      .webApp(t("keyboards:menu.junk"), listUrl("junk"))
+      .webApp(t("keyboards:menu.archived"), listUrl("archived"))
+      .row()
+      .webApp(
+        t("keyboards:menu.reminders"),
+        `${base}${ROUTE_MINI_APP_REMINDERS}`,
+      );
+  } else {
+    kb.row()
+      .text(t("keyboards:menu.unread"), "unread")
+      .text(t("keyboards:menu.starred"), "starred")
+      .row()
+      .text(t("keyboards:menu.junk"), "junk")
+      .text(t("keyboards:menu.archived"), "archived");
+  }
+  kb.row()
+    .text(t("keyboards:menu.sync"), "sync")
+    .text(t("keyboards:menu.accountManagement"), "accs")
+    .row();
+  if (admin) {
+    kb.text(t("keyboards:menu.userManagement"), "users")
+      .text(t("keyboards:menu.globalOps"), "admin")
+      .row();
+  }
+  return kb;
+}
 
 export function registerStartHandlers(bot: Bot, env: Env) {
   // ─── /start: 主入口，自动注册用户 ────────────────────────────────────────

@@ -1,9 +1,5 @@
 import { getCachedBotInfo } from "@db/kv";
 import { countPendingRemindersForEmail } from "@db/reminders";
-import {
-  ROUTE_MINI_APP_LIST,
-  ROUTE_MINI_APP_REMINDERS,
-} from "@handlers/hono/routes";
 import { t } from "@i18n";
 import {
   buildMiniAppMailUrl,
@@ -47,29 +43,6 @@ function addCoreButtons(
 function remindLabel(count: number): string {
   const base = t("keyboards:mail.remind");
   return count > 0 ? `${base} (${count})` : base;
-}
-
-/**
- * 从已有 reply_markup 推断当前星标状态 —— 读星按钮的 callback_data：
- * "star" 表示当前未星标（按钮动作是加星），"unstar" 表示当前已星标。
- * 用于在非星标场景（如 junk_cancel 还原键盘）避免查远端 `isStarred()`。
- */
-export function readStarredFromReplyMarkup(replyMarkup: unknown): boolean {
-  if (!replyMarkup || typeof replyMarkup !== "object") return false;
-  const rows = (replyMarkup as { inline_keyboard?: unknown }).inline_keyboard;
-  if (!Array.isArray(rows)) return false;
-  for (const row of rows) {
-    if (!Array.isArray(row)) continue;
-    for (const btn of row) {
-      const data =
-        btn && typeof btn === "object"
-          ? (btn as { callback_data?: unknown }).callback_data
-          : undefined;
-      if (data === "unstar") return true;
-      if (data === "star") return false;
-    }
-  }
-  return false;
 }
 
 /**
@@ -135,48 +108,5 @@ export async function buildEmailKeyboard(
     viewLabel,
     buildWebMailUrl(base, emailMessageId, accountId, mailToken),
   );
-  return kb;
-}
-
-// ── 主菜单键盘 ──────────────────────────────────────────────────────────────
-
-/** 主菜单键盘 */
-export function mainMenuKeyboard(admin: boolean, env: Env): InlineKeyboard {
-  const kb = new InlineKeyboard();
-  // 邮件列表 + 提醒：私聊里 web_app 直接打开 Mini App。
-  // 没配 WORKER_URL 时回退到 callback（文本回复，靠 /unread 等命令）。
-  // /start 默认私聊，inline web_app 在私聊有效。
-  if (env.WORKER_URL) {
-    const base = env.WORKER_URL.replace(/\/$/, "");
-    const listUrl = (type: string) =>
-      `${base}${ROUTE_MINI_APP_LIST.replace(":type", type)}`;
-    kb.row()
-      .webApp(t("keyboards:menu.unread"), listUrl("unread"))
-      .webApp(t("keyboards:menu.starred"), listUrl("starred"))
-      .row()
-      .webApp(t("keyboards:menu.junk"), listUrl("junk"))
-      .webApp(t("keyboards:menu.archived"), listUrl("archived"))
-      .row()
-      .webApp(
-        t("keyboards:menu.reminders"),
-        `${base}${ROUTE_MINI_APP_REMINDERS}`,
-      );
-  } else {
-    kb.row()
-      .text(t("keyboards:menu.unread"), "unread")
-      .text(t("keyboards:menu.starred"), "starred")
-      .row()
-      .text(t("keyboards:menu.junk"), "junk")
-      .text(t("keyboards:menu.archived"), "archived");
-  }
-  kb.row()
-    .text(t("keyboards:menu.sync"), "sync")
-    .text(t("keyboards:menu.accountManagement"), "accs")
-    .row();
-  if (admin) {
-    kb.text(t("keyboards:menu.userManagement"), "users")
-      .text(t("keyboards:menu.globalOps"), "admin")
-      .row();
-  }
   return kb;
 }

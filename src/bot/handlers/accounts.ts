@@ -3,7 +3,6 @@ import {
   accountDetailKeyboard,
   accountDetailText,
   formatUserName,
-  resolveOwnerName,
 } from "@bot/utils/formatters";
 import { clearBotState, getBotState, setBotState } from "@bot/utils/state";
 import {
@@ -25,6 +24,25 @@ import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import type { Account, AccountType, Env } from "@/types";
+
+/**
+ * 解析账号所有者名称用于详情页 owner 行：
+ * - 非管理员 → 返回 undefined（不显示 owner 行）
+ * - 管理员 + account 无绑定 user → 返回 ""（显示"(无)"）
+ * - 管理员 + 能查到 user → 优先 @username，否则用 formatUserName
+ */
+async function resolveOwnerName(
+  db: D1Database,
+  admin: boolean,
+  telegramUserId: string | null,
+): Promise<string | undefined> {
+  if (!admin) return undefined;
+  if (!telegramUserId) return "";
+  const owner = await getUserByTelegramId(db, telegramUserId);
+  return owner?.username
+    ? `@${owner.username}`
+    : formatUserName(owner ?? { first_name: telegramUserId });
+}
 
 async function resolveAccount(env: Env, fromId: number, accountIdStr: string) {
   const userId = String(fromId);
