@@ -181,10 +181,17 @@ export async function deliverEmailToTelegram(
   const tgToken = env.TELEGRAM_BOT_TOKEN;
   const chatId = account.chat_id;
 
-  // 先查远端状态 —— 队列入队和处理之间可能已被用户在远端 junk/archive/delete；
-  // 只有仍在 inbox 的才投递，顺带拿到 starred 给初始 keyboard，避免 TG 键盘从 ☆ → ★ 闪烁
+  // 先解析原文拿 RFC Message-Id —— IMAP 的远端状态查询要用它做跨 folder SEARCH
+  const parser = new PostalMime();
+  const email = await parser.parse(rawEmail);
+  const rfcMessageId = email.messageId ?? null;
+
+  // 查远端状态：队列入队到处理之间可能已被用户在远端 junk/archive/delete；仅 inbox 才投递。
+  // 顺带拿到 starred 给初始 keyboard，避免 TG 键盘从 ☆ → ★ 闪烁
   const provider = getEmailProvider(account, env);
-  const state = await provider.resolveMessageState(messageId).catch(() => null);
+  const state = await provider
+    .resolveMessageState(messageId, rfcMessageId)
+    .catch(() => null);
   if (state && state.location !== "inbox") {
     console.log(
       `Skip delivery: message=${messageId} already at ${state.location} on remote`,
@@ -192,9 +199,6 @@ export async function deliverEmailToTelegram(
     return;
   }
   const initialStarred = state?.location === "inbox" ? state.starred : false;
-
-  const parser = new PostalMime();
-  const email = await parser.parse(rawEmail);
 
   const hasAttachments = !!(email.attachments && email.attachments.length > 0);
   const hasSingleAttachment = hasAttachments && email.attachments?.length === 1;
@@ -233,6 +237,8 @@ export async function deliverEmailToTelegram(
     tg_chat_id: chatId,
     email_message_id: messageId,
     account_id: account.id,
+    // 存 RFC Message-Id 供 IMAP 跨 folder 对账用（Gmail/Outlook 不读）
+    rfc_message_id: rfcMessageId,
   });
 
   if (inserted && initialStarred) {
@@ -424,15 +430,20 @@ export async function retryFailedEmail(
   if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL)
     throw new Error("LLM not configured");
 
-  // 失败队列中的条目没直接持有 mapping —— 但 tg_chat_id / tg_message_id / email_message_id
-  // 都在 failed 记录里，够拼出一个用于对账的 mapping。account_id 直接用 failed.account_id。
-  const mapping: MessageMapping = {
-    tg_chat_id: failed.tg_chat_id,
-    tg_message_id: failed.tg_message_id,
-    email_message_id: failed.email_message_id,
-    account_id: failed.account_id,
-    short_summary: null,
-  };
+  // 拉真正的 mapping（带 rfc_message_id，IMAP 对账要用）；mapping 已消失就视为孤儿
+  // —— 原消息大概率已被 junk/archive 路径清理掉了，对应的 failed_email 没必要再重试
+  const mapping = await getMessageMapping(
+    env.DB,
+    failed.tg_chat_id,
+    failed.tg_message_id,
+  );
+  if (!mapping) {
+    console.log(
+      `Orphaned failed_email id=${failed.id} (mapping gone, likely removed by junk/archive/delete); clearing`,
+    );
+    await deleteFailedEmail(env.DB, failed.id);
+    return;
+  }
 
   await reanalyzeEmail(env, account, mapping, !!failed.is_caption);
 

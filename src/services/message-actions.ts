@@ -57,7 +57,10 @@ export async function reconcileMessageState(
   const provider = getEmailProvider(account, env);
   let state: MessageState;
   try {
-    state = await provider.resolveMessageState(mapping.email_message_id);
+    state = await provider.resolveMessageState(
+      mapping.email_message_id,
+      mapping.rfc_message_id,
+    );
   } catch (err) {
     // provider 自己没把「找不到」转成 deleted（或网络错误）—— 不删 TG 消息，让上层感知
     await reportErrorToObservability(

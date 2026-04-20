@@ -294,8 +294,12 @@ export class OutlookProvider extends EmailProvider {
   /**
    * Outlook 需要先拿 parentFolderId + flag，再对比 4 个 well-known folder 的 id；
    * 这些文件夹 id 在账号生命周期内稳定，但首次查要并行跑 5 个请求。
+   * `_rfcMessageId` 忽略 —— Graph API 直接用 message id 即可。
    */
-  async resolveMessageState(messageId: string): Promise<MessageState> {
+  async resolveMessageState(
+    messageId: string,
+    _rfcMessageId?: string | null,
+  ): Promise<MessageState> {
     const token = await this.token();
     try {
       const [msg, junk, archive, deleted, inbox] = await Promise.all([

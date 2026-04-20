@@ -42,14 +42,21 @@ export abstract class EmailProvider {
   /**
    * 查询邮件当前位置 + 星标状态。对账路径（refresh / 初次投递）用这一个调用拿全所有
    * reconciliation 需要的信息。providers 鼓励合并成一次 API 调用：Gmail 一次取
-   * labelIds 即可，Outlook 并行取 folder id，IMAP 走 bridge。
+   * labelIds 即可，Outlook 并行取 folder id，IMAP 走 bridge `/api/locate`。
    *
    * - location "inbox"    —— 还在收件箱，`starred` 必定有值
    * - location "junk"     —— 在垃圾箱
    * - location "archive"  —— 已归档
    * - location "deleted"  —— 已删除（或 provider 找不到）
+   *
+   * `rfcMessageId` 仅 IMAP 用 —— 它需要 RFC 822 Message-Id 做跨 folder SEARCH；
+   * Gmail/Outlook 忽略。历史 mapping 可能没有此值，IMAP 会回退到旧的 isJunk+isStarred
+   * 路径（无法区分 archive/deleted，但不丢数据）。
    */
-  abstract resolveMessageState(messageId: string): Promise<MessageState>;
+  abstract resolveMessageState(
+    messageId: string,
+    rfcMessageId?: string | null,
+  ): Promise<MessageState>;
   abstract listUnread(maxResults?: number): Promise<EmailListItem[]>;
   abstract listStarred(maxResults?: number): Promise<EmailListItem[]>;
   abstract listJunk(maxResults?: number): Promise<EmailListItem[]>;

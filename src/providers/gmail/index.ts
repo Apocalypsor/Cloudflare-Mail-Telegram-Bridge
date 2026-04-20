@@ -337,8 +337,12 @@ export class GmailProvider extends EmailProvider {
    * Gmail 的 labelIds 已经包含了所有状态信息，一次 API 调用搞定。
    * 注：Gmail 「归档」= 不在 INBOX 也不在 SPAM/TRASH；用户配置的 archive_folder
    * 只是可选的附加 label，即使没配，只要消息离开 INBOX 我们也视为归档。
+   * `_rfcMessageId` 忽略 —— Gmail 用自己的 messageId 就够。
    */
-  async resolveMessageState(messageId: string): Promise<MessageState> {
+  async resolveMessageState(
+    messageId: string,
+    _rfcMessageId?: string | null,
+  ): Promise<MessageState> {
     try {
       const msg = await gmailGet<GmailMessage>(
         await this.token(),

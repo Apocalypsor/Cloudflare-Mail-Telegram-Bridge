@@ -1,4 +1,5 @@
 import { getAccountById, getImapAccounts } from "@db/accounts";
+import { getMappingsByEmailIds } from "@db/message-map";
 import { requireBearer } from "@handlers/hono/middleware";
 import { EmailProvider } from "@providers/base";
 import { callBridge, syncAccounts } from "@providers/imap/utils";
@@ -120,29 +121,62 @@ export class ImapProvider extends EmailProvider {
     return starred;
   }
 
+  /**
+   * 问 bridge 这封邮件现在是不是在 junk folder。用 RFC Message-Id 做跨 folder 精确
+   * 检查：UID 在 junk folder 里对不上，用 Message-Id `SEARCH HEADER` 才准。
+   *
+   * 历史 mapping 可能没存 Message-Id（migration 0020 之前的数据 / 原邮件无 Message-Id 头），
+   * 此时保守返回 false —— 比让调用方（预览页）误判为 junk 要安全。
+   */
   async isJunk(messageId: string) {
+    const mappings = await getMappingsByEmailIds(this.env.DB, this.account.id, [
+      messageId,
+    ]);
+    const rfcMessageId = mappings[0]?.rfc_message_id;
+    if (!rfcMessageId) return false;
+
     const resp = await callBridge(this.env, "POST", "/api/is-junk", {
       accountId: this.account.id,
-      messageId,
+      rfcMessageId,
     });
     const { junk } = (await resp.json()) as { junk: boolean };
     return junk;
   }
 
   /**
-   * IMAP UID 是 per-folder 的，bridge 又只按 INBOX UID 寻址 —— 这里只能 best-effort：
-   * 先看 `/api/is-junk`，再看 `/api/is-starred`，都通过就当作 inbox。
+   * IMAP UID 是 per-folder 的，邮件移出 INBOX 后 UID 失效 —— 要跨 folder 对账必须
+   * 用 RFC 822 Message-Id（全局唯一）。
    *
-   * **不吞 error**（和 Gmail/Outlook 的契约保持一致）：bridge 瞬时不可达 / 鉴权失败
-   * 等错误直接向上抛，由 `reconcileMessageState` 捕获后不动 TG 消息。如果吞成
-   * `deleted`，reconcile 会误删 TG + mapping，bridge 一次抖动就丢用户数据。
+   * 策略：
+   *  - 有 `rfcMessageId` → 调 bridge `/api/locate`，按 Message-Id 在 junk / archive /
+   *    trash / INBOX 各文件夹 SEARCH HEADER，精确返回当前位置
+   *  - 没有（历史 mapping 里为 NULL）→ 回退到 `/api/is-junk` + `/api/is-starred`；
+   *    只能分辨 junk / inbox，无法区分 archive / deleted（遗留限制）
    *
-   * 遗留限制：用户在外部邮件客户端把邮件移进 archive（UID 在 INBOX 已失效）时，
-   * 此方法可能返回 `{ inbox, starred: false }`（bridge 的 isJunk/isStarred 搜不到
-   * 就返回 false，而不是抛错）。TG 消息会留着直到下次正确对账 —— 不丢数据，只是
-   * 残留。彻底解决需要用 RFC Message-Id 做跨 folder 检索（Step B）。
+   * 不吞 error —— bridge 瞬时不可达就直接抛给 `reconcileMessageState`，不会误删 TG。
    */
-  async resolveMessageState(messageId: string): Promise<MessageState> {
+  async resolveMessageState(
+    messageId: string,
+    rfcMessageId?: string | null,
+  ): Promise<MessageState> {
+    if (rfcMessageId) {
+      const resp = await callBridge(this.env, "POST", "/api/locate", {
+        accountId: this.account.id,
+        rfcMessageId,
+        // 用户自定义的归档文件夹路径；bridge 没配就自动探测 \Archive special-use
+        archiveFolder: this.account.archive_folder ?? undefined,
+      });
+      const body = (await resp.json()) as {
+        location: "inbox" | "junk" | "archive" | "deleted";
+        starred?: boolean;
+      };
+      if (body.location === "inbox") {
+        return { location: "inbox", starred: body.starred ?? false };
+      }
+      return { location: body.location };
+    }
+
+    // 兼容回退：历史 mapping 没有 Message-Id
     if (await this.isJunk(messageId)) return { location: "junk" };
     const starred = await this.isStarred(messageId);
     return { location: "inbox", starred };
