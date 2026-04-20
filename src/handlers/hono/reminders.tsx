@@ -1,6 +1,6 @@
 import { RemindersPage } from "@components/reminders";
 import { getAccountById } from "@db/accounts";
-import { getCachedMailData } from "@db/kv";
+import { getCachedMailData, putCachedMailData } from "@db/kv";
 import { getMappingsByEmailIds, getMessageMapping } from "@db/message-map";
 import {
   countPendingReminders,
@@ -16,6 +16,7 @@ import {
   ROUTE_REMINDERS_API_ITEM,
   ROUTE_REMINDERS_API_RESOLVE_CONTEXT,
 } from "@handlers/hono/routes";
+import { getEmailProvider, PROVIDERS } from "@providers";
 import {
   generateMailTokenById,
   verifyMailTokenById,
@@ -86,35 +87,66 @@ async function resolveEmailContext(
   return { ok: true, account, accountId, messageId };
 }
 
-/** 根据 (accountId, emailMessageId) 找投递时存的 mapping 和 KV 缓存 subject */
+/** 找投递时存的 mapping 和邮件展示文本。
+ *  优先级：mapping.short_summary（LLM 一句话摘要，已在 mapping 查询里返回，零 I/O）
+ *  → KV 缓存 subject（preview 打开过才有）→ provider 现拉 subject（兜底）。 */
 async function lookupEmailContext(
   c: Context<AppEnv>,
-  accountId: number,
+  account: NonNullable<Awaited<ReturnType<typeof getAccountById>>>,
   emailMessageId: string,
 ): Promise<{
   tgChatId: string | null;
   tgMessageId: number | null;
   subject: string | null;
 }> {
-  const mappings = await getMappingsByEmailIds(c.env.DB, accountId, [
+  const mappings = await getMappingsByEmailIds(c.env.DB, account.id, [
     emailMessageId,
   ]);
   const m = mappings[0];
-  // 三个 folder 都查一下 KV 缓存找 subject —— 邮件投递时一定缓存在 inbox，
-  // 但被移动后可能落到 junk/archive。subject 仅作展示，无则置 null。
-  let subject: string | null = null;
-  for (const folder of ["inbox", "junk", "archive"] as const) {
-    const cached = await getCachedMailData(
-      c.env.EMAIL_KV,
-      accountId,
-      folder,
-      emailMessageId,
-    );
-    if (cached?.meta?.subject) {
-      subject = cached.meta.subject;
-      break;
+
+  // 1) LLM 摘要（已经在 mapping 行里）
+  let subject: string | null = m?.short_summary ?? null;
+
+  // 2) 没 LLM 摘要 → 三 folder 查 KV 缓存（preview.tsx 写入）
+  if (subject == null) {
+    for (const folder of ["inbox", "junk", "archive"] as const) {
+      const cached = await getCachedMailData(
+        c.env.EMAIL_KV,
+        account.id,
+        folder,
+        emailMessageId,
+      );
+      if (cached?.meta?.subject) {
+        subject = cached.meta.subject;
+        break;
+      }
     }
   }
+
+  // 3) 还没有 → 现拉一次 fetchForPreview，写回 KV 给下次用。OAuth provider
+  //    没授权 / 邮件已删 → 静默回退，UI 兜底 "(无主题)"。
+  if (subject == null) {
+    const needsAuth = PROVIDERS[account.type].oauth && !account.refresh_token;
+    if (!needsAuth) {
+      try {
+        const provider = getEmailProvider(account, c.env);
+        const result = await provider.fetchForPreview(emailMessageId, "inbox");
+        if (result?.meta?.subject) {
+          subject = result.meta.subject;
+          await putCachedMailData(
+            c.env.EMAIL_KV,
+            account.id,
+            "inbox",
+            emailMessageId,
+            { html: result.html, meta: result.meta },
+          ).catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   return {
     tgChatId: m?.tg_chat_id ?? null,
     tgMessageId: m?.tg_message_id ?? null,
@@ -183,7 +215,7 @@ reminders.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
 
   const { subject, tgChatId } = await lookupEmailContext(
     c,
-    ctx.accountId,
+    ctx.account,
     ctx.messageId,
   );
   return c.json({
@@ -252,7 +284,7 @@ reminders.post(ROUTE_REMINDERS_API, async (c) => {
 
   const { tgChatId, tgMessageId, subject } = await lookupEmailContext(
     c,
-    ctx.accountId,
+    ctx.account,
     ctx.messageId,
   );
 

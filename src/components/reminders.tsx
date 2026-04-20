@@ -34,13 +34,17 @@ label, .section-title { display: block; font-size: 13px; color: var(--hint); mar
 .email-card { padding: 12px 14px; border-left: 3px solid var(--button); background: var(--surface); border-radius: 8px; margin-bottom: 14px; }
 .email-card .subject { font-size: 15px; font-weight: 600; word-break: break-word; }
 .email-card .from { font-size: 12px; color: var(--hint); margin-top: 2px; }
-input[type="text"], input[type="datetime-local"], textarea {
+input[type="text"], input[type="date"], input[type="time"], textarea {
   width: 100%; padding: 11px 12px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
   font-size: 15px; font-family: inherit; outline: none;
+  -webkit-appearance: none; appearance: none; min-width: 0;
 }
 textarea { min-height: 70px; resize: vertical; }
 input:focus, textarea:focus { border-color: var(--button); }
+.when-row { display: flex; gap: 8px; }
+.when-row input[type="date"] { flex: 1 1 auto; }
+.when-row input[type="time"] { flex: 0 0 38%; }
 .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .preset {
   padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border);
@@ -130,11 +134,15 @@ function remindersScript(): string {
     return true;
   }
 
-  function defaultLocal() {
-    var d = new Date(Date.now() + 60000);
-    return d.getFullYear() + "-" + fmt2(d.getMonth()+1) + "-" + fmt2(d.getDate())
-      + "T" + fmt2(d.getHours()) + ":" + fmt2(d.getMinutes());
+  function ymd(d) { return d.getFullYear() + "-" + fmt2(d.getMonth()+1) + "-" + fmt2(d.getDate()); }
+  function hm(d)  { return fmt2(d.getHours()) + ":" + fmt2(d.getMinutes()); }
+  function setWhen(d) { $("when-date").value = ymd(d); $("when-time").value = hm(d); }
+  function readWhen() {
+    var d = $("when-date").value, t = $("when-time").value;
+    if (!d || !t) return null;
+    return new Date(d + "T" + t);
   }
+  function defaultDate() { return new Date(Date.now() + 60000); }
 
   function applyPreset(mins, btn) {
     var d;
@@ -146,8 +154,7 @@ function remindersScript(): string {
     } else {
       d = new Date(Date.now() + Number(mins) * 60000);
     }
-    $("when").value = d.getFullYear() + "-" + fmt2(d.getMonth()+1) + "-" + fmt2(d.getDate())
-      + "T" + fmt2(d.getHours()) + ":" + fmt2(d.getMinutes());
+    setWhen(d);
     Array.prototype.forEach.call(document.querySelectorAll(".preset"), function(b){ b.classList.remove("active"); });
     if (btn) btn.classList.add("active");
   }
@@ -248,9 +255,8 @@ function remindersScript(): string {
 
   $("save").addEventListener("click", async function(){
     var text = $("text").value.trim();
-    var when = $("when").value;
-    if (!when) { setStatus("请选择时间", "error"); return; }
-    var local = new Date(when);
+    var local = readWhen();
+    if (!local) { setStatus("请选择日期和时间", "error"); return; }
     if (isNaN(local.getTime())) { setStatus("时间格式错误", "error"); return; }
     if (local.getTime() <= Date.now()) { setStatus("提醒时间需在未来", "error"); return; }
 
@@ -278,7 +284,7 @@ function remindersScript(): string {
       }
       setStatus("✅ 已设定提醒", "ok");
       $("text").value = "";
-      $("when").value = defaultLocal();
+      setWhen(defaultDate());
       Array.prototype.forEach.call(document.querySelectorAll(".preset"), function(b){ b.classList.remove("active"); });
       loadList();
       if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
@@ -291,8 +297,8 @@ function remindersScript(): string {
 
   init().then(function(ready){
     if (!ready) return;
-    $("when").value = defaultLocal();
-    $("when").min = defaultLocal();
+    setWhen(defaultDate());
+    $("when-date").min = ymd(new Date());
     loadEmailContext();
     loadList();
   });
@@ -324,8 +330,11 @@ export function RemindersPage() {
           </div>
 
           <div class="section">
-            <label for="when">提醒时间</label>
-            <input id="when" type="datetime-local" />
+            <label for="when-date">提醒时间</label>
+            <div class="when-row">
+              <input id="when-date" type="date" />
+              <input id="when-time" type="time" />
+            </div>
             <div class="presets">
               <button type="button" class="preset" data-mins="10">
                 10 分钟
