@@ -18,7 +18,7 @@ import {
   listPendingReminders,
   listPendingRemindersForEmail,
 } from "@db/reminders";
-import { getUserByTelegramId } from "@db/users";
+import { requireMiniAppAuth } from "@handlers/hono/middleware";
 import {
   ROUTE_MINI_APP,
   ROUTE_MINI_APP_API_LIST,
@@ -44,40 +44,12 @@ import {
   REMINDER_TEXT_MAX,
 } from "@services/reminders";
 import { buildTgMessageLink } from "@services/telegram";
-import { verifyTgInitData } from "@utils/tg-init-data";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { AppEnv } from "@/types";
 
 const reminders = new Hono<AppEnv>();
-
-/** 校验 Mini App 调用：X-Telegram-Init-Data 头验签 + users.approved 检查。
- *  通过则把 telegram_user_id 放进 c.var.userId（同 requireTelegramLogin 接口）。 */
-async function authenticateMiniApp(c: Context<AppEnv>): Promise<string | null> {
-  const initData = c.req.header("x-telegram-init-data");
-  if (!initData) return null;
-  const tgUser = await verifyTgInitData(c.env.TELEGRAM_BOT_TOKEN, initData);
-  if (!tgUser) return null;
-  const telegramId = String(tgUser.id);
-  if (telegramId === c.env.ADMIN_TELEGRAM_ID) return telegramId;
-  const dbUser = await getUserByTelegramId(c.env.DB, telegramId);
-  if (!dbUser || dbUser.approved !== 1) return null;
-  return telegramId;
-}
-
-/** 中间件：所有 Mini App API 路由共享。auth 失败返回 401；通过则把 userId
- *  写到 c.var.userId，handler 用 `c.get("userId")` 取（非 null）。 */
-async function requireMiniAppAuth(
-  c: Context<AppEnv>,
-  next: () => Promise<void>,
-) {
-  const userId = await authenticateMiniApp(c);
-  if (!userId) return c.json({ error: "Unauthorized" }, 401);
-  c.set("userId", userId);
-  c.set("isAdmin", userId === c.env.ADMIN_TELEGRAM_ID);
-  await next();
-}
 
 /**
  * 校验 (accountId, messageId, token) 三元组：token 是 mail-preview 用的 HMAC，

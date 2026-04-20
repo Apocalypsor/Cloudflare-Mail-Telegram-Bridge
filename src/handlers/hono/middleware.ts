@@ -2,10 +2,11 @@ import { getUserByTelegramId } from "@db/users";
 import { ROUTE_LOGIN } from "@handlers/hono/routes";
 import { timingSafeEqual } from "@utils/hash";
 import { verifySessionCookie } from "@utils/session";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE_NAME } from "@/constants";
 import type { AppEnv } from "@/types";
+import { verifyTgInitData } from "@/utils/tg-init-data";
 
 /** 校验 query param 中的共享密钥（用于 GMAIL_PUSH_SECRET） */
 export function requireSecret(
@@ -55,4 +56,33 @@ export function requireTelegramLogin(): MiddlewareHandler<AppEnv> {
     const loginUrl = `${ROUTE_LOGIN}?return_to=${encodeURIComponent(returnTo)}`;
     return c.redirect(loginUrl);
   };
+}
+
+/** 校验 Mini App 调用：X-Telegram-Init-Data 头验签 + users.approved 检查。
+ *  通过则把 telegram_user_id 放进 c.var.userId（同 requireTelegramLogin 接口）。 */
+export async function authenticateMiniApp(
+  c: Context<AppEnv>,
+): Promise<string | null> {
+  const initData = c.req.header("x-telegram-init-data");
+  if (!initData) return null;
+  const tgUser = await verifyTgInitData(c.env.TELEGRAM_BOT_TOKEN, initData);
+  if (!tgUser) return null;
+  const telegramId = String(tgUser.id);
+  if (telegramId === c.env.ADMIN_TELEGRAM_ID) return telegramId;
+  const dbUser = await getUserByTelegramId(c.env.DB, telegramId);
+  if (!dbUser || dbUser.approved !== 1) return null;
+  return telegramId;
+}
+
+/** 中间件：所有 Mini App API 路由共享。auth 失败返回 401；通过则把 userId
+ *  写到 c.var.userId，handler 用 `c.get("userId")` 取（非 null）。 */
+export async function requireMiniAppAuth(
+  c: Context<AppEnv>,
+  next: () => Promise<void>,
+) {
+  const userId = await authenticateMiniApp(c);
+  if (!userId) return c.json({ error: "Unauthorized" }, 401);
+  c.set("userId", userId);
+  c.set("isAdmin", userId === c.env.ADMIN_TELEGRAM_ID);
+  await next();
 }
