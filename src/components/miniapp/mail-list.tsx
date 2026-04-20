@@ -58,6 +58,9 @@ function listScript(type: MailListType): string {
   }
   var initData = (tg && tg.initData) || "";
   var TYPE = ${JSON.stringify(type)};
+  // mail 页 folder hint：junk/archive 里的邮件不在 INBOX，IMAP 必须明确指定
+  // 从哪个 folder 里按 Message-Id 搜（Gmail/Outlook 不读这个参数，无害）
+  var FOLDER_HINT = TYPE === "junk" ? "junk" : TYPE === "archived" ? "archive" : "";
   var $ = function(id){ return document.getElementById(id); };
 
   function el(tag, cls, text) {
@@ -77,6 +80,7 @@ function listScript(type: MailListType): string {
     var back = encodeURIComponent(location.pathname + location.search);
     location.href = "${ROUTE_MINI_APP_MAIL.replace(":id", "")}" + encodeURIComponent(id)
       + "?accountId=" + accountId + "&t=" + encodeURIComponent(token)
+      + (FOLDER_HINT ? "&folder=" + FOLDER_HINT : "")
       + "&back=" + back;
   }
 
