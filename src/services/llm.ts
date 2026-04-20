@@ -92,9 +92,10 @@ export async function analyzeEmail(
     `   - State directly what happened, what the key data is, and what action is needed\n` +
     linkRule +
     `   - You may use Markdown formatting: **bold**, _italic_, \`code\`\n\n` +
-    `3. "short_summary": A SINGLE short line (max ~30 characters, no line breaks, no markdown, no bullet) suitable for a list preview.\n` +
+    `3. "short_summary": A SINGLE short line (max ~40 characters, no line breaks, no markdown, no bullet) suitable for a list preview.\n` +
     `   - Same language rule as "summary" (English if email is English, else 简体中文)\n` +
-    `   - Capture the core intent / key fact in a compact form. Examples: "GitHub 登录验证码", "Order #1234 shipped", "LinkedIn weekly digest"\n` +
+    `   - Capture the core intent / key fact in a compact form. Examples: "GitHub 登录验证码", "LinkedIn weekly digest"\n` +
+    `   - For order / transaction emails (order confirmation, shipping update, payment receipt, refund), include the key identifiers: merchant + status + one of (order #, amount, or tracking #). Examples: "Amazon 订单 #112-3456 已发货", "Uber 支付 ¥128 成功", "Stripe 退款 $29.99 已到账"\n` +
     `   - Always produce a non-empty value, even if "summary" is empty (e.g. verification code emails)\n\n` +
     `4. "tags": An array of 1-3 PascalCase tags for this email.\n` +
     `   Rules:\n` +

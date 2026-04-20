@@ -72,12 +72,12 @@ export function mainMenuKeyboard(admin: boolean): InlineKeyboard {
     .text(t("keyboards:menu.accountManagement"), "accs")
     .row()
     .text(t("keyboards:menu.unread"), "unread")
-    .text(t("keyboards:menu.sync"), "sync")
-    .row()
     .text(t("keyboards:menu.starred"), "starred")
-    .text(t("keyboards:menu.junk"), "junk")
     .row()
+    .text(t("keyboards:menu.junk"), "junk")
     .text(t("keyboards:menu.archived"), "archived")
+    .row()
+    .text(t("keyboards:menu.sync"), "sync")
     .row();
   if (admin) {
     kb.text(t("keyboards:menu.userManagement"), "users")
