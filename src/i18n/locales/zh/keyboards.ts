@@ -6,6 +6,7 @@ export default {
     archive: "📥",
     refresh: "🔄",
     viewOriginal: "📧",
+    remind: "⏰",
   },
   menu: {
     accountManagement: "📧 账号管理",
@@ -14,6 +15,7 @@ export default {
     starred: "⭐ 星标邮件",
     junk: "🚫 垃圾邮件",
     archived: "📥 归档邮件",
+    reminders: "⏰ 我的提醒",
     userManagement: "👥 用户管理",
     globalOps: "⚙️ 全局操作",
   },

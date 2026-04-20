@@ -2,6 +2,7 @@ import { buildEmailKeyboard } from "@bot/keyboards";
 import { getAccountById, getOwnAccounts } from "@db/accounts";
 import {
   deleteMappingByEmailId,
+  getMappingsByEmailIds,
   getMessageMapping,
   type MessageMapping,
 } from "@db/message-map";
@@ -86,6 +87,39 @@ export async function reconcileMessageState(
     mapping.tg_message_id,
     state.starred,
   );
+
+  // 顺便用最新代码重建键盘 —— 这是 refresh 的语义之一：让消息和当前
+  // 配置/版本同步（比如新加的 ⏰ 按钮、归档标签刚刚配好可以解锁 📥 等）。
+  // setReplyMarkup 在键盘没变化时会返回 "message is not modified"，吞掉。
+  try {
+    const keyboard = await buildEmailKeyboard(
+      env,
+      mapping.email_message_id,
+      account.id,
+      state.starred,
+      accountCanArchive(account),
+      mapping.tg_chat_id,
+      mapping.tg_message_id,
+    );
+    await setReplyMarkup(
+      env.TELEGRAM_BOT_TOKEN,
+      mapping.tg_chat_id,
+      mapping.tg_message_id,
+      keyboard,
+    );
+  } catch (err) {
+    if (
+      !(err instanceof Error && err.message.includes("message is not modified"))
+    ) {
+      await reportErrorToObservability(
+        env,
+        "reconcile.refresh_keyboard_failed",
+        err,
+        { accountId: account.id, messageId: mapping.email_message_id },
+      );
+    }
+  }
+
   return { status: "inbox", starred: state.starred };
 }
 
@@ -147,6 +181,8 @@ export async function toggleStar(
     account.id,
     starred,
     accountCanArchive(account),
+    mapping.tg_chat_id,
+    mapping.tg_message_id,
   );
   return { ok: true, keyboard, emailMessageId: mapping.email_message_id };
 }
@@ -256,6 +292,50 @@ export async function deleteJunkMappings(
   }
 }
 
+/** 用最新的 reminder count 重建邮件 keyboard 并 setReplyMarkup。
+ *  Mini App 创建/删除提醒后调用 —— 让 ⏰ 按钮上的数字立即更新。
+ *  没 mapping（邮件没在 TG）或 setReplyMarkup 报 "not modified" 都静默跳过。 */
+export async function refreshEmailKeyboardAfterReminderChange(
+  env: Env,
+  account: Account,
+  emailMessageId: string,
+): Promise<void> {
+  const mappings = await getMappingsByEmailIds(env.DB, account.id, [
+    emailMessageId,
+  ]);
+  const m = mappings[0];
+  if (!m) return;
+
+  const provider = getEmailProvider(account, env);
+  const starred = await provider.isStarred(emailMessageId).catch(() => false);
+  const keyboard = await buildEmailKeyboard(
+    env,
+    emailMessageId,
+    account.id,
+    starred,
+    accountCanArchive(account),
+    m.tg_chat_id,
+    m.tg_message_id,
+  );
+  try {
+    await setReplyMarkup(
+      env.TELEGRAM_BOT_TOKEN,
+      m.tg_chat_id,
+      m.tg_message_id,
+      keyboard,
+    );
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("message is not modified"))
+      return;
+    await reportErrorToObservability(
+      env,
+      "reminder.refresh_keyboard_failed",
+      err,
+      { accountId: account.id, emailMessageId },
+    );
+  }
+}
+
 /** 批量同步 Telegram 消息的星标按钮状态（starred 列表刷新时调用） */
 export async function syncStarButtonsForMappings(
   env: Env,
@@ -271,6 +351,8 @@ export async function syncStarButtonsForMappings(
         account.id,
         true,
         canArchive,
+        m.tg_chat_id,
+        m.tg_message_id,
       );
       await setReplyMarkup(
         env.TELEGRAM_BOT_TOKEN,

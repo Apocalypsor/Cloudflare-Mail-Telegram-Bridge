@@ -1,5 +1,5 @@
 import { getBotInfo } from "@bot/index";
-import { LoginDeniedPage, LoginPage } from "@components/login";
+import { LoginDeniedPage, LoginPage } from "@components/web/login";
 import { getUserByTelegramId, upsertUser } from "@db/users";
 import { ROUTE_LOGIN, ROUTE_LOGIN_CALLBACK } from "@handlers/hono/routes";
 import {

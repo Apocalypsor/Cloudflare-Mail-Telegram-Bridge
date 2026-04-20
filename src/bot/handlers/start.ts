@@ -64,7 +64,7 @@ export function registerStartHandlers(bot: Bot, env: Env) {
     }
 
     return ctx.reply(t("start:panel"), {
-      reply_markup: mainMenuKeyboard(admin),
+      reply_markup: mainMenuKeyboard(admin, env),
     });
   });
 
@@ -78,7 +78,7 @@ export function registerStartHandlers(bot: Bot, env: Env) {
     const userId = String(ctx.from.id);
     const admin = isAdmin(userId, env);
     await ctx.editMessageText(t("start:panel"), {
-      reply_markup: mainMenuKeyboard(admin),
+      reply_markup: mainMenuKeyboard(admin, env),
     });
     await ctx.answerCallbackQuery();
   });

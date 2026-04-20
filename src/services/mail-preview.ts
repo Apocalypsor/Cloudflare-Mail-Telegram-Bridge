@@ -1,7 +1,10 @@
 import { createHmac } from "node:crypto";
+import { getCachedMailData, putCachedMailData } from "@db/kv";
 import { ROUTE_CORS_PROXY } from "@handlers/hono/routes";
+import { getEmailProvider, PROVIDERS } from "@providers";
 import { timingSafeEqual } from "@utils/hash";
 import type { Attachment } from "postal-mime";
+import type { Account, Env, MailMeta } from "@/types";
 
 // ─── CID 内联图片 ────────────────────────────────────────────────────────────
 
@@ -188,6 +191,112 @@ export async function buildMailPreviewUrl(
   folder?: "inbox" | "junk" | "archive",
 ): Promise<string> {
   const token = await generateMailTokenById(adminSecret, emailId, accountId);
-  const base = `${workerUrl.replace(/\/$/, "")}/mail/${emailId}?accountId=${accountId}&t=${token}`;
+  return buildWebMailUrl(workerUrl, emailId, accountId, token, folder);
+}
+
+/** Web 版邮件页 URL（已有 token 时复用，避免重复签名） */
+export function buildWebMailUrl(
+  workerUrl: string,
+  emailId: string,
+  accountId: number,
+  token: string,
+  folder?: "inbox" | "junk" | "archive",
+): string {
+  const base = `${workerUrl.replace(/\/$/, "")}/mail/${encodeURIComponent(emailId)}?accountId=${accountId}&t=${encodeURIComponent(token)}`;
   return folder ? `${base}&folder=${folder}` : base;
+}
+
+/** Mini App 版邮件页 URL（与 ROUTE_MINI_APP_MAIL 同步） */
+export function buildMiniAppMailUrl(
+  workerUrl: string,
+  emailId: string,
+  accountId: number,
+  token: string,
+): string {
+  return `${workerUrl.replace(/\/$/, "")}/telegram-app/mail/${encodeURIComponent(emailId)}?accountId=${accountId}&t=${encodeURIComponent(token)}`;
+}
+
+/** Mini App 版提醒页 URL（与 ROUTE_MINI_APP_REMINDERS 同步） */
+export function buildMiniAppRemindersUrl(
+  workerUrl: string,
+  emailId: string,
+  accountId: number,
+  token: string,
+): string {
+  return `${workerUrl.replace(/\/$/, "")}/telegram-app/reminders?accountId=${accountId}&messageId=${encodeURIComponent(emailId)}&token=${encodeURIComponent(token)}`;
+}
+
+// ─── 邮件预览数据加载（web /mail/:id 和 mini app /telegram-app/mail/:id 共用） ─
+
+type Folder = "inbox" | "junk" | "archive";
+
+export type LoadedMailPreview =
+  | {
+      ok: true;
+      meta: MailMeta;
+      /** 已经做完 CID 内联 + 图片代理改写的 HTML，渲染层直接 raw() 即可 */
+      proxiedHtml: string;
+      fetchFolder: Folder;
+      inJunk: boolean;
+      starred: boolean;
+    }
+  | { ok: false; status: 403 | 404; reason: string };
+
+/** 拿邮件渲染所需的全部数据：folder 推断 → KV 缓存命中或 provider 现拉
+ *  → CID 内联 → 写回 KV → 图片代理。两个 mail 页 handler 共享同一份逻辑。 */
+export async function loadMailForPreview(
+  env: Env,
+  account: Account,
+  messageId: string,
+  folderHint?: string,
+): Promise<LoadedMailPreview> {
+  const provider = getEmailProvider(account, env);
+  const [inJunk, starred] = await Promise.all([
+    provider.isJunk(messageId).catch(() => false),
+    provider.isStarred(messageId).catch(() => false),
+  ]);
+  const fetchFolder: Folder =
+    folderHint === "archive"
+      ? "archive"
+      : folderHint === "junk" || inJunk
+        ? "junk"
+        : "inbox";
+
+  const cached = await getCachedMailData(
+    env.EMAIL_KV,
+    account.id,
+    fetchFolder,
+    messageId,
+  );
+  if (cached) {
+    return {
+      ok: true,
+      meta: cached.meta ?? {},
+      proxiedHtml: await proxyImages(cached.html, env.ADMIN_SECRET),
+      fetchFolder,
+      inJunk,
+      starred,
+    };
+  }
+
+  if (PROVIDERS[account.type].oauth && !account.refresh_token)
+    return { ok: false, status: 403, reason: "Account not authorized" };
+
+  const result = await provider.fetchForPreview(messageId, fetchFolder);
+  if (!result)
+    return { ok: false, status: 404, reason: "No content in this email" };
+
+  const html = replaceCidReferences(result.html, result.cidMap);
+  await putCachedMailData(env.EMAIL_KV, account.id, fetchFolder, messageId, {
+    html,
+    meta: result.meta,
+  });
+  return {
+    ok: true,
+    meta: result.meta ?? {},
+    proxiedHtml: await proxyImages(html, env.ADMIN_SECRET),
+    fetchFolder,
+    inJunk,
+    starred,
+  };
 }

@@ -217,6 +217,7 @@ export async function deliverEmailToTelegram(
     account.id,
     initialStarred,
     accountCanArchive(account),
+    chatId,
   );
 
   let sentMessageId: number;
@@ -262,6 +263,16 @@ export async function deliverEmailToTelegram(
   waitUntil(
     (async () => {
       try {
+        // 重建键盘 —— 现在有 sentMessageId，群聊也能拿到 ⏰ deep link 按钮了
+        const fullKeyboard = await buildEmailKeyboard(
+          env,
+          messageId,
+          account.id,
+          initialStarred,
+          accountCanArchive(account),
+          chatId,
+          sentMessageId,
+        );
         const analysis = await editMessageWithAnalysis(
           env,
           tgToken,
@@ -272,7 +283,7 @@ export async function deliverEmailToTelegram(
           subject,
           plainBody,
           formattedBody,
-          keyboard,
+          fullKeyboard,
         );
         if (analysis.shortSummary) {
           await updateShortSummary(
@@ -392,6 +403,8 @@ async function reanalyzeEmail(
     account.id,
     reconcile.starred,
     accountCanArchive(account),
+    tg_chat_id,
+    tg_message_id,
   );
 
   const analysis = await editMessageWithAnalysis(

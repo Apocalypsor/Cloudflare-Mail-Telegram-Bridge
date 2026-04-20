@@ -73,9 +73,11 @@
   },
   /**
    * Cron Triggers
-   *  - 每小时：检查 IMAP 中间件健康、重试失败邮件；凌晨额外续订 Gmail watch；早晚摘要
+   *  - 每分钟：分发到期提醒（Mini App 设置的）
+   *  - 每整点（minute=0）：额外跑健康检查、重试失败邮件、digest 等；凌晨额外续订 Gmail watch
+   *  handleScheduled 内部用 minute === 0 区分轻/重任务
    */
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["* * * * *"]
   }
 }

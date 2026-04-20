@@ -8,6 +8,7 @@ import digest from "./digest";
 import junk from "./junk";
 import keyboards from "./keyboards";
 import mailList from "./mailList";
+import reminders from "./reminders";
 import star from "./star";
 import start from "./start";
 import sync from "./sync";
@@ -23,6 +24,7 @@ export default {
   junk,
   keyboards,
   mailList,
+  reminders,
   star,
   start,
   sync,

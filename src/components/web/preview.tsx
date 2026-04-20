@@ -1,4 +1,4 @@
-import { Card, Layout } from "@components/layout";
+import { Card, Layout } from "@components/web/layout";
 import { ROUTE_PREVIEW_API } from "@handlers/hono/routes";
 
 function previewScript() {

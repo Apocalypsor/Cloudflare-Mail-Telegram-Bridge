@@ -3,6 +3,8 @@ export default {
   queryingShort: "正在查询…",
   total: "{{icon}} 共 {{total}} 封{{label}}",
   accountLabel: "📧 __{{label}}__ \\({{count}} 封{{type}}\\)",
+  openInMiniApp: "📋 打开{{label}}列表",
+  intro: "{{icon}} {{label}}邮件",
   tgMessage: "💬 消息",
   preview: "👁 预览",
   unread: {

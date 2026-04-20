@@ -7,10 +7,10 @@ import type { AppEnv } from "@/types";
  * 每个 provider class 在 static `registerRoutes` 里注册自己需要的路径和鉴权逻辑，
  * 这里只负责遍历 PROVIDERS 把它们拼起来。
  */
-const push = new Hono<AppEnv>();
+const providers = new Hono<AppEnv>();
 
 for (const klass of Object.values(PROVIDERS)) {
-  klass.registerRoutes?.(push);
+  klass.registerRoutes?.(providers);
 }
 
-export default push;
+export default providers;

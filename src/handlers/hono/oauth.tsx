@@ -6,7 +6,7 @@ import {
   OAuthCallbackPage,
   OAuthErrorPage,
   OAuthSetupPage,
-} from "@components/oauth";
+} from "@components/web/oauth";
 import { getAccountById } from "@db/accounts";
 import { deleteOAuthBotMsg, getOAuthBotMsg } from "@db/kv";
 import {

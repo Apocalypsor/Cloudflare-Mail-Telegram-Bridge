@@ -5,7 +5,7 @@ import type { BotCommand } from "grammy/types";
 import type { Env } from "@/types";
 
 // 修改此列表后更新 BOT_COMMANDS_VERSION，会自动同步到 Telegram
-const BOT_COMMANDS_VERSION = 7;
+const BOT_COMMANDS_VERSION = 9;
 
 const BOT_COMMANDS: BotCommand[] = [
   { command: "start", description: t("commands:start") },

@@ -14,6 +14,7 @@ const KV_BOT_COMMANDS_VERSION_KEY = "telegram:bot_commands_version";
 const MAIL_HTML_CACHE_TTL = 60 * 60 * 24 * 7; // 7 天
 const OAUTH_STATE_TTL_SECONDS = 10 * 60; // 10 分钟
 const BOT_INFO_TTL = 86400 * 30; // 30 天
+const MAIL_LIST_CACHE_TTL = 60; // KV 最小 TTL
 
 // ─── Access Token Cache ─────────────────────────────────────────────────────
 
@@ -243,4 +244,31 @@ export async function putBotCommandsVersion(
   version: string,
 ): Promise<void> {
   await kv.put(KV_BOT_COMMANDS_VERSION_KEY, version);
+}
+
+// ─── Mini App 邮件列表缓存（unread/starred/junk/archived） ────────────────────
+
+function mailListCacheKey(userId: string, type: string): string {
+  return `mail-list:${userId}:${type}`;
+}
+
+/** 取缓存的列表 JSON 字符串；过期或缺失返回 null */
+export async function getCachedMailList(
+  kv: KVNamespace,
+  userId: string,
+  type: string,
+): Promise<string | null> {
+  return kv.get(mailListCacheKey(userId, type));
+}
+
+/** 写缓存：60s TTL —— 是 KV 的最小允许 TTL */
+export async function putCachedMailList(
+  kv: KVNamespace,
+  userId: string,
+  type: string,
+  json: string,
+): Promise<void> {
+  await kv.put(mailListCacheKey(userId, type), json, {
+    expirationTtl: MAIL_LIST_CACHE_TTL,
+  });
 }

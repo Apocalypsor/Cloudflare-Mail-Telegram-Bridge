@@ -1,9 +1,8 @@
 import { buildEmailKeyboard } from "@bot/keyboards";
-import { JunkCheckPage } from "@components/junk-check";
-import { MailPage } from "@components/mail-page";
-import { PreviewPage } from "@components/preview";
+import { JunkCheckPage } from "@components/web/junk-check";
+import { MailPage } from "@components/web/mail-page";
+import { PreviewPage } from "@components/web/preview";
 import { getAccountByEmail, getAccountById } from "@db/accounts";
-import { getCachedMailData, putCachedMailData } from "@db/kv";
 import { deleteMappingByEmailId, getMappingsByEmailIds } from "@db/message-map";
 import { requireTelegramLogin } from "@handlers/hono/middleware";
 import {
@@ -20,13 +19,11 @@ import {
   ROUTE_PREVIEW,
   ROUTE_PREVIEW_API,
 } from "@handlers/hono/routes";
-import { resolveMailAction } from "@handlers/hono/utils";
-import { accountCanArchive, getEmailProvider, PROVIDERS } from "@providers";
+import { accountCanArchive, getEmailProvider } from "@providers";
 import { deliverEmailToTelegram } from "@services/bridge";
 import { analyzeEmail } from "@services/llm";
 import {
-  proxyImages,
-  replaceCidReferences,
+  loadMailForPreview,
   verifyMailToken,
   verifyMailTokenById,
   verifyProxySignature,
@@ -36,6 +33,7 @@ import { deleteMessage, setReplyMarkup } from "@services/telegram";
 import { formatBody } from "@utils/format";
 import { http } from "@utils/http";
 import { reportErrorToObservability } from "@utils/observability";
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -46,6 +44,53 @@ import type { Account, AppEnv } from "@/types";
 const preview = new Hono<AppEnv>();
 
 const loginGuard = requireTelegramLogin();
+
+type MailActionBody = {
+  accountId?: number;
+  token?: string;
+};
+
+/**
+ * 预览页 POST 邮件操作的公共入口：解析 body + 校验 token + 取 account。
+ * 失败时返回 `Response`（调用方直接 return）；成功返回 `{ account, messageId }`。
+ */
+export async function resolveMailAction<
+  B extends MailActionBody = MailActionBody,
+>(
+  c: Context<AppEnv>,
+): Promise<
+  | { ok: true; account: Account; messageId: string; body: B }
+  | { ok: false; response: Response }
+> {
+  const messageId = c.req.param("id");
+  const body = (await c.req.json()) as B;
+  if (!messageId || !body.accountId || !body.token) {
+    return {
+      ok: false,
+      response: c.json({ ok: false, error: "参数缺失" }, 400),
+    };
+  }
+  const valid = await verifyMailTokenById(
+    c.env.ADMIN_SECRET,
+    messageId,
+    body.accountId,
+    body.token,
+  );
+  if (!valid) {
+    return {
+      ok: false,
+      response: c.json({ ok: false, error: "无效的 token" }, 403),
+    };
+  }
+  const account = await getAccountById(c.env.DB, body.accountId);
+  if (!account) {
+    return {
+      ok: false,
+      response: c.json({ ok: false, error: "账号未找到" }, 404),
+    };
+  }
+  return { ok: true, account, messageId, body };
+}
 
 // ─── HTML 格式化预览工具 ─────────────────────────────────────────────────────
 
@@ -129,66 +174,29 @@ preview.get(ROUTE_MAIL, async (c) => {
 
   if (!account) return c.text("Account not found", 404);
 
-  // 检查邮件是否在垃圾邮件文件夹和星标状态，决定 FAB 按钮
-  const provider = getEmailProvider(account, c.env);
-  const [inJunk, starred] = await Promise.all([
-    provider.isJunk(messageId).catch(() => false),
-    provider.isStarred(messageId).catch(() => false),
-  ]);
   // folder 提示：list handler 会为 /archived / /junk 的预览链接带上 folder，
   // 用来给 IMAP 指定 UID 所在的文件夹（per-folder scope，INBOX / junk / archive 的 UID 不通用）
-  const folderParam = c.req.query("folder");
-  const fetchFolder: "inbox" | "junk" | "archive" =
-    folderParam === "archive"
-      ? "archive"
-      : folderParam === "junk" || inJunk
-        ? "junk"
-        : "inbox";
-
-  const pageProps = {
+  const result = await loadMailForPreview(
+    c.env,
+    account,
     messageId,
-    accountId: account.id,
-    token: token as string,
-    inJunk,
-    inArchive: fetchFolder === "archive",
-    starred,
-    canArchive: accountCanArchive(account),
-    accountEmail: account.email,
-  };
-
-  // KV 缓存键带上 accountId + folder —— IMAP UID 在不同文件夹里会撞，必须区分
-  const cached = await getCachedMailData(
-    c.env.EMAIL_KV,
-    account.id,
-    fetchFolder,
-    messageId,
+    c.req.query("folder"),
   );
-  if (cached) {
-    const proxied = await proxyImages(cached.html, c.env.ADMIN_SECRET);
-    return c.html(
-      <MailPage meta={cached.meta ?? {}} {...pageProps}>
-        {raw(proxied)}
-      </MailPage>,
-    );
-  }
+  if (!result.ok) return c.text(result.reason, result.status);
 
-  // OAuth 型 provider 需要已授权；IMAP 没有 oauth，不检查
-  if (PROVIDERS[account.type].oauth && !account.refresh_token)
-    return c.text("Account not authorized", 403);
-
-  const result = await provider.fetchForPreview(messageId, fetchFolder);
-  if (!result) return c.text("No content in this email", 404);
-  let { html, cidMap, meta } = result;
-
-  html = replaceCidReferences(html, cidMap);
-  await putCachedMailData(c.env.EMAIL_KV, account.id, fetchFolder, messageId, {
-    html,
-    meta,
-  });
-  const proxied = await proxyImages(html, c.env.ADMIN_SECRET);
   return c.html(
-    <MailPage meta={meta} {...pageProps}>
-      {raw(proxied)}
+    <MailPage
+      meta={result.meta}
+      messageId={messageId}
+      accountId={account.id}
+      token={token as string}
+      inJunk={result.inJunk}
+      inArchive={result.fetchFolder === "archive"}
+      starred={result.starred}
+      canArchive={accountCanArchive(account)}
+      accountEmail={account.email}
+    >
+      {raw(result.proxiedHtml)}
     </MailPage>,
   );
 });
@@ -382,6 +390,8 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
         account.id,
         body.starred,
         accountCanArchive(account),
+        m.tg_chat_id,
+        m.tg_message_id,
       );
       await setReplyMarkup(
         c.env.TELEGRAM_BOT_TOKEN,

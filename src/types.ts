@@ -101,6 +101,13 @@ export interface Env {
   MS_CLIENT_SECRET?: string;
   /** Microsoft Graph webhook 共享密钥，校验通知来源 */
   MS_WEBHOOK_SECRET?: string;
+  /**
+   * BotFather `/newapp` 注册的 Mini App short_name（如 `dovmailui`）。
+   * 用于群聊里 ⏰ 按钮的 deep link `t.me/<bot>/<short_name>?startapp=...`。
+   * 未配置时群聊场景不显示 ⏰（私聊不受影响）。
+   * Mini App 的实际 URL 在 BotFather 里设；本变量只是它的短名。
+   */
+  TG_MINI_APP_SHORT_NAME?: string;
 }
 
 /** 邮件元数据（发件人/收件人/主题/日期） */
