@@ -12,6 +12,8 @@ interface MailPageProps {
   inArchive: boolean;
   starred: boolean;
   canArchive: boolean;
+  /** 用于"在浏览器打开"按钮，跳转到 web 版 mail page（保留原 folder 参数） */
+  webMailUrl: string;
   children: Child;
 }
 
@@ -33,7 +35,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   font-size: 13px;
   line-height: 1.7;
 }
-.mail-meta .subject { font-size: 22px; font-weight: 600; margin-bottom: 6px; word-break: break-word; }
+.mail-meta .subject {
+  font-size: 22px; font-weight: 600; margin-bottom: 6px; word-break: break-word;
+  color: var(--tg-theme-link-color, #60a5fa);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.mail-meta .subject:active { opacity: .6; }
+.mail-meta .subject .ext { font-size: 14px; opacity: .7; margin-left: 4px; }
 .mail-meta .label { color: var(--hint); }
 .mail-body { padding: 16px; padding-bottom: 100px; word-break: break-word; }
 `;
@@ -94,11 +102,28 @@ function fabScript(
   accountId: number,
   token: string,
   starred: boolean,
+  webMailUrl: string,
 ): string {
   return `
 var tg = window.Telegram && window.Telegram.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) {
+  tg.ready(); tg.expand();
+  // TG 顶栏原生返回按钮 —— 有 history 就返回上一页（如 reminders）；
+  // 没 history（直接 deep-link 进来）就关闭 Mini App。
+  if (tg.BackButton) {
+    tg.BackButton.show();
+    tg.BackButton.onClick(function(){
+      if (window.history.length > 1) window.history.back();
+      else tg.close();
+    });
+  }
+}
 var _starred=${starred ? "true" : "false"};
+function openInBrowser(){
+  var url = ${JSON.stringify(webMailUrl)};
+  if (tg && tg.openLink) tg.openLink(url);
+  else window.open(url, "_blank");
+}
 function toggleFab(btn){
   btn.classList.toggle('open');
   document.getElementById('fab-actions').classList.toggle('show');
@@ -140,16 +165,28 @@ async function toggleStar(btn){
 function MailMetaHeader({
   meta,
   accountEmail,
+  webMailUrl,
 }: {
   meta: MailMeta;
   accountEmail?: string | null;
+  webMailUrl: string;
 }) {
   if (!meta.subject && !meta.from && !meta.to && !accountEmail && !meta.date)
     return null;
 
   return (
     <div class="mail-meta">
-      {meta.subject && <div class="subject">{meta.subject}</div>}
+      {meta.subject && (
+        <a
+          class="subject"
+          href={webMailUrl}
+          onclick="openInBrowser();return false;"
+          title="在浏览器打开"
+        >
+          {meta.subject}
+          <span class="ext">↗</span>
+        </a>
+      )}
       {meta.from && (
         <div>
           <span class="label">From:</span> {meta.from}
@@ -182,6 +219,7 @@ function MailFab({
   inArchive,
   starred,
   canArchive,
+  webMailUrl,
 }: {
   messageId: string;
   accountId: number;
@@ -190,6 +228,7 @@ function MailFab({
   inArchive: boolean;
   starred: boolean;
   canArchive: boolean;
+  webMailUrl: string;
 }) {
   return (
     <>
@@ -257,7 +296,7 @@ function MailFab({
       </div>
       <script
         dangerouslySetInnerHTML={{
-          __html: fabScript(messageId, accountId, token, starred),
+          __html: fabScript(messageId, accountId, token, starred, webMailUrl),
         }}
       />
     </>
@@ -274,6 +313,7 @@ export function MiniAppMailPage({
   inArchive,
   starred,
   canArchive,
+  webMailUrl,
   children,
 }: MailPageProps) {
   return (
@@ -290,7 +330,11 @@ export function MiniAppMailPage({
         <style dangerouslySetInnerHTML={{ __html: PAGE_CSS + FAB_CSS }} />
       </head>
       <body>
-        <MailMetaHeader meta={meta} accountEmail={accountEmail} />
+        <MailMetaHeader
+          meta={meta}
+          accountEmail={accountEmail}
+          webMailUrl={webMailUrl}
+        />
         <div class="mail-body">{children}</div>
         <MailFab
           messageId={messageId}
@@ -300,6 +344,7 @@ export function MiniAppMailPage({
           inArchive={inArchive}
           starred={starred}
           canArchive={canArchive}
+          webMailUrl={webMailUrl}
         />
       </body>
     </html>

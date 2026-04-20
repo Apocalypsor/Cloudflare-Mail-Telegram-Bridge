@@ -207,6 +207,10 @@ reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
         ? "junk"
         : "inbox";
 
+  // 浏览器打开按钮的目标：现有的 web 版 /mail/:id，保留 folder 参数
+  const folderQs = fetchFolder !== "inbox" ? `&folder=${fetchFolder}` : "";
+  const webMailUrl = `${(c.env.WORKER_URL ?? "").replace(/\/$/, "")}/mail/${encodeURIComponent(messageId)}?accountId=${account.id}&t=${encodeURIComponent(token)}${folderQs}`;
+
   const pageProps = {
     messageId,
     accountId: account.id,
@@ -216,6 +220,7 @@ reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
     starred,
     canArchive: accountCanArchive(account),
     accountEmail: account.email,
+    webMailUrl,
   };
 
   const cached = await getCachedMailData(
