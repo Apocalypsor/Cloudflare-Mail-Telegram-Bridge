@@ -14,6 +14,8 @@ interface MailPageProps {
   canArchive: boolean;
   /** 用于"在浏览器打开"按钮，跳转到 web 版 mail page（保留原 folder 参数） */
   webMailUrl: string;
+  /** 跳回 TG 里原邮件消息的深链接，没 mapping 时省略 */
+  tgMessageLink?: string;
   children: Child;
 }
 
@@ -42,6 +44,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 }
 .mail-meta .subject:active { opacity: .6; }
 .mail-meta .subject .ext { font-size: 14px; opacity: .7; margin-left: 4px; }
+.mail-meta .actions { margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+.mail-meta .actions a {
+  font-size: 12px; color: var(--tg-theme-link-color, #60a5fa);
+  text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.mail-meta .actions a:active { opacity: .6; }
 .mail-meta .label { color: var(--hint); }
 .mail-body { padding: 16px; padding-bottom: 100px; word-break: break-word; }
 `;
@@ -103,6 +111,7 @@ function fabScript(
   token: string,
   starred: boolean,
   webMailUrl: string,
+  tgMessageLink: string | undefined,
 ): string {
   return `
 var tg = window.Telegram && window.Telegram.WebApp;
@@ -126,6 +135,21 @@ function openInBrowser(){
   var url = ${JSON.stringify(webMailUrl)};
   if (tg && tg.openLink) tg.openLink(url);
   else window.open(url, "_blank");
+}
+function openTgMessage(){
+  var url = ${JSON.stringify(tgMessageLink ?? "")};
+  if (!url) return;
+  // openTelegramLink 处理 t.me/* 链接，跳到 TG 内对应聊天/消息。
+  // 文档说会自动关 Mini App，实测部分客户端不会 —— 显式 close() 兜底；
+  // 用 setTimeout 让 openTelegramLink 先被处理，再 close。
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
+    setTimeout(function(){ if (tg.close) tg.close(); }, 50);
+  } else if (tg && tg.openLink) {
+    tg.openLink(url);
+  } else {
+    window.open(url, "_blank");
+  }
 }
 function toggleFab(btn){
   btn.classList.toggle('open');
@@ -169,10 +193,12 @@ function MailMetaHeader({
   meta,
   accountEmail,
   webMailUrl,
+  tgMessageLink,
 }: {
   meta: MailMeta;
   accountEmail?: string | null;
   webMailUrl: string;
+  tgMessageLink?: string;
 }) {
   if (!meta.subject && !meta.from && !meta.to && !accountEmail && !meta.date)
     return null;
@@ -189,6 +215,13 @@ function MailMetaHeader({
           {meta.subject}
           <span class="ext">↗</span>
         </a>
+      )}
+      {tgMessageLink && (
+        <div class="actions">
+          <a href={tgMessageLink} onclick="openTgMessage();return false;">
+            💬 跳到 TG 原消息
+          </a>
+        </div>
       )}
       {meta.from && (
         <div>
@@ -223,6 +256,7 @@ function MailFab({
   starred,
   canArchive,
   webMailUrl,
+  tgMessageLink,
 }: {
   messageId: string;
   accountId: number;
@@ -232,6 +266,7 @@ function MailFab({
   starred: boolean;
   canArchive: boolean;
   webMailUrl: string;
+  tgMessageLink?: string;
 }) {
   return (
     <>
@@ -299,7 +334,14 @@ function MailFab({
       </div>
       <script
         dangerouslySetInnerHTML={{
-          __html: fabScript(messageId, accountId, token, starred, webMailUrl),
+          __html: fabScript(
+            messageId,
+            accountId,
+            token,
+            starred,
+            webMailUrl,
+            tgMessageLink,
+          ),
         }}
       />
     </>
@@ -317,6 +359,7 @@ export function MiniAppMailPage({
   starred,
   canArchive,
   webMailUrl,
+  tgMessageLink,
   children,
 }: MailPageProps) {
   return (
@@ -337,6 +380,7 @@ export function MiniAppMailPage({
           meta={meta}
           accountEmail={accountEmail}
           webMailUrl={webMailUrl}
+          tgMessageLink={tgMessageLink}
         />
         <div class="mail-body">{children}</div>
         <MailFab
@@ -348,6 +392,7 @@ export function MiniAppMailPage({
           starred={starred}
           canArchive={canArchive}
           webMailUrl={webMailUrl}
+          tgMessageLink={tgMessageLink}
         />
       </body>
     </html>

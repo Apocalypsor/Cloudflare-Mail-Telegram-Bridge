@@ -3,7 +3,12 @@ import { MiniAppMailPage } from "@components/miniapp/mail-page";
 import { RemindersPage } from "@components/miniapp/reminders";
 import { MiniAppRouterPage } from "@components/miniapp/router";
 import { getAccountById } from "@db/accounts";
-import { getCachedMailData, putCachedMailData } from "@db/kv";
+import {
+  getCachedMailData,
+  getCachedMailList,
+  putCachedMailData,
+  putCachedMailList,
+} from "@db/kv";
 import { getMappingsByEmailIds, getMessageMapping } from "@db/message-map";
 import {
   countPendingReminders,
@@ -38,6 +43,7 @@ import {
   REMINDER_PER_USER_LIMIT,
   REMINDER_TEXT_MAX,
 } from "@services/reminders";
+import { buildTgMessageLink } from "@services/telegram";
 import { verifyTgInitData } from "@utils/tg-init-data";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -186,12 +192,21 @@ reminders.get(ROUTE_MINI_APP_LIST, (c) => {
   return c.html(<MiniAppMailListPage type={type} />);
 });
 
-// 列表 JSON API：复用 services/mail-list 同一份数据，bot 文本回复也走它
+// 列表 JSON API：复用 services/mail-list 同一份数据，bot 文本回复也走它。
+// 默认每次都拉新数据（保守，bot/refresh 等场景）；?cache=true 时优先 KV（60s TTL，
+// Mini App 默认调用带这个 flag，强制刷新按钮去掉）。
 reminders.get(ROUTE_MINI_APP_API_LIST, async (c) => {
   const userId = await authMiniApp(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
   const type = c.req.param("type");
   if (!isMailListType(type)) return c.json({ error: "Unknown list type" }, 400);
+
+  const useCache = c.req.query("cache") === "true";
+  if (useCache) {
+    const cached = await getCachedMailList(c.env.EMAIL_KV, userId, type);
+    if (cached)
+      return c.body(cached, 200, { "content-type": "application/json" });
+  }
 
   const result = await getMailList(c.env, userId, type);
   // 副作用（starred 同步键盘 / junk 清 mapping）后台跑，不阻塞响应
@@ -200,11 +215,16 @@ reminders.get(ROUTE_MINI_APP_API_LIST, async (c) => {
       Promise.allSettled(result.pendingSideEffects.map((t) => t())),
     );
   }
-  return c.json({
+  const json = JSON.stringify({
     type: result.type,
     results: result.results,
     total: result.total,
   });
+  // 总是写 KV：哪怕这次是强制刷新，也让下一次 cache=true 拿到新鲜的
+  c.executionCtx.waitUntil(
+    putCachedMailList(c.env.EMAIL_KV, userId, type, json).catch(() => {}),
+  );
+  return c.body(json, 200, { "content-type": "application/json" });
 });
 
 reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
@@ -245,6 +265,15 @@ reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
   const folderQs = fetchFolder !== "inbox" ? `&folder=${fetchFolder}` : "";
   const webMailUrl = `${(c.env.WORKER_URL ?? "").replace(/\/$/, "")}/mail/${encodeURIComponent(messageId)}?accountId=${account.id}&t=${encodeURIComponent(token)}${folderQs}`;
 
+  // 跳回 TG 原消息：有 mapping 才放（垃圾/归档列表 mapping 通常已被清掉）
+  const mailMappings = await getMappingsByEmailIds(c.env.DB, account.id, [
+    messageId,
+  ]);
+  const mapping = mailMappings[0];
+  const tgMessageLink = mapping
+    ? buildTgMessageLink(mapping.tg_chat_id, mapping.tg_message_id)
+    : undefined;
+
   const pageProps = {
     messageId,
     accountId: account.id,
@@ -255,6 +284,7 @@ reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
     canArchive: accountCanArchive(account),
     accountEmail: account.email,
     webMailUrl,
+    tgMessageLink,
   };
 
   const cached = await getCachedMailData(

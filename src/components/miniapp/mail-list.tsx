@@ -31,8 +31,21 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 20px; font-weight: 600; margin: 4px 0 16px; }
-.meta { font-size: 13px; color: var(--hint); margin-bottom: 12px; }
+.head-row { display: flex; justify-content: space-between; align-items: center; }
+h1 { font-size: 20px; font-weight: 600; margin: 4px 0; }
+.refresh {
+  width: 32px; height: 32px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: transparent;
+  border: 1px solid var(--separator);
+  color: var(--tg-theme-link-color, #60a5fa);
+  font-size: 18px; line-height: 1;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.refresh:active { opacity: .6; }
+.refresh.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.meta { font-size: 13px; color: var(--hint); margin: 8px 0 12px; }
 .account { background: var(--surface); border-radius: 14px; padding: 6px 0; margin-bottom: 14px; overflow: hidden; }
 .account-header {
   padding: 10px 14px; font-size: 13px; color: var(--hint);
@@ -84,6 +97,23 @@ function listScript(type: MailListType): string {
       + "&back=" + back;
   }
 
+  function load(force) {
+    var btn = $("refresh");
+    if (btn) btn.classList.add("spinning");
+    var url = "${ROUTE_MINI_APP_API_LIST.replace(":type", "")}" + TYPE
+      + (force ? "" : "?cache=true");
+    fetch(url, { headers: { "x-telegram-init-data": initData } })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
+      .then(function(res){
+        if (!res.ok) { renderError(res.data.error || "查询失败"); return; }
+        render(res.data);
+      })
+      .catch(function(){ renderError("网络错误"); })
+      .finally(function(){
+        if (btn) btn.classList.remove("spinning");
+      });
+  }
+
   function render(data) {
     var c = $("content");
     c.innerHTML = "";
@@ -125,15 +155,9 @@ function listScript(type: MailListType): string {
     });
   }
 
-  fetch("${ROUTE_MINI_APP_API_LIST.replace(":type", "")}" + TYPE, {
-    headers: { "x-telegram-init-data": initData },
-  })
-    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
-    .then(function(res){
-      if (!res.ok) { renderError(res.data.error || "查询失败"); return; }
-      render(res.data);
-    })
-    .catch(function(){ renderError("网络错误"); });
+  var refreshBtn = $("refresh");
+  if (refreshBtn) refreshBtn.addEventListener("click", function(){ load(true); });
+  load(false);
 })();
 `;
 }
@@ -154,7 +178,18 @@ export function MiniAppMailListPage({ type }: { type: MailListType }) {
       </head>
       <body>
         <div class="wrap">
-          <h1>{TITLES[type]}</h1>
+          <div class="head-row">
+            <h1>{TITLES[type]}</h1>
+            <button
+              id="refresh"
+              type="button"
+              class="refresh"
+              title="强制刷新"
+              aria-label="强制刷新"
+            >
+              ↻
+            </button>
+          </div>
           <div id="meta" class="meta" />
           <div id="content">
             <div class="loading">加载中…</div>

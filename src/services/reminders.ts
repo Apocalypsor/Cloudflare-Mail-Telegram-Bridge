@@ -37,16 +37,8 @@ function formatRemindAt(iso: string): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
 }
 
-/**
- * 扫描 D1 中所有到期的提醒，发送并标记已发送。
- * 全部走用户私聊（telegram_user_id），不再投递到原邮件所在 chat ——
- * 个人提醒不应在群里炸出来。查看邮件按钮用 Mini App URL（私聊 web_app 有效）。
- *
- * 永久性失败（bot 被屏蔽、用户停用）也标记 sent_at，避免无限重试；瞬态错误
- * 留在 pending，下分钟重试。
- */
 /** 标 sent_at 后给邮件 TG 键盘做一次刷新 —— 让 ⏰ 上的 count -1。
- *  通用提醒（无邮件上下文）跳过。 */
+ *  通用提醒（无邮件上下文）跳过；refresh 失败仅观测上报，不抛出。 */
 async function markSentAndRefresh(env: Env, r: Reminder): Promise<void> {
   await markReminderSent(env.DB, r.id);
   if (r.account_id == null || r.email_message_id == null) return;
@@ -63,6 +55,14 @@ async function markSentAndRefresh(env: Env, r: Reminder): Promise<void> {
   );
 }
 
+/**
+ * 扫描 D1 中所有到期的提醒，发送并标记已发送。
+ * 全部走用户私聊（telegram_user_id），不再投递到原邮件所在 chat ——
+ * 个人提醒不应在群里炸出来。查看邮件按钮用 Mini App URL（私聊 web_app 有效）。
+ *
+ * 永久性失败（bot 被屏蔽、用户停用）也标记 sent_at，避免无限重试；瞬态错误
+ * 留在 pending，下分钟重试。
+ */
 export async function dispatchDueReminders(env: Env): Promise<void> {
   const due = await listDueReminders(env.DB, new Date().toISOString());
   if (due.length === 0) return;
