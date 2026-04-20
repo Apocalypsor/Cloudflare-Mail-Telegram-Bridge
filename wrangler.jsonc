@@ -4,7 +4,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "gmail-tg-bridge",
+  "name": "telemail",
   "main": "src/index.ts",
   "compatibility_date": "2026-02-19",
   "observability": {
@@ -12,7 +12,7 @@
   },
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "WORKER_NAME": "gmail-tg-bridge"
+    "WORKER_NAME": "telemail"
   },
   "workers_dev": true,
   "preview_urls": true,
