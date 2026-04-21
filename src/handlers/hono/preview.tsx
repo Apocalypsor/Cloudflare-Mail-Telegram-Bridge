@@ -3,7 +3,7 @@ import { JunkCheckPage } from "@components/web/junk-check";
 import { MailPage } from "@components/web/mail-page";
 import { PreviewPage } from "@components/web/preview";
 import { getAccountById } from "@db/accounts";
-import { deleteMappingByEmailId, getMappingsByEmailIds } from "@db/message-map";
+import { getMappingsByEmailIds } from "@db/message-map";
 import { requireTelegramLogin } from "@handlers/hono/middleware";
 import {
   ROUTE_CORS_PROXY,
@@ -23,8 +23,8 @@ import { accountCanArchive, getEmailProvider } from "@providers";
 import { deliverEmailToTelegram } from "@services/bridge";
 import { analyzeEmail } from "@services/llm";
 import { loadMailForPreview } from "@services/mail-preview";
-import { syncStarPinState } from "@services/message-actions";
-import { deleteMessage, setReplyMarkup } from "@services/telegram";
+import { cleanupTgForEmail, syncStarPinState } from "@services/message-actions";
+import { setReplyMarkup } from "@services/telegram";
 import { formatBody } from "@utils/format";
 import { http } from "@utils/http";
 import { verifyProxySignature } from "@utils/mail-html";
@@ -230,8 +230,12 @@ preview.post(ROUTE_MAIL_TRASH, async (c) => {
   try {
     const provider = getEmailProvider(account, c.env);
     await provider.trashMessage(emailMessageId);
+    await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已删除" });
-  } catch {
+  } catch (err) {
+    await reportErrorToObservability(c.env, "preview.trash_failed", err, {
+      accountId: account.id,
+    });
     return c.json({ ok: false, error: "操作失败" }, 500);
   }
 });
@@ -243,25 +247,12 @@ preview.post(ROUTE_MAIL_MARK_JUNK, async (c) => {
   try {
     const provider = getEmailProvider(account, c.env);
     await provider.markAsJunk(emailMessageId);
-
-    // 删除对应的 TG 消息和映射
-    const mappings = await getMappingsByEmailIds(c.env.DB, account.id, [
-      emailMessageId,
-    ]);
-    if (mappings.length > 0) {
-      const m = mappings[0];
-      await deleteMessage(
-        c.env.TELEGRAM_BOT_TOKEN,
-        m.tg_chat_id,
-        m.tg_message_id,
-      ).catch(() => {});
-      await deleteMappingByEmailId(c.env.DB, emailMessageId, account.id).catch(
-        () => {},
-      );
-    }
-
+    await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已标记为垃圾邮件" });
-  } catch {
+  } catch (err) {
+    await reportErrorToObservability(c.env, "preview.mark_junk_failed", err, {
+      accountId: account.id,
+    });
     return c.json({ ok: false, error: "操作失败" }, 500);
   }
 });
@@ -278,23 +269,7 @@ preview.post(ROUTE_MAIL_ARCHIVE, async (c) => {
   try {
     const provider = getEmailProvider(account, c.env);
     await provider.archiveMessage(emailMessageId);
-
-    // 删除对应的 TG 消息和映射
-    const mappings = await getMappingsByEmailIds(c.env.DB, account.id, [
-      emailMessageId,
-    ]);
-    if (mappings.length > 0) {
-      const m = mappings[0];
-      await deleteMessage(
-        c.env.TELEGRAM_BOT_TOKEN,
-        m.tg_chat_id,
-        m.tg_message_id,
-      ).catch(() => {});
-      await deleteMappingByEmailId(c.env.DB, emailMessageId, account.id).catch(
-        () => {},
-      );
-    }
-
+    await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已归档" });
   } catch (err) {
     await reportErrorToObservability(c.env, "preview.archive_failed", err, {
@@ -392,7 +367,10 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
       message: body.starred ? "已加星标" : "已取消星标",
       starred: body.starred,
     });
-  } catch {
+  } catch (err) {
+    await reportErrorToObservability(c.env, "preview.toggle_star_failed", err, {
+      accountId: account.id,
+    });
     return c.json({ ok: false, error: "操作失败" }, 500);
   }
 });

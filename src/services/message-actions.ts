@@ -22,8 +22,10 @@ type ToggleStarResult =
   | { ok: true; keyboard: InlineKeyboard; emailMessageId: string }
   | { ok: false; reason: string };
 
-/** 删除 TG 消息 + mapping（邮件不再归属 INBOX 时统一清理） */
-async function removeFromTelegram(
+/** 删除 TG 消息 + mapping（邮件不再归属 INBOX 时统一清理）。
+ *  调用方拿到了 mapping 时直接用；只有 (account, emailMessageId) 时用下面的
+ *  `cleanupTgForEmail` 包一层。 */
+export async function removeFromTelegram(
   env: Env,
   mapping: MessageMapping,
 ): Promise<void> {
@@ -37,6 +39,20 @@ async function removeFromTelegram(
     mapping.email_message_id,
     mapping.account_id,
   ).catch(() => {});
+}
+
+/** 邮件被 markAsJunk / archive / trash 之后清理 TG 侧的残留：
+ *  查 mapping → 删 TG 消息 + mapping。没 mapping（邮件没投递过）就 no-op。 */
+export async function cleanupTgForEmail(
+  env: Env,
+  accountId: number,
+  emailMessageId: string,
+): Promise<void> {
+  const mappings = await getMappingsByEmailIds(env.DB, accountId, [
+    emailMessageId,
+  ]);
+  if (mappings.length === 0) return;
+  await removeFromTelegram(env, mappings[0]);
 }
 
 /**

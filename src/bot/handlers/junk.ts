@@ -1,9 +1,8 @@
 import { buildEmailKeyboard } from "@bot/keyboards";
 import { resolveMessageAccount } from "@bot/utils/message-context";
-import { deleteMappingByEmailId } from "@db/message-map";
 import { t } from "@i18n";
 import { accountCanArchive, getEmailProvider } from "@providers";
-import { deleteMessage } from "@services/telegram";
+import { cleanupTgForEmail } from "@services/message-actions";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -76,15 +75,7 @@ export function registerJunkHandler(bot: Bot, env: Env) {
 
       const provider = getEmailProvider(account, env);
       await provider.markAsJunk(mapping.email_message_id);
-
-      await deleteMessage(env.TELEGRAM_BOT_TOKEN, chatId, msg.message_id).catch(
-        () => {},
-      );
-      await deleteMappingByEmailId(
-        env.DB,
-        mapping.email_message_id,
-        mapping.account_id,
-      ).catch(() => {});
+      await cleanupTgForEmail(env, account.id, mapping.email_message_id);
 
       await ctx.answerCallbackQuery({ text: t("junk:markedAsJunk") });
       console.log(`Marked as junk: email=${mapping.email_message_id}`);
