@@ -37,6 +37,7 @@ import { getMailList, isMailListType } from "@services/mail-list";
 import { loadMailForPreview } from "@services/mail-preview";
 import {
   markAllAsRead,
+  markEmailAsRead,
   refreshEmailKeyboardAfterReminderChange,
   trashAllJunkEmails,
 } from "@services/message-actions";
@@ -267,6 +268,9 @@ miniapp.get(ROUTE_MINI_APP_MAIL, async (c) => {
     c.req.query("folder"),
   );
   if (!result.ok) return c.text(result.reason, result.status);
+
+  // 用户打开预览 = 看过这封邮件，标已读（best-effort，不阻塞响应）
+  c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
 
   // Mini app 专属：浏览器打开按钮 + TG 原消息跳转链接
   const webMailUrl = c.env.WORKER_URL

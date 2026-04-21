@@ -200,6 +200,24 @@ export async function toggleStar(
   return { ok: true, keyboard, emailMessageId: mapping.email_message_id };
 }
 
+/** Best-effort 标已读，失败上报但不抛——用于 preview 浏览 / star / archive /
+ *  junk / trash 等"用户已经看过这封"的场景。`waitUntil` 友好。 */
+export async function markEmailAsRead(
+  env: Env,
+  account: Account,
+  emailMessageId: string,
+): Promise<void> {
+  try {
+    const provider = getEmailProvider(account, env);
+    await provider.markAsRead(emailMessageId);
+  } catch (err) {
+    await reportErrorToObservability(env, "mark_read_failed", err, {
+      accountId: account.id,
+      emailMessageId,
+    });
+  }
+}
+
 /** 通过 Telegram 消息标记对应邮件为已读 */
 export async function markAsReadByMessage(
   env: Env,

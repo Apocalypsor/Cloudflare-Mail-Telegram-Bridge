@@ -1,7 +1,7 @@
 import { resolveMessageAccount } from "@bot/utils/message-context";
 import { t } from "@i18n";
 import { accountCanArchive, getEmailProvider } from "@providers";
-import { cleanupTgForEmail } from "@services/message-actions";
+import { cleanupTgForEmail, markEmailAsRead } from "@services/message-actions";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import type { Env } from "@/types";
@@ -30,6 +30,8 @@ export function registerArchiveHandler(bot: Bot, env: Env) {
       }
 
       const provider = getEmailProvider(account, env);
+      // 归档的同时标已读（用户已看过，邮件即将离开收件箱）
+      await markEmailAsRead(env, account, mapping.email_message_id);
       await provider.archiveMessage(mapping.email_message_id);
       await cleanupTgForEmail(env, account.id, mapping.email_message_id);
 

@@ -2,7 +2,7 @@ import { buildEmailKeyboard } from "@bot/keyboards";
 import { resolveMessageAccount } from "@bot/utils/message-context";
 import { t } from "@i18n";
 import { accountCanArchive, getEmailProvider } from "@providers";
-import { cleanupTgForEmail } from "@services/message-actions";
+import { cleanupTgForEmail, markEmailAsRead } from "@services/message-actions";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -74,6 +74,8 @@ export function registerJunkHandler(bot: Bot, env: Env) {
       const { mapping, account } = resolved;
 
       const provider = getEmailProvider(account, env);
+      // 标垃圾的同时标已读（用户已看过，邮件即将离开收件箱）
+      await markEmailAsRead(env, account, mapping.email_message_id);
       await provider.markAsJunk(mapping.email_message_id);
       await cleanupTgForEmail(env, account.id, mapping.email_message_id);
 

@@ -23,7 +23,11 @@ import { accountCanArchive, getEmailProvider } from "@providers";
 import { deliverEmailToTelegram } from "@services/bridge";
 import { analyzeEmail } from "@services/llm";
 import { loadMailForPreview } from "@services/mail-preview";
-import { cleanupTgForEmail, syncStarPinState } from "@services/message-actions";
+import {
+  cleanupTgForEmail,
+  markEmailAsRead,
+  syncStarPinState,
+} from "@services/message-actions";
 import { setReplyMarkup } from "@services/telegram";
 import { formatBody } from "@utils/format";
 import { http } from "@utils/http";
@@ -164,6 +168,9 @@ preview.get(ROUTE_MAIL, async (c) => {
   );
   if (!result.ok) return c.text(result.reason, result.status);
 
+  // 用户打开预览 = 看过这封邮件，标已读（best-effort，不阻塞响应）
+  c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
+
   return c.html(
     <MailPage
       meta={result.meta}
@@ -229,6 +236,7 @@ preview.post(ROUTE_MAIL_TRASH, async (c) => {
   const { account, emailMessageId } = resolved;
   try {
     const provider = getEmailProvider(account, c.env);
+    c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
     await provider.trashMessage(emailMessageId);
     await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已删除" });
@@ -246,6 +254,7 @@ preview.post(ROUTE_MAIL_MARK_JUNK, async (c) => {
   const { account, emailMessageId } = resolved;
   try {
     const provider = getEmailProvider(account, c.env);
+    c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
     await provider.markAsJunk(emailMessageId);
     await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已标记为垃圾邮件" });
@@ -268,6 +277,7 @@ preview.post(ROUTE_MAIL_ARCHIVE, async (c) => {
     );
   try {
     const provider = getEmailProvider(account, c.env);
+    c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
     await provider.archiveMessage(emailMessageId);
     await cleanupTgForEmail(c.env, account.id, emailMessageId);
     return c.json({ ok: true, message: "已归档" });
@@ -328,6 +338,8 @@ preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
   try {
     const provider = getEmailProvider(account, c.env);
     if (body.starred) {
+      // 加星 = 用户看过 → 同步标已读（取消星标不改读状态）
+      c.executionCtx.waitUntil(markEmailAsRead(c.env, account, emailMessageId));
       await provider.addStar(emailMessageId);
     } else {
       await provider.removeStar(emailMessageId);
