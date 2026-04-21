@@ -210,11 +210,12 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://YOUR_WORKER_DOMAIN/api/telegram/webhook?secret=YOUR_TELEGRAM_WEBHOOK_SECRET",
-    "allowed_updates": ["message", "callback_query", "message_reaction", "message_reaction_count"]
+    "allowed_updates": ["message", "channel_post", "callback_query", "message_reaction", "message_reaction_count"]
   }'
 ```
 
-- `message`：接收 `/start` 等 Bot 命令
+- `message`：接收 `/start` 等 Bot 命令、群/私聊里的服务消息（pin cleanup 等）
+- `channel_post`：接收频道里的服务消息（pin cleanup 用——频道 post 走这个 update type，不走 `message`）
 - `callback_query`：接收星标按钮点击
 - `message_reaction` / `message_reaction_count`：接收 emoji reaction（群组/频道）
 

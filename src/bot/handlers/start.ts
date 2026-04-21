@@ -1,4 +1,4 @@
-import { HELP_TEXT } from "@bot/commands";
+import { helpText } from "@bot/commands";
 import { isAdmin } from "@bot/utils/auth";
 import { formatUserName } from "@bot/utils/formatters";
 import {
@@ -113,7 +113,8 @@ export function registerStartHandlers(bot: Bot, env: Env) {
 
   // ─── /help ────────────────────────────────────────────────────────────────
   bot.command("help", async (ctx) => {
-    return ctx.reply(HELP_TEXT, { parse_mode: "MarkdownV2" });
+    const admin = isAdmin(String(ctx.from?.id), env);
+    return ctx.reply(helpText(admin), { parse_mode: "MarkdownV2" });
   });
 
   // ─── Main menu callback ──────────────────────────────────────────────────

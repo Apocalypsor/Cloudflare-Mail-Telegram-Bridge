@@ -18,6 +18,7 @@ import { t } from "@i18n";
 import { renewAllPush } from "@providers";
 import { deleteUserWithAccounts } from "@services/account";
 import { retryAllFailedEmails, retryFailedEmail } from "@services/bridge";
+import { escapeMdV2 } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
@@ -127,6 +128,41 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
     return ctx.reply(userListText(users), {
       reply_markup: userListKeyboard(users),
     });
+  });
+
+  // ─── /secrets: 显示环境 secrets + 派生 URL（管理员，仅私聊） ────────────
+  // 不进 BOT_COMMANDS（不出现在命令菜单），避免普通用户看到。
+  // 加新 secret：往下面 `secrets` 数组里加一行即可。
+  bot.command("secrets", async (ctx) => {
+    const userId = String(ctx.from?.id);
+    if (!isAdmin(userId, env)) {
+      return ctx.reply(t("common:admin.only"));
+    }
+    if (ctx.chat?.type !== "private") {
+      return ctx.reply(t("admin:secrets.privateOnly"));
+    }
+
+    const secrets: Array<{ label: string; value: string }> = [
+      { label: "TELEGRAM_WEBHOOK_SECRET", value: env.TELEGRAM_WEBHOOK_SECRET },
+    ];
+
+    // code-span 内只需转义 ` 和 \（escapeMdV2 会过度转义 . 等）
+    const codeEsc = (s: string) =>
+      s.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
+
+    const lines: string[] = [`*${escapeMdV2(t("admin:secrets.title"))}*`];
+    for (const { label, value } of secrets) {
+      lines.push(``, escapeMdV2(label), `\`${codeEsc(value)}\``);
+    }
+    if (env.WORKER_URL) {
+      const url = `${env.WORKER_URL.replace(/\/$/, "")}/api/telegram/webhook?secret=${env.TELEGRAM_WEBHOOK_SECRET}`;
+      lines.push(
+        ``,
+        escapeMdV2(t("admin:secrets.webhookUrlLabel")),
+        `\`${codeEsc(url)}\``,
+      );
+    }
+    return ctx.reply(lines.join("\n"), { parse_mode: "MarkdownV2" });
   });
 
   // Admin operations menu
