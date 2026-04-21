@@ -22,6 +22,8 @@ import { requireMiniAppAuth } from "@handlers/hono/middleware";
 import {
   ROUTE_MINI_APP,
   ROUTE_MINI_APP_API_LIST,
+  ROUTE_MINI_APP_API_MARK_ALL_READ,
+  ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
   ROUTE_MINI_APP_LIST,
   ROUTE_MINI_APP_MAIL,
   ROUTE_MINI_APP_REMINDERS,
@@ -33,7 +35,11 @@ import {
 import { accountCanArchive, getEmailProvider, PROVIDERS } from "@providers";
 import { getMailList, isMailListType } from "@services/mail-list";
 import { loadMailForPreview } from "@services/mail-preview";
-import { refreshEmailKeyboardAfterReminderChange } from "@services/message-actions";
+import {
+  markAllAsRead,
+  refreshEmailKeyboardAfterReminderChange,
+  trashAllJunkEmails,
+} from "@services/message-actions";
 import {
   REMINDER_PER_USER_LIMIT,
   REMINDER_TEXT_MAX,
@@ -49,7 +55,7 @@ import { Hono } from "hono";
 import { raw } from "hono/html";
 import type { AppEnv } from "@/types";
 
-const reminders = new Hono<AppEnv>();
+const miniapp = new Hono<AppEnv>();
 
 /**
  * 校验 (accountId, emailMessageId, token) 三元组：token 是 mail-preview 用的 HMAC，
@@ -169,15 +175,15 @@ async function lookupEmailContext(
 // /telegram-app/reminders → 提醒设置（私聊 web_app 直接来；群聊 r_ 经路由跳来）
 // /telegram-app/mail/:id  → 邮件预览（私聊 web_app 直接来；群聊 m_ 经路由跳来）
 
-reminders.use("/api/reminders/*", requireMiniAppAuth);
-reminders.use(ROUTE_REMINDERS_API, requireMiniAppAuth);
-reminders.use("/api/mini-app/*", requireMiniAppAuth);
+miniapp.use("/api/reminders/*", requireMiniAppAuth);
+miniapp.use(ROUTE_REMINDERS_API, requireMiniAppAuth);
+miniapp.use("/api/mini-app/*", requireMiniAppAuth);
 
-reminders.get(ROUTE_MINI_APP, (c) => c.html(<MiniAppRouterPage />));
+miniapp.get(ROUTE_MINI_APP, (c) => c.html(<MiniAppRouterPage />));
 
-reminders.get(ROUTE_MINI_APP_REMINDERS, (c) => c.html(<RemindersPage />));
+miniapp.get(ROUTE_MINI_APP_REMINDERS, (c) => c.html(<RemindersPage />));
 
-reminders.get(ROUTE_MINI_APP_LIST, (c) => {
+miniapp.get(ROUTE_MINI_APP_LIST, (c) => {
   const type = c.req.param("type");
   if (!isMailListType(type)) return c.text("Unknown list type", 404);
   return c.html(<MiniAppMailListPage type={type} />);
@@ -186,7 +192,7 @@ reminders.get(ROUTE_MINI_APP_LIST, (c) => {
 // 列表 JSON API：复用 services/mail-list 同一份数据，bot 文本回复也走它。
 // 默认每次都拉新数据（保守，bot/refresh 等场景）；?cache=true 时优先 KV（60s TTL，
 // Mini App 默认调用带这个 flag，强制刷新按钮去掉）。
-reminders.get(ROUTE_MINI_APP_API_LIST, async (c) => {
+miniapp.get(ROUTE_MINI_APP_API_LIST, async (c) => {
   const userId = c.get("userId");
   const type = c.req.param("type");
   if (!isMailListType(type)) return c.json({ error: "Unknown list type" }, 400);
@@ -217,7 +223,22 @@ reminders.get(ROUTE_MINI_APP_API_LIST, async (c) => {
   return c.body(json, 200, { "content-type": "application/json" });
 });
 
-reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
+// 一键已读 / 一键清垃圾：直接复用 services/message-actions 里 bot 也在用的实现，
+// 走 requireMiniAppAuth → c.var.userId 已校验。返回 { success, failed } 让客户端
+// 自己拼提示文案。
+miniapp.post(ROUTE_MINI_APP_API_MARK_ALL_READ, async (c) => {
+  const userId = c.get("userId");
+  const result = await markAllAsRead(c.env, userId);
+  return c.json(result);
+});
+
+miniapp.post(ROUTE_MINI_APP_API_TRASH_ALL_JUNK, async (c) => {
+  const userId = c.get("userId");
+  const result = await trashAllJunkEmails(c.env, userId);
+  return c.json(result);
+});
+
+miniapp.get(ROUTE_MINI_APP_MAIL, async (c) => {
   // Token 鉴权（与 /mail/:id 同一套），渲染换 MiniAppMailPage（TG 主题色 + SDK）
   const emailMessageId = c.req.param("id");
   const token = c.req.query("t");
@@ -290,7 +311,7 @@ reminders.get(ROUTE_MINI_APP_MAIL, async (c) => {
 // 等于当前 initData 的 user.id —— 即只有账号主人能为自己邮件设提醒，防止
 // 群里别的成员拿 deep link 给账号主人塞 reminder。
 
-reminders.get(ROUTE_REMINDERS_API_RESOLVE_CONTEXT, async (c) => {
+miniapp.get(ROUTE_REMINDERS_API_RESOLVE_CONTEXT, async (c) => {
   const userId = c.get("userId");
 
   const start = c.req.query("start") ?? "";
@@ -322,7 +343,7 @@ reminders.get(ROUTE_REMINDERS_API_RESOLVE_CONTEXT, async (c) => {
 
 // ─── API: 邮件上下文（页面初始化时拉取 subject 显示） ────────────────────────
 
-reminders.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
+miniapp.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
   // userId 不直接用 —— token 已经够 —— 但 middleware 保证已鉴权
   const ctx = await resolveEmailContext(
     c,
@@ -348,7 +369,7 @@ reminders.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
 // 不带参数 → 返回用户所有 pending（list-only 模式 / 主菜单"我的提醒"）
 // 带 (accountId, emailMessageId, token) → 仅返回该邮件的 pending（邮件模式：⏰ 按钮）
 
-reminders.get(ROUTE_REMINDERS_API, async (c) => {
+miniapp.get(ROUTE_REMINDERS_API, async (c) => {
   const userId = c.get("userId");
 
   const accountIdQ = c.req.query("accountId");
@@ -378,7 +399,7 @@ reminders.get(ROUTE_REMINDERS_API, async (c) => {
 
 // ─── API: 创建（必须带邮件上下文） ───────────────────────────────────────────
 
-reminders.post(ROUTE_REMINDERS_API, async (c) => {
+miniapp.post(ROUTE_REMINDERS_API, async (c) => {
   const userId = c.get("userId");
 
   const body = await c.req
@@ -452,7 +473,7 @@ reminders.post(ROUTE_REMINDERS_API, async (c) => {
 
 // ─── API: 删除 ───────────────────────────────────────────────────────────────
 
-reminders.delete(ROUTE_REMINDERS_API_ITEM, async (c) => {
+miniapp.delete(ROUTE_REMINDERS_API_ITEM, async (c) => {
   const userId = c.get("userId");
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0)
@@ -485,4 +506,4 @@ reminders.delete(ROUTE_REMINDERS_API_ITEM, async (c) => {
   return c.json({ ok: true });
 });
 
-export default reminders;
+export default miniapp;
