@@ -1,7 +1,7 @@
-import { Spinner } from "@heroui/react";
-import { useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { api, extractErrorMessage } from "@/lib/api";
 import { okResponseSchema } from "@/lib/schemas";
+import { getTelegram, type PopupButton, useMainButton } from "@/lib/tg";
 
 export interface MailFabProps {
   emailMessageId: string;
@@ -23,12 +23,24 @@ type Action =
   | "mark-as-junk"
   | "move-to-inbox";
 
+interface ActionDef {
+  id: Action;
+  label: string;
+  type: PopupButton["type"];
+  /** 执行后邮件就离开当前视图了（归档 / 垃圾 / 删除等），之后 FAB 隐藏 */
+  terminal: boolean;
+}
+
 /**
- * 邮件预览页右下角的悬浮操作按钮组。展开时从主按钮向上叠加动作按钮，
- * 每个按钮 POST 到 `/api/mail/:id/<action>`（Worker 侧 token 鉴权，不走 initData）。
+ * 邮件预览页的操作入口 —— 用 TG 原生 MainButton + showPopup 做，不渲染任何
+ * DOM。组件本身只管状态 + 调 API，UI 全部由 TG 宿主绘制。
  *
- * 定位：`fixed` + `env(safe-area-inset-bottom)` 让 iOS 底部手势区 / 刘海机型
- * 的安全区也避让开；外层 `position: fixed` 确保视口相对定位，不吃父级变换。
+ *   多个动作可选：MainButton 显示 "⚡ 操作" → 点击弹 showPopup action sheet
+ *   仅一个动作（归档状态下的"移出归档"）：MainButton 直接显示该动作，一键完成
+ *
+ * 成功后：触觉反馈 + onChanged() 让页面 refetch 数据；操作是终端的（归档 /
+ * 删除 / 标垃圾 / 移出归档 / 移回收件箱）就把 MainButton 自己藏掉。
+ * 失败：showAlert(error)。
  */
 export function MailFab({
   emailMessageId,
@@ -40,185 +52,158 @@ export function MailFab({
   canArchive,
   onChanged,
 }: MailFabProps) {
-  const [open, setOpen] = useState(false);
   const [starred, setStarred] = useState(initialStarred);
-  const [status, setStatus] = useState<string | null>(null);
-  const [pending, setPending] = useState<Action | null>(null);
-  /** 某些 action（trash/mark-as-junk）成功后整封邮件状态改变，其余 FAB 按钮禁用 */
-  const [allDisabled, setAllDisabled] = useState(false);
+  const [pending, setPending] = useState(false);
+  /** 终端动作完成后为 true，MainButton 自动隐藏 */
+  const [done, setDone] = useState(false);
 
-  async function callAction(
-    action: Action,
-    extra: Record<string, unknown> = {},
-  ): Promise<{ ok: boolean; message?: string; error?: string }> {
-    const res = await api
-      .post(`api/mail/${encodeURIComponent(emailMessageId)}/${action}`, {
-        json: { accountId, token, ...extra },
-      })
-      .json();
-    return okResponseSchema.parse(res);
-  }
+  // props 塞 ref：runAction 里只从 ref 读，就不用在 useCallback deps 里列它们，
+  // 同时永远拿到最新值，避免 biome 的 useExhaustiveDependencies 和 props 闭包冲突
+  const propsRef = useRef({ emailMessageId, accountId, token });
+  propsRef.current = { emailMessageId, accountId, token };
 
-  async function onAction(action: Action) {
-    setPending(action);
-    setStatus(null); // pending 态用按钮内联 Spinner 反馈，不占浮层气泡
-    try {
-      if (action === "toggle-star") {
-        const next = !starred;
-        const d = await callAction("toggle-star", { starred: next });
-        if (d.ok) {
-          setStarred(next);
-          setStatus(`✅ ${d.message ?? ""}`);
-          onChanged?.();
-        } else {
-          setStatus(`❌ ${d.error ?? "操作失败"}`);
-        }
-      } else {
-        const d = await callAction(action);
-        if (d.ok) {
-          setStatus(`✅ ${d.message ?? ""}`);
-          setAllDisabled(true);
-          onChanged?.();
-        } else {
-          setStatus(`❌ ${d.error ?? "操作失败"}`);
-        }
-      }
-    } catch (e) {
-      setStatus(`❌ ${await extractErrorMessage(e)}`);
-    } finally {
-      setPending(null);
+  const actions = useMemo<ActionDef[]>(() => {
+    if (inArchive) {
+      return [
+        {
+          id: "unarchive",
+          label: "📥 移出归档",
+          type: "default",
+          terminal: true,
+        },
+      ];
     }
-  }
+    if (inJunk) {
+      return [
+        {
+          id: "toggle-star",
+          label: starred ? "✅ 取消星标" : "⭐ 星标",
+          type: "default",
+          terminal: false,
+        },
+        {
+          id: "move-to-inbox",
+          label: "📥 移到收件箱",
+          type: "default",
+          terminal: true,
+        },
+        {
+          id: "trash",
+          label: "🗑 删除邮件",
+          type: "destructive",
+          terminal: true,
+        },
+      ];
+    }
+    // Inbox 默认
+    const list: ActionDef[] = [
+      {
+        id: "toggle-star",
+        label: starred ? "✅ 取消星标" : "⭐ 星标",
+        type: "default",
+        terminal: false,
+      },
+    ];
+    if (canArchive) {
+      list.push({
+        id: "archive",
+        label: "📥 归档",
+        type: "default",
+        terminal: true,
+      });
+    }
+    list.push({
+      id: "mark-as-junk",
+      label: "🚫 标记为垃圾",
+      type: "destructive",
+      terminal: true,
+    });
+    return list;
+  }, [inArchive, inJunk, canArchive, starred]);
 
-  const isBusy = pending != null;
-
-  return (
-    <div
-      className="fixed z-[9999] flex flex-col items-end gap-2 pointer-events-none"
-      style={{
-        // iOS 安全区 + 基础内边距；右侧同理避让刘海屏
-        bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
-        right: "calc(1rem + env(safe-area-inset-right, 0px))",
-      }}
-    >
-      {status && (
-        <div className="pointer-events-auto bg-[color:var(--surface)] text-[color:var(--surface-foreground)] px-4 py-2 rounded-2xl text-[13px] border border-[color:var(--surface-secondary)] shadow-lg max-w-[280px] text-center">
-          {status}
-        </div>
-      )}
-
-      {open && (
-        <div className="pointer-events-auto flex flex-col items-end gap-2">
-          {!inArchive && (
-            <ActionButton
-              label={starred ? "✅ 已星标" : "⭐ 星标"}
-              busy={pending === "toggle-star"}
-              disabled={allDisabled || isBusy}
-              tint={starred ? "success" : "star"}
-              onClick={() => onAction("toggle-star")}
-            />
-          )}
-          {inJunk ? (
-            <>
-              <ActionButton
-                label="📥 移到收件箱"
-                busy={pending === "move-to-inbox"}
-                disabled={allDisabled || isBusy}
-                tint="primary"
-                onClick={() => onAction("move-to-inbox")}
-              />
-              <ActionButton
-                label="🗑 删除邮件"
-                busy={pending === "trash"}
-                disabled={allDisabled || isBusy}
-                tint="danger"
-                onClick={() => onAction("trash")}
-              />
-            </>
-          ) : inArchive ? (
-            <ActionButton
-              label="📥 移出归档"
-              busy={pending === "unarchive"}
-              disabled={allDisabled || isBusy}
-              tint="primary"
-              onClick={() => onAction("unarchive")}
-            />
-          ) : (
-            <>
-              {canArchive && (
-                <ActionButton
-                  label="📥 归档"
-                  busy={pending === "archive"}
-                  disabled={allDisabled || isBusy}
-                  tint="archive"
-                  onClick={() => onAction("archive")}
-                />
-              )}
-              <ActionButton
-                label="🚫 标记为垃圾"
-                busy={pending === "mark-as-junk"}
-                disabled={allDisabled || isBusy}
-                tint="danger"
-                onClick={() => onAction("mark-as-junk")}
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      {/* 主按钮用原生 button + 自定义样式：HeroUI Button 的 !important 会跟
-          Tailwind 尺寸 utility 打架，导致圆形 FAB 被它的内置 padding 撑形 */}
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((v) => !v);
-          setStatus(null);
-        }}
-        aria-label={open ? "收起操作" : "展开操作"}
-        className={`pointer-events-auto inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl leading-none bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-[0_6px_20px_rgba(0,0,0,0.35)] active:scale-95 transition-transform duration-150 ${
-          open ? "rotate-45" : ""
-        }`}
-      >
-        ⚡
-      </button>
-    </div>
+  const runAction = useCallback(
+    async (action: Action, isTerminal: boolean) => {
+      const tg = getTelegram();
+      const p = propsRef.current;
+      setPending(true);
+      try {
+        const body: Record<string, unknown> = {
+          accountId: p.accountId,
+          token: p.token,
+        };
+        if (action === "toggle-star") body.starred = !starred;
+        const raw = await api
+          .post(`api/mail/${encodeURIComponent(p.emailMessageId)}/${action}`, {
+            json: body,
+          })
+          .json();
+        const res = okResponseSchema.parse(raw);
+        if (res.ok) {
+          tg?.HapticFeedback?.notificationOccurred("success");
+          if (action === "toggle-star") setStarred(!starred);
+          if (isTerminal) setDone(true);
+          onChanged?.();
+        } else {
+          tg?.HapticFeedback?.notificationOccurred("error");
+          tg?.showAlert?.(res.error ?? "操作失败");
+        }
+      } catch (e) {
+        tg?.HapticFeedback?.notificationOccurred("error");
+        tg?.showAlert?.(await extractErrorMessage(e));
+      } finally {
+        setPending(false);
+      }
+    },
+    [starred, onChanged],
   );
-}
 
-function ActionButton({
-  label,
-  busy,
-  disabled,
-  tint,
-  onClick,
-}: {
-  label: string;
-  busy: boolean;
-  disabled: boolean;
-  tint: "primary" | "danger" | "success" | "star" | "archive";
-  onClick: () => void;
-}) {
-  // 五种色调映射：primary/danger 走 HeroUI 语义色，其余用自定义 tailwind
-  const tintClass =
-    tint === "primary"
-      ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)]"
-      : tint === "danger"
-        ? "bg-[color:var(--danger)] text-white"
-        : tint === "success"
-          ? "bg-emerald-500 text-white"
-          : tint === "star"
-            ? "bg-amber-500 text-white"
-            : "bg-indigo-500 text-white";
+  const handleMainButtonClick = useCallback(() => {
+    if (actions.length === 0) return;
+    if (actions.length === 1) {
+      // 单动作：MainButton 直接执行，不走 popup
+      const a = actions[0];
+      runAction(a.id, a.terminal);
+      return;
+    }
+    const tg = getTelegram();
+    if (!tg?.showPopup) {
+      // 兜底（极老的 TG 客户端没 showPopup）：直接跑第一个动作
+      const a = actions[0];
+      runAction(a.id, a.terminal);
+      return;
+    }
+    tg.showPopup(
+      {
+        title: "邮件操作",
+        message: "",
+        buttons: actions.map<PopupButton>((a) => ({
+          id: a.id,
+          type: a.type,
+          text: a.label,
+        })),
+      },
+      (buttonId) => {
+        // 用户取消（点外面 / swipe down）→ buttonId 是空串
+        if (!buttonId) return;
+        const a = actions.find((x) => x.id === buttonId);
+        if (a) runAction(a.id, a.terminal);
+      },
+    );
+  }, [actions, runAction]);
 
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-full text-sm font-medium shadow-lg whitespace-nowrap transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${tintClass}`}
-    >
-      {busy && <Spinner size="sm" />}
-      {label}
-    </button>
-  );
+  const mainButtonText = done
+    ? undefined
+    : actions.length === 1
+      ? actions[0].label
+      : "⚡ 操作";
+
+  useMainButton({
+    text: mainButtonText,
+    onClick: handleMainButtonClick,
+    loading: pending,
+    disabled: pending,
+  });
+
+  // 没渲染任何 DOM —— UI 全在 TG 宿主
+  return null;
 }

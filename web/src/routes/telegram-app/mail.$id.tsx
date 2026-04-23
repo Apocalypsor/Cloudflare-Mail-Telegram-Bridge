@@ -91,13 +91,8 @@ function MailPreviewPage() {
         webMailUrl={d.webMailUrl}
         tgMessageLink={d.tgMessageLink}
       />
-      {/* 底部预留 FAB 高度（~56px）+ 24 间距 + iOS 安全区，保证 FAB 不遮文末 */}
-      <div
-        className="px-4 py-4 break-words"
-        style={{
-          paddingBottom: "calc(6rem + env(safe-area-inset-bottom, 0px))",
-        }}
-      >
+      {/* MainButton 由 TG 宿主绘制在屏幕底部外，不占页面盒子；正文只需常规边距 */}
+      <div className="px-4 py-4 pb-8 break-words">
         <MailBodyFrame bodyHtml={d.bodyHtml} />
       </div>
       <MailFab

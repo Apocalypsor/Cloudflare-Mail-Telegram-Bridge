@@ -6,6 +6,49 @@ import { useEffect } from "react";
  * 组件里统一用 `getTelegram()` 取，null-safe 调用。
  */
 
+/** showPopup 按钮类型，映射到 TG 原生渲染（destructive 会渲染为红色等）。 */
+export type PopupButtonType =
+  | "default"
+  | "destructive"
+  | "ok"
+  | "close"
+  | "cancel";
+
+export interface PopupButton {
+  id?: string;
+  type?: PopupButtonType;
+  text?: string;
+}
+
+export interface PopupParams {
+  title?: string;
+  message: string;
+  buttons?: PopupButton[]; // max 3
+}
+
+export interface TelegramMainButton {
+  text: string;
+  isVisible: boolean;
+  isActive: boolean;
+  isProgressVisible: boolean;
+  setText: (text: string) => void;
+  onClick: (cb: () => void) => void;
+  offClick: (cb: () => void) => void;
+  show: () => void;
+  hide: () => void;
+  enable: () => void;
+  disable: () => void;
+  showProgress: (leaveActive?: boolean) => void;
+  hideProgress: () => void;
+  setParams: (params: {
+    text?: string;
+    color?: string;
+    text_color?: string;
+    is_active?: boolean;
+    is_visible?: boolean;
+  }) => void;
+}
+
 export interface TelegramWebApp {
   initData: string;
   initDataUnsafe: {
@@ -28,6 +71,10 @@ export interface TelegramWebApp {
   openLink?: (url: string) => void;
   openTelegramLink?: (url: string) => void;
   showConfirm?: (msg: string, cb: (ok: boolean) => void) => void;
+  showAlert?: (msg: string, cb?: () => void) => void;
+  /** 原生弹窗；按钮数量 <= 3。点击后 cb 拿到按钮 id（未设 id 时是空字符串）。 */
+  showPopup?: (params: PopupParams, cb?: (buttonId: string) => void) => void;
+  MainButton?: TelegramMainButton;
   BackButton?: {
     show: () => void;
     hide: () => void;
@@ -73,9 +120,9 @@ export function syncThemeFromTelegram(): void {
 /**
  * App 启动时调用一次：ready + expand + 主题。
  *
- * **注意不碰 BackButton**。BackButton 的显示状态由每个页面用 `useBackButton`
- * 自己声明。之前在这里无条件 hide 会和子页面的 show 冲突 —— React useEffect
- * 运行顺序是子先于父，父在 `__root` 里 hide 会把子组件 show 过的覆盖掉。
+ * **注意不碰 BackButton / MainButton**。那两个按钮由页面用 `useBackButton` /
+ * `useMainButton` 自己声明状态；父组件 hide 会和子组件 show 冲突（React effect
+ * 运行顺序是子先于父）。
  */
 export function initTelegramChrome(): void {
   const tg = getTelegram();
@@ -90,8 +137,6 @@ export function initTelegramChrome(): void {
  * 页面声明 BackButton 行为：
  *   useBackButton(url)        → 显示返回键，点击 location.href = url
  *   useBackButton(undefined)  → 隐藏返回键（根页面）
- *
- * 每个页面调用一次，卸载时自动 hide + 摘 handler。
  */
 export function useBackButton(targetUrl: string | undefined): void {
   useEffect(() => {
@@ -112,4 +157,50 @@ export function useBackButton(targetUrl: string | undefined): void {
       bb.hide();
     };
   }, [targetUrl]);
+}
+
+export interface MainButtonConfig {
+  /** 按钮显示文字；undefined = 隐藏按钮 */
+  text: string | undefined;
+  onClick: () => void;
+  /** true = 显示内置 progress 指示器（loading 态），按钮自动变半透明 */
+  loading?: boolean;
+  /** 禁用（灰色、不可点），默认 false */
+  disabled?: boolean;
+}
+
+/**
+ * 页面声明 MainButton：
+ *   text 有值 → 显示按钮 + 文字 + 绑点击
+ *   text 为 undefined → 隐藏按钮
+ * 卸载时自动 hide + 摘 handler。
+ *
+ * 注意：onClick 每次变化都会重新摘旧 handler 绑新的 —— 保证 cb 闭包拿到
+ * 最新 props/state，不会指向陈旧值。
+ */
+export function useMainButton({
+  text,
+  onClick,
+  loading,
+  disabled,
+}: MainButtonConfig): void {
+  useEffect(() => {
+    const tg = getTelegram();
+    const mb = tg?.MainButton;
+    if (!mb) return;
+    if (!text) {
+      mb.hide();
+      return;
+    }
+    const isActive = !disabled && !loading;
+    mb.setParams({ text, is_active: isActive, is_visible: true });
+    if (loading) mb.showProgress(false);
+    else mb.hideProgress();
+    mb.onClick(onClick);
+    return () => {
+      mb.offClick(onClick);
+      mb.hideProgress();
+      mb.hide();
+    };
+  }, [text, onClick, loading, disabled]);
 }
