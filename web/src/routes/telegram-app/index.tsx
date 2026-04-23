@@ -2,9 +2,9 @@ import { Card, Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, extractErrorMessage } from "@/api/client";
-import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@/api/routes";
 import { resolveContextResponseSchema } from "@/api/schemas";
-import { useBackButton } from "@/hooks/use-back-button";
+import { useBackButton } from "@/hooks/useBackButton";
+import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 
 /**
