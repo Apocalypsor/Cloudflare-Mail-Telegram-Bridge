@@ -49,30 +49,14 @@ export interface TelegramMainButton {
   }) => void;
 }
 
-/** SecondaryButton — Bot API 7.10+ (2024-09)。与 MainButton 并排显示在底部，
- *  接口和 MainButton 近乎一致，多一个 `position` 参数控位。 */
-export interface TelegramSecondaryButton {
-  text: string;
+/** SettingsButton — Bot API 6.10+。右上角齿轮入口，只有 show/hide + onClick，
+ *  没有文字可设（图标是 TG 内置的 ⚙）。 */
+export interface TelegramSettingsButton {
   isVisible: boolean;
-  isActive: boolean;
-  isProgressVisible: boolean;
-  setText: (text: string) => void;
-  onClick: (cb: () => void) => void;
-  offClick: (cb: () => void) => void;
   show: () => void;
   hide: () => void;
-  enable: () => void;
-  disable: () => void;
-  showProgress: (leaveActive?: boolean) => void;
-  hideProgress: () => void;
-  setParams: (params: {
-    text?: string;
-    color?: string;
-    text_color?: string;
-    is_active?: boolean;
-    is_visible?: boolean;
-    position?: "left" | "right" | "top" | "bottom";
-  }) => void;
+  onClick: (cb: () => void) => void;
+  offClick: (cb: () => void) => void;
 }
 
 export interface TelegramWebApp {
@@ -89,11 +73,16 @@ export interface TelegramWebApp {
   };
   /** "light" | "dark"，由 TG 宿主按当前主题推断 */
   colorScheme?: "light" | "dark";
+  /** 垂直滑动关闭的开关（Bot API 7.7+） */
+  isVerticalSwipesEnabled?: boolean;
   onEvent?: (event: string, handler: () => void) => void;
   offEvent?: (event: string, handler: () => void) => void;
   ready: () => void;
   expand: () => void;
   close?: () => void;
+  /** Bot API 7.7+：禁止手势下滑关闭，避免误触（长列表滑到顶部继续拉会触发） */
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
   openLink?: (url: string) => void;
   openTelegramLink?: (url: string) => void;
   showConfirm?: (msg: string, cb: (ok: boolean) => void) => void;
@@ -101,14 +90,14 @@ export interface TelegramWebApp {
   /** 原生弹窗；按钮数量 <= 3。点击后 cb 拿到按钮 id（未设 id 时是空字符串）。 */
   showPopup?: (params: PopupParams, cb?: (buttonId: string) => void) => void;
   MainButton?: TelegramMainButton;
-  /** Bot API 7.10+ 才有；老客户端是 undefined，useSecondaryButton 会变 no-op */
-  SecondaryButton?: TelegramSecondaryButton;
   BackButton?: {
     show: () => void;
     hide: () => void;
     onClick: (cb: () => void) => void;
     offClick: (cb: () => void) => void;
   };
+  /** Bot API 6.10+：右上角齿轮。老客户端 undefined，useSettingsButton 自动 no-op */
+  SettingsButton?: TelegramSettingsButton;
   HapticFeedback?: {
     notificationOccurred: (kind: "success" | "warning" | "error") => void;
     impactOccurred: (kind: "light" | "medium" | "heavy") => void;
@@ -146,9 +135,13 @@ export function syncThemeFromTelegram(): void {
 }
 
 /**
- * App 启动时调用一次：ready + expand + 主题。
+ * App 启动时调用一次：ready + expand + 主题 + 禁垂直滑动。
  *
- * **注意不碰 BackButton / MainButton / SecondaryButton**。那几个按钮由页面
+ * `disableVerticalSwipes()`：Mini App 内部滚长列表到顶部还继续拉会触发"下滑
+ * 关闭"，误触体验差。应用级默认关掉。老 TG 客户端（< 7.7）没这个方法，调用
+ * 直接走到 undefined 的 `?.` 无副作用。
+ *
+ * **注意不碰 BackButton / MainButton / SettingsButton**。那几个按钮由页面
  * 自己的 hook 声明状态；父组件 hide 会和子组件 show 冲突（React effect 运行
  * 顺序是子先于父）。
  */
@@ -158,6 +151,7 @@ export function initTelegramChrome(): void {
   if (!tg) return;
   tg.ready();
   tg.expand();
+  tg.disableVerticalSwipes?.();
   tg.onEvent?.("themeChanged", syncThemeFromTelegram);
 }
 
@@ -198,50 +192,62 @@ export interface MainButtonConfig {
 }
 
 /**
- * MainButton / SecondaryButton 的公共行为：挂文字 + 启用 / 进度 / 可见性，
- * 卸载自动 hide + offClick。同一套实现两边共用。
+ * MainButton 三段式实现：挂文字 + 启用 / 进度 / 可见性，卸载自动 hide + offClick。
  *
- * 实现走 `setText` + `enable/disable` + `show/hide` 三段式而不是 `setParams`，
- * Android 客户端历史上对 `setParams` 的可见性 / 启用状态有兼容问题（见
+ * 走 `setText` + `enable/disable` + `show/hide` 三段而不是 `setParams`：
+ * Android 客户端历史上对 `setParams` 的可见性 / 启用状态组合有兼容问题（见
  * vkruglikov/react-telegram-web-app discussion #69 / 类似 issue 一堆）。
  * 三段式是 TG 官方示例的写法，所有客户端都稳。
  */
-function useBottomButton(
-  getBtn: () => TelegramMainButton | TelegramSecondaryButton | undefined,
-  { text, onClick, loading, disabled }: MainButtonConfig,
-): void {
+export function useMainButton({
+  text,
+  onClick,
+  loading,
+  disabled,
+}: MainButtonConfig): void {
   useEffect(() => {
-    const btn = getBtn();
-    if (!btn) return;
+    const mb = getTelegram()?.MainButton;
+    if (!mb) return;
     if (!text) {
-      btn.hide();
+      mb.hide();
       return;
     }
-    btn.setText(text);
-    if (disabled || loading) btn.disable();
-    else btn.enable();
-    if (loading) btn.showProgress(false);
-    else btn.hideProgress();
-    btn.show();
-    btn.onClick(onClick);
+    mb.setText(text);
+    if (disabled || loading) mb.disable();
+    else mb.enable();
+    if (loading) mb.showProgress(false);
+    else mb.hideProgress();
+    mb.show();
+    mb.onClick(onClick);
     return () => {
-      btn.offClick(onClick);
-      btn.hideProgress();
-      btn.hide();
+      mb.offClick(onClick);
+      mb.hideProgress();
+      mb.hide();
     };
-  }, [text, onClick, loading, disabled, getBtn]);
+  }, [text, onClick, loading, disabled]);
 }
 
-// 稳定的取按钮函数：module-level 引用，useBottomButton 的 deps 不会无限变
-const getMainButton = () => getTelegram()?.MainButton;
-const getSecondaryButton = () => getTelegram()?.SecondaryButton;
-
-/** 页面声明 MainButton。详见 `useBottomButton`。 */
-export function useMainButton(config: MainButtonConfig): void {
-  useBottomButton(getMainButton, config);
-}
-
-/** 页面声明 SecondaryButton（Bot API 7.10+）。老客户端无此 API，自动 no-op。 */
-export function useSecondaryButton(config: MainButtonConfig): void {
-  useBottomButton(getSecondaryButton, config);
+/**
+ * 页面声明 SettingsButton：
+ *   useSettingsButton(onClick)    → 显示右上角齿轮，点击触发 cb
+ *   useSettingsButton(undefined)  → 隐藏齿轮
+ * 卸载时自动 hide + 摘 handler。
+ *
+ * 老 TG 客户端（< 6.10）没 SettingsButton，此 hook 自动 no-op。
+ */
+export function useSettingsButton(onClick: (() => void) | undefined): void {
+  useEffect(() => {
+    const sb = getTelegram()?.SettingsButton;
+    if (!sb) return;
+    if (!onClick) {
+      sb.hide();
+      return;
+    }
+    sb.show();
+    sb.onClick(onClick);
+    return () => {
+      sb.offClick(onClick);
+      sb.hide();
+    };
+  }, [onClick]);
 }

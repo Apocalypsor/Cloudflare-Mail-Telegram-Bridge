@@ -5,7 +5,7 @@ import {
   getTelegram,
   type PopupButton,
   useMainButton,
-  useSecondaryButton,
+  useSettingsButton,
 } from "@/lib/tg";
 
 export interface MailFabProps {
@@ -51,19 +51,20 @@ interface ExtraDef {
 }
 
 /**
- * 邮件预览页的操作入口 —— 用 TG 原生 MainButton + SecondaryButton +
- * showPopup 做，**不渲染任何 DOM**。
+ * 邮件预览页的操作入口 —— 用 TG 原生 MainButton + SettingsButton + showPopup 做，
+ * **不渲染任何 DOM**。
  *
  *   MainButton "⚡ 操作" → popup: 星标 / 归档 / 标垃圾（按邮件状态）
- *   SecondaryButton     → 分享 + 跳 TG 原消息
- *     两者都有 → "🔗 更多" → popup
- *     只有一个 → 按钮直接做那个事
- *     都没有   → 隐藏
+ *   SettingsButton (右上齿轮 ⚙) → 分享 + 跳 TG 原消息
+ *     两者都有 → 点齿轮弹 popup
+ *     只有一个 → 点齿轮直接做那个事
+ *     都没有   → 齿轮隐藏
  *
- * popup 有 3 按钮硬上限，所以邮件状态动作和分享/跳转两组拆在两个原生按钮里。
+ * popup 有 3 按钮硬上限，所以把邮件状态动作和分享/跳转拆到两个不同的 TG 原生
+ * 入口里。分享 / 跳转属于"辅助"语义，放右上角齿轮比挤在底部 MainButton 合适。
  *
  * 成功后：HapticFeedback + onChanged() refetch 数据；terminal 动作（归档/删除/
- * 标垃圾/移出归档/移回）成功后 MainButton 自隐藏，SecondaryButton 保持。
+ * 标垃圾/移出归档/移回）成功后 MainButton 自隐藏，SettingsButton 保持。
  * 失败：showAlert(error)。
  */
 export function MailFab({
@@ -234,7 +235,7 @@ export function MailFab({
     disabled: pending,
   });
 
-  // ─── 分享 / 跳 TG 原消息（SecondaryButton） ──────────────────────────────
+  // ─── 分享 / 跳 TG 原消息（SettingsButton 齿轮） ──────────────────────────
 
   const doShare = useCallback(() => {
     const tg = getTelegram();
@@ -267,7 +268,7 @@ export function MailFab({
     return list;
   }, [webMailUrl, tgMessageLink, doShare, doOpenTg]);
 
-  const handleSecondaryButtonClick = useCallback(() => {
+  const handleSettingsClick = useCallback(() => {
     if (extras.length === 0) return;
     if (extras.length === 1) {
       extras[0].run();
@@ -296,17 +297,8 @@ export function MailFab({
     );
   }, [extras]);
 
-  const secondaryButtonText =
-    extras.length === 0
-      ? undefined
-      : extras.length === 1
-        ? extras[0].label
-        : "🔗 更多";
-
-  useSecondaryButton({
-    text: secondaryButtonText,
-    onClick: handleSecondaryButtonClick,
-  });
+  // extras 为空时不展示齿轮（undefined 触发 hook 内部 hide）
+  useSettingsButton(extras.length > 0 ? handleSettingsClick : undefined);
 
   // 没渲染任何 DOM —— UI 全在 TG 宿主
   return null;
