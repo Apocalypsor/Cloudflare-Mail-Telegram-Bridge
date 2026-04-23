@@ -3,12 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
+import { api } from "@/api/client";
+import { ROUTE_MINI_APP_API_MAIL } from "@/api/routes";
+import { mailPreviewResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
-import { api } from "@/lib/api";
-import { ROUTE_MINI_APP_API_MAIL } from "@/lib/routes";
-import { mailPreviewResponseSchema } from "@/lib/schemas";
-import { getTelegram, useBackButton } from "@/lib/tg";
+import { useBackButton } from "@/hooks/use-back-button";
+import { getTelegram } from "@/providers/telegram";
 
 // accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。
 // folder / back 可选。

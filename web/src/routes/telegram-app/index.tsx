@@ -1,10 +1,11 @@
 import { Card, Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { api, extractErrorMessage } from "@/lib/api";
-import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@/lib/routes";
-import { resolveContextResponseSchema } from "@/lib/schemas";
-import { getTelegram, useBackButton } from "@/lib/tg";
+import { api, extractErrorMessage } from "@/api/client";
+import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@/api/routes";
+import { resolveContextResponseSchema } from "@/api/schemas";
+import { useBackButton } from "@/hooks/use-back-button";
+import { getTelegram } from "@/providers/telegram";
 
 /**
  * 入口路由（`/telegram-app/`，对应 BotFather `/newapp` 注册的 Web App URL）。

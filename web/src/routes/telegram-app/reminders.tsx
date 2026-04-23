@@ -4,18 +4,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import { api, extractErrorMessage } from "@/lib/api";
+import { api, extractErrorMessage } from "@/api/client";
 import {
   ROUTE_REMINDERS_API,
   ROUTE_REMINDERS_API_EMAIL_CONTEXT,
-} from "@/lib/routes";
+} from "@/api/routes";
 import {
   emailContextResponseSchema,
   okResponseSchema,
   type Reminder,
   remindersListResponseSchema,
-} from "@/lib/schemas";
-import { getTelegram, useBackButton } from "@/lib/tg";
+} from "@/api/schemas";
+import { useBackButton } from "@/hooks/use-back-button";
+import { getTelegram } from "@/providers/telegram";
 
 // 三件套任缺其一 → 退化为"所有待提醒"列表模式。用 fallback 吞掉格式错误，
 // 避免脏 URL 让整页崩在 errorComponent。

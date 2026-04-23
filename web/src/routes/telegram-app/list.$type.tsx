@@ -4,21 +4,22 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import { api, extractErrorMessage } from "@/lib/api";
+import { api, extractErrorMessage } from "@/api/client";
 import {
   MAIL_LIST_TITLES,
   MAIL_LIST_TYPES,
   ROUTE_MINI_APP_API_LIST,
   ROUTE_MINI_APP_API_MARK_ALL_READ,
   ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
-} from "@/lib/routes";
+} from "@/api/routes";
 import {
   bulkActionResponseSchema,
   type MailListType,
   mailListResponseSchema,
   mailListTypeSchema,
-} from "@/lib/schemas";
-import { getTelegram, useBackButton } from "@/lib/tg";
+} from "@/api/schemas";
+import { useBackButton } from "@/hooks/use-back-button";
+import { getTelegram } from "@/providers/telegram";
 
 interface BulkAction {
   label: string;

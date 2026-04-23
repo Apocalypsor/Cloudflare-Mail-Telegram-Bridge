@@ -1,12 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { api, extractErrorMessage } from "@/lib/api";
-import { okResponseSchema } from "@/lib/schemas";
-import {
-  getTelegram,
-  type PopupButton,
-  useMainButton,
-  useSecondaryButton,
-} from "@/lib/tg";
+import { api, extractErrorMessage } from "@/api/client";
+import { okResponseSchema } from "@/api/schemas";
+import { useMainButton, useSecondaryButton } from "@/hooks/use-bottom-button";
+import { getTelegram, type PopupButton } from "@/providers/telegram";
 
 export interface MailFabProps {
   emailMessageId: string;
