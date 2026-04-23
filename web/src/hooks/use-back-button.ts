@@ -1,13 +1,8 @@
 import { useEffect } from "react";
 import { getTelegram } from "@/providers/telegram";
 
-/**
- * 页面声明 BackButton 行为：
- *   useBackButton(url)        → 显示返回键，点击 location.href = url
- *   useBackButton(undefined)  → 隐藏返回键（根页面）
- *
- * 卸载时自动 hide + 摘 handler。每页调用一次。
- */
+// useBackButton(url)        → 显示，点击跳 url
+// useBackButton(undefined)  → 隐藏（根页面）
 export function useBackButton(targetUrl: string | undefined): void {
   useEffect(() => {
     const bb = getTelegram()?.BackButton;

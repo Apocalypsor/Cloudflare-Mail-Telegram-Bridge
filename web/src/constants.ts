@@ -1,11 +1,5 @@
-/**
- * 领域常量：前后端都认可的值，和 URL/API 无关。
- *
- * `MAIL_LIST_TYPES` 有意和 `@worker/services/mail-list` 里的同名常量保持一致
- * —— 复制而不是从 Worker 导入，是因为那个文件带大量运行时 import（`@db/...`
- * 等），一跟着就会把 Worker bundle 拖进前端 chunk。这里只要字面量的 tuple，
- * 手动同步即可。
- */
+// 手动镜像 worker/services/mail-list 的同名 tuple —— 不 import 是为了不把
+// worker 运行时依赖（@db 等）拖进前端 bundle。
 export const MAIL_LIST_TYPES = [
   "unread",
   "starred",
@@ -13,7 +7,6 @@ export const MAIL_LIST_TYPES = [
   "archived",
 ] as const;
 
-/** 列表类型的中文标题（前端展示用） */
 export const MAIL_LIST_TITLES = {
   unread: "📬 未读邮件",
   starred: "⭐ 星标邮件",

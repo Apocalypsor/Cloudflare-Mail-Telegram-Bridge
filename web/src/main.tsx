@@ -21,8 +21,7 @@ declare module "@tanstack/react-router" {
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("#root missing");
 
-// Provider 嵌套顺序：TelegramProvider 最外（ready/expand 要最先跑，主题变量
-// 要在任何 UI 渲染之前定好）；QueryProvider 次之；RouterProvider 最内。
+// TelegramProvider 必须最外 —— ready/expand + 主题 CSS 变量要先于任何 UI 渲染。
 createRoot(rootEl).render(
   <StrictMode>
     <TelegramProvider>
