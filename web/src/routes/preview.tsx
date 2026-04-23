@@ -1,4 +1,3 @@
-import { Button, Card, Spinner } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -9,6 +8,7 @@ import {
 } from "@/api/client";
 import { ROUTE_PREVIEW_API } from "@/api/routes";
 import { previewResponseSchema } from "@/api/schemas";
+import { WebLayout } from "@/components/web-layout";
 
 export const Route = createFileRoute("/preview")({
   component: PreviewPage,
@@ -16,8 +16,6 @@ export const Route = createFileRoute("/preview")({
 
 function PreviewPage() {
   const [html, setHtml] = useState("");
-  const [result, setResult] = useState<string | null>(null);
-  const [length, setLength] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const mut = useMutation({
@@ -27,74 +25,100 @@ function PreviewPage() {
         .json();
       return previewResponseSchema.parse(raw);
     },
-    onSuccess: (data) => {
-      setResult(data.result);
-      setLength(data.length);
-      setError(null);
-    },
+    onSuccess: () => setError(null),
     onError: async (err) => {
       if (redirectToLoginOnUnauthorized(err)) return;
       setError(await extractErrorMessage(err));
     },
   });
 
-  return (
-    <div className="min-h-screen p-6 flex justify-center">
-      <Card className="w-full max-w-5xl p-6">
-        <h1 className="text-2xl font-bold text-[color:var(--foreground)] mb-1">
-          HTML → Telegram 预览
-        </h1>
-        <p className="text-sm text-[color:var(--muted)] mb-4">
-          粘贴邮件 HTML，查看处理后发送到 Telegram 的 MarkdownV2 结果
-        </p>
+  const data = mut.data;
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  return (
+    <WebLayout subtitle="HTML → MarkdownV2">
+      <section>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
-            <label
-              htmlFor="html-input"
-              className="block text-sm text-[color:var(--muted)] mb-1.5"
-            >
-              输入 HTML
-            </label>
-            <textarea
-              id="html-input"
-              placeholder="<html>...</html>"
-              value={html}
-              onChange={(e) => setHtml(e.target.value)}
-              className="w-full min-h-[300px] p-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] font-mono text-xs resize-y outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
-            />
+            <h1 className="text-xl font-semibold text-zinc-100">
+              HTML → Telegram 预览
+            </h1>
+            <p className="text-sm text-zinc-500 mt-1">
+              粘贴邮件 HTML，查看处理后发送到 Telegram 的 MarkdownV2 文本
+            </p>
           </div>
-          <div>
-            <span className="block text-sm text-[color:var(--muted)] mb-1.5">
-              输出 MarkdownV2
-            </span>
-            <div className="min-h-[300px] p-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] font-mono text-xs whitespace-pre-wrap break-all overflow-auto">
-              {result ?? (
-                <span className="text-[color:var(--muted)]">
-                  （结果将显示在这里）
-                </span>
-              )}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || !html.trim()}
+            className="shrink-0 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed self-start sm:self-auto"
+          >
+            {mut.isPending ? "转换中…" : "转换 →"}
+          </button>
         </div>
 
-        <Button
-          onClick={() => mut.mutate()}
-          isDisabled={mut.isPending || !html.trim()}
-          variant="primary"
-          className="mt-4"
-        >
-          {mut.isPending ? <Spinner size="sm" /> : "转换"}
-        </Button>
-        {length != null && !error && (
-          <div className="mt-2 text-xs text-[color:var(--muted)]">
-            长度: {length} 字符
-          </div>
-        )}
-        {error && (
-          <div className="mt-2 text-xs text-[color:var(--danger)]">{error}</div>
-        )}
-      </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Pane label="INPUT" subLabel="HTML" sideLabel={`${html.length} 字符`}>
+            <textarea
+              value={html}
+              onChange={(e) => setHtml(e.target.value)}
+              placeholder="<html>..."
+              spellCheck={false}
+              className="w-full h-72 sm:h-96 lg:h-[480px] bg-transparent text-emerald-300 font-mono text-[13px] leading-6 resize-none outline-none placeholder:text-zinc-700"
+            />
+          </Pane>
+
+          <Pane
+            label="OUTPUT"
+            subLabel="MarkdownV2"
+            sideLabel={
+              data ? `${data.length} 字符` : error ? "错误" : "等待输入"
+            }
+          >
+            {error ? (
+              <div className="font-mono text-[13px] text-red-400 whitespace-pre-wrap">
+                {error}
+              </div>
+            ) : data ? (
+              <pre className="font-mono text-[13px] leading-6 text-emerald-300 whitespace-pre-wrap break-all">
+                {data.result}
+              </pre>
+            ) : (
+              <div className="text-zinc-700 font-mono text-[13px]">
+                转换结果将显示在这里
+              </div>
+            )}
+          </Pane>
+        </div>
+      </section>
+    </WebLayout>
+  );
+}
+
+function Pane({
+  label,
+  subLabel,
+  sideLabel,
+  children,
+}: {
+  label: string;
+  subLabel: string;
+  sideLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11px] font-semibold tracking-widest text-emerald-500">
+            {label}
+          </span>
+          <span className="text-xs text-zinc-500">{subLabel}</span>
+        </div>
+        <span className="text-xs text-zinc-600 tabular-nums">{sideLabel}</span>
+      </div>
+      <div className="p-4 min-h-72 sm:min-h-96 lg:min-h-[480px]">
+        {children}
+      </div>
     </div>
   );
 }

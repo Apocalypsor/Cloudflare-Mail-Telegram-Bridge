@@ -1,4 +1,3 @@
-import { Button, Card, Skeleton, Spinner } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
@@ -8,6 +7,7 @@ import { api, extractErrorMessage } from "@/api/client";
 import { ROUTE_MAIL_API } from "@/api/routes";
 import { mailPreviewResponseSchema, okResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
+import { WebLayout } from "@/components/web-layout";
 
 const searchSchema = z.object({
   accountId: z.coerce.number(),
@@ -60,78 +60,77 @@ function WebMailPage() {
 
   if (q.isLoading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <Card className="m-4 p-4 space-y-2">
-          <Skeleton className="h-6 w-2/3 rounded-md" />
-          <Skeleton className="h-3 w-1/3 rounded-md" />
-          <Skeleton className="h-3 w-1/2 rounded-md" />
-        </Card>
-        <div className="px-4 py-4 space-y-3">
-          <Skeleton className="h-4 w-full rounded-md" />
-          <Skeleton className="h-4 w-11/12 rounded-md" />
-          <Skeleton className="h-4 w-10/12 rounded-md" />
-          <Skeleton className="h-4 w-9/12 rounded-md" />
+      <WebLayout>
+        <div className="animate-pulse space-y-4">
+          <div className="h-9 w-2/3 rounded-md bg-zinc-800" />
+          <div className="h-4 w-1/3 rounded-md bg-zinc-800" />
+          <div className="h-4 w-1/2 rounded-md bg-zinc-800" />
+          <div className="mt-8 rounded-xl bg-zinc-900 border border-zinc-800 p-6 space-y-3">
+            <div className="h-4 w-full rounded-md bg-zinc-800" />
+            <div className="h-4 w-11/12 rounded-md bg-zinc-800" />
+            <div className="h-4 w-10/12 rounded-md bg-zinc-800" />
+            <div className="h-4 w-9/12 rounded-md bg-zinc-800" />
+          </div>
         </div>
-      </div>
+      </WebLayout>
     );
   }
   if (q.isError || !q.data) {
     return (
-      <Card className="max-w-md mx-auto mt-10 p-6 text-center">
-        <div className="text-[color:var(--danger)]">邮件加载失败</div>
-      </Card>
+      <WebLayout>
+        <div className="max-w-md mx-auto mt-16 rounded-xl border border-red-900/50 bg-red-950/30 p-6 text-center">
+          <div className="text-red-400">邮件加载失败</div>
+          <p className="text-sm text-zinc-500 mt-2">
+            链接可能已过期或参数错误。
+          </p>
+        </div>
+      </WebLayout>
     );
   }
 
   const d = q.data;
+  const metaRows: [string, string][] = [];
+  if (d.meta.from) metaRows.push(["From", d.meta.from]);
+  if (d.meta.to) metaRows.push(["To", d.meta.to]);
+  if (d.accountEmail) metaRows.push(["Account", d.accountEmail]);
+  if (d.meta.date) metaRows.push(["Date", d.meta.date]);
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-[color:var(--surface)] text-[color:var(--surface-foreground)] border-b border-[color:var(--surface-secondary)] px-4 py-3 text-[13px] leading-7">
+    <WebLayout>
+      <article>
         {d.meta.subject && (
-          <div className="text-[22px] font-semibold break-words text-[color:var(--accent)] mb-1.5">
+          <h1 className="text-2xl sm:text-[28px] md:text-[32px] font-semibold tracking-tight leading-tight break-words mb-4">
             {d.meta.subject}
-          </div>
+          </h1>
         )}
-        {d.meta.from && (
-          <div>
-            <span className="text-[color:var(--muted)]">From:</span>{" "}
-            {d.meta.from}
-          </div>
-        )}
-        {d.meta.to && (
-          <div>
-            <span className="text-[color:var(--muted)]">To:</span> {d.meta.to}
-          </div>
-        )}
-        {d.accountEmail && (
-          <div>
-            <span className="text-[color:var(--muted)]">Account:</span>{" "}
-            {d.accountEmail}
-          </div>
-        )}
-        {d.meta.date && (
-          <div>
-            <span className="text-[color:var(--muted)]">Date:</span>{" "}
-            {d.meta.date}
-          </div>
-        )}
-      </div>
 
-      <WebMailToolbar
-        emailMessageId={emailMessageId}
-        accountId={search.accountId}
-        token={search.t}
-        starred={d.starred}
-        inJunk={d.inJunk}
-        inArchive={d.inArchive}
-        canArchive={d.canArchive}
-        onChanged={() => qc.invalidateQueries({ queryKey })}
-      />
+        {metaRows.length > 0 && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-6">
+            {metaRows.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-zinc-500">{label}</dt>
+                <dd className="text-zinc-300 break-words">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
-      <div className="px-4 py-4">
-        <MailBodyFrame bodyHtml={d.bodyHtml} />
-      </div>
-    </div>
+        <WebMailToolbar
+          emailMessageId={emailMessageId}
+          accountId={search.accountId}
+          token={search.t}
+          starred={d.starred}
+          inJunk={d.inJunk}
+          inArchive={d.inArchive}
+          canArchive={d.canArchive}
+          onChanged={() => qc.invalidateQueries({ queryKey })}
+        />
+
+        <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 overflow-hidden">
+          <MailBodyFrame bodyHtml={d.bodyHtml} />
+        </div>
+      </article>
+    </WebLayout>
   );
 }
 
@@ -179,7 +178,7 @@ function WebMailToolbar(props: ToolbarProps) {
         setMsg({ text: res.error ?? "操作失败", kind: "error" });
         return;
       }
-      setMsg({ text: res.message ?? "", kind: "ok" });
+      setMsg({ text: res.message ?? "操作成功", kind: "ok" });
       if (action === "toggle-star" && starredNext !== undefined) {
         setStarred(starredNext);
       } else {
@@ -200,79 +199,100 @@ function WebMailToolbar(props: ToolbarProps) {
   const disabled = done || mut.isPending;
 
   return (
-    <div className="sticky top-0 z-10 bg-[color:var(--surface)] border-b border-[color:var(--surface-secondary)] px-4 py-2 flex flex-wrap gap-2 items-center">
+    <div className="flex flex-wrap gap-2 items-center">
       {!props.inArchive && (
-        <Button
-          size="sm"
-          variant={starred ? "primary" : "outline"}
-          isDisabled={disabled}
+        <ToolbarBtn
+          label={starred ? "✅ 已星标" : "⭐ 星标"}
+          tone={starred ? "success" : "default"}
+          disabled={disabled}
           onClick={() => run("toggle-star", !starred)}
-        >
-          {starred ? "✅ 已星标" : "⭐ 星标"}
-        </Button>
+        />
       )}
       {props.inJunk ? (
         <>
-          <Button
-            size="sm"
-            variant="primary"
-            isDisabled={disabled}
+          <ToolbarBtn
+            label="📥 移到收件箱"
+            tone="accent"
+            disabled={disabled}
             onClick={() => run("move-to-inbox")}
-          >
-            📥 移到收件箱
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            isDisabled={disabled}
+          />
+          <ToolbarBtn
+            label="🗑 删除"
+            tone="danger"
+            disabled={disabled}
             onClick={() => run("trash")}
-          >
-            🗑 删除
-          </Button>
+          />
         </>
       ) : props.inArchive ? (
-        <Button
-          size="sm"
-          variant="primary"
-          isDisabled={disabled}
+        <ToolbarBtn
+          label="📥 移出归档"
+          tone="accent"
+          disabled={disabled}
           onClick={() => run("unarchive")}
-        >
-          📥 移出归档
-        </Button>
+        />
       ) : (
         <>
           {props.canArchive && (
-            <Button
-              size="sm"
-              variant="outline"
-              isDisabled={disabled}
+            <ToolbarBtn
+              label="📥 归档"
+              tone="default"
+              disabled={disabled}
               onClick={() => run("archive")}
-            >
-              📥 归档
-            </Button>
+            />
           )}
-          <Button
-            size="sm"
-            variant="danger-soft"
-            isDisabled={disabled}
+          <ToolbarBtn
+            label="🚫 标记为垃圾"
+            tone="danger"
+            disabled={disabled}
             onClick={() => run("mark-as-junk")}
-          >
-            🚫 标记为垃圾
-          </Button>
+          />
         </>
       )}
-      {mut.isPending && <Spinner size="sm" />}
-      {msg && (
+      {mut.isPending && (
+        <span className="text-xs text-zinc-500 ml-1">处理中…</span>
+      )}
+      {msg && !mut.isPending && (
         <span
-          className={`text-sm ${
-            msg.kind === "error"
-              ? "text-[color:var(--danger)]"
-              : "text-[color:var(--success)]"
+          className={`text-sm ml-1 ${
+            msg.kind === "error" ? "text-red-400" : "text-emerald-400"
           }`}
         >
-          {msg.kind === "ok" ? "✅" : "❌"} {msg.text}
+          {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
         </span>
       )}
     </div>
+  );
+}
+
+function ToolbarBtn({
+  label,
+  tone,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  tone: "default" | "accent" | "danger" | "success";
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const toneClass = {
+    default:
+      "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700",
+    accent:
+      "bg-emerald-500 hover:bg-emerald-400 text-emerald-950 border border-emerald-500",
+    danger: "bg-red-600 hover:bg-red-500 text-white border border-red-600",
+    success:
+      "bg-emerald-900/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800",
+  }[tone];
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneClass}`}
+    >
+      {label}
+    </button>
   );
 }

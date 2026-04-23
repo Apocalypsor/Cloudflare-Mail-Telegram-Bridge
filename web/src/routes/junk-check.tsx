@@ -1,4 +1,3 @@
-import { Button, Card, Spinner } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -9,6 +8,7 @@ import {
 } from "@/api/client";
 import { ROUTE_JUNK_CHECK_API } from "@/api/routes";
 import { junkCheckResponseSchema } from "@/api/schemas";
+import { WebLayout } from "@/components/web-layout";
 
 export const Route = createFileRoute("/junk-check")({
   component: JunkCheckPage,
@@ -36,99 +36,157 @@ function JunkCheckPage() {
   });
 
   const result = mut.data;
-  const showJunk = result && !result.error && result.isJunk;
-  const showOk = result && !result.error && !result.isJunk;
+  const hasValidResult = result && !result.error;
 
   return (
-    <div className="min-h-screen p-6 flex justify-center">
-      <Card className="w-full max-w-2xl p-6">
-        <h1 className="text-2xl font-bold text-[color:var(--foreground)] mb-1">
-          🚫 垃圾邮件检测
-        </h1>
-        <p className="text-sm text-[color:var(--muted)] mb-4">
-          输入邮件主题和正文，AI 判断是否为垃圾邮件
-        </p>
+    <WebLayout subtitle="垃圾邮件检测">
+      <section className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-100">
+            🚫 垃圾邮件检测
+          </h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            粘贴邮件主题和正文，AI 判断是否为垃圾邮件并给出分类理由
+          </p>
+        </div>
 
-        <div className="space-y-3">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
           <div>
             <label
               htmlFor="subject-input"
-              className="block text-sm text-[color:var(--muted)] mb-1"
+              className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2"
             >
-              主题
+              Subject
             </label>
             <input
               id="subject-input"
               type="text"
-              placeholder="邮件主题（可选）"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full p-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-sm outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+              placeholder="邮件主题（可选）"
+              className="w-full px-3 py-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-100 text-sm outline-none focus:border-emerald-500 placeholder:text-zinc-600 transition-colors"
             />
           </div>
           <div>
             <label
               htmlFor="body-input"
-              className="block text-sm text-[color:var(--muted)] mb-1"
+              className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2"
             >
-              正文
+              Body
             </label>
             <textarea
               id="body-input"
-              placeholder="粘贴邮件正文内容…"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="w-full min-h-[200px] p-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-sm resize-y outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+              placeholder="粘贴邮件正文内容…"
+              className="w-full min-h-[200px] px-3 py-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-100 text-sm resize-y outline-none focus:border-emerald-500 placeholder:text-zinc-600 transition-colors"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || !body.trim()}
+            className="w-full px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {mut.isPending ? "检测中…" : "开始检测"}
+          </button>
         </div>
 
-        <Button
-          onClick={() => mut.mutate()}
-          isDisabled={mut.isPending || !body.trim()}
-          variant="primary"
-          className="mt-4"
-        >
-          {mut.isPending ? <Spinner size="sm" /> : "检测"}
-        </Button>
-
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-[color:var(--surface-secondary)] text-sm text-[color:var(--danger)]">
+          <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
             {error}
           </div>
         )}
         {result?.error && (
-          <div className="mt-4 p-3 rounded-lg bg-[color:var(--surface-secondary)] text-sm text-[color:var(--danger)]">
-            错误: {result.error}
+          <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+            错误：{result.error}
           </div>
         )}
-        {(showJunk || showOk) && (
-          <div
-            className={`mt-4 p-4 rounded-lg border ${
-              showJunk
-                ? "bg-red-950/40 border-red-800"
-                : "bg-emerald-950/40 border-emerald-800"
+        {hasValidResult && <ResultCard result={result} />}
+      </section>
+    </WebLayout>
+  );
+}
+
+function ResultCard({
+  result,
+}: {
+  result: {
+    isJunk: boolean;
+    junkConfidence: number;
+    summary: string;
+    tags: string[];
+  };
+}) {
+  const pct = Math.round(result.junkConfidence * 100);
+  const isJunk = result.isJunk;
+
+  return (
+    <div
+      className={`rounded-xl border overflow-hidden ${
+        isJunk
+          ? "border-red-900/60 bg-red-950/20"
+          : "border-emerald-900/60 bg-emerald-950/20"
+      }`}
+    >
+      <div className="px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span
+            className={`inline-flex items-center justify-center w-10 h-10 rounded-full text-xl ${
+              isJunk ? "bg-red-500/20" : "bg-emerald-500/20"
             }`}
           >
-            <div className="text-lg font-bold mb-1">
-              {showJunk ? "🚫 垃圾邮件" : "✅ 正常邮件"}
+            {isJunk ? "🚫" : "✅"}
+          </span>
+          <div>
+            <div
+              className={`text-lg font-semibold ${
+                isJunk ? "text-red-300" : "text-emerald-300"
+              }`}
+            >
+              {isJunk ? "垃圾邮件" : "正常邮件"}
             </div>
-            <div className="text-sm text-[color:var(--muted)] mb-1">
-              置信度: {Math.round(result.junkConfidence * 100)}%
+            <div className="text-xs text-zinc-500 mt-0.5">
+              判断置信度 {pct}%
             </div>
-            {result.tags.length > 0 && (
-              <div className="text-sm text-[color:var(--muted)] mb-2">
-                标签: {result.tags.join(", ")}
-              </div>
-            )}
-            {result.summary && (
-              <div className="text-sm text-[color:var(--foreground)] whitespace-pre-wrap">
-                {result.summary}
-              </div>
-            )}
           </div>
-        )}
-      </Card>
+        </div>
+      </div>
+
+      {/* confidence bar */}
+      <div className="px-5 pb-3">
+        <div className="h-1.5 rounded-full bg-zinc-900 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              isJunk ? "bg-red-500" : "bg-emerald-500"
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {(result.tags.length > 0 || result.summary) && (
+        <div className="border-t border-zinc-800/60 px-5 py-4 space-y-3 bg-zinc-950/30">
+          {result.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {result.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2.5 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {result.summary && (
+            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+              {result.summary}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
