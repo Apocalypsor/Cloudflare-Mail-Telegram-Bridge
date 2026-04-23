@@ -7,7 +7,7 @@ import { api } from "@/api/client";
 import { mailPreviewResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
-import { useBackButton } from "@/hooks/useBackButton";
+import { useBackButton } from "@/hooks/use-back-button";
 import { ROUTE_MINI_APP_API_MAIL } from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 

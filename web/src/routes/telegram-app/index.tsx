@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, extractErrorMessage } from "@/api/client";
 import { resolveContextResponseSchema } from "@/api/schemas";
-import { useBackButton } from "@/hooks/useBackButton";
+import { useBackButton } from "@/hooks/use-back-button";
 import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 

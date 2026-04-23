@@ -11,7 +11,7 @@ import {
   mailListResponseSchema,
   mailListTypeSchema,
 } from "@/api/schemas";
-import { useBackButton } from "@/hooks/useBackButton";
+import { useBackButton } from "@/hooks/use-back-button";
 import {
   MAIL_LIST_TITLES,
   MAIL_LIST_TYPES,

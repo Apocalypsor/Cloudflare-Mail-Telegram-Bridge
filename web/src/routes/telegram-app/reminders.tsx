@@ -11,7 +11,7 @@ import {
   type Reminder,
   remindersListResponseSchema,
 } from "@/api/schemas";
-import { useBackButton } from "@/hooks/useBackButton";
+import { useBackButton } from "@/hooks/use-back-button";
 import {
   ROUTE_REMINDERS_API,
   ROUTE_REMINDERS_API_EMAIL_CONTEXT,
