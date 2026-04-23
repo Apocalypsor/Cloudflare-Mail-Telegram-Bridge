@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 /**
  * 非 Mini App 的 web 页面共用的外壳 —— 固定深色、独立于 TG 主题。
@@ -15,6 +15,22 @@ export function WebLayout({
   subtitle?: string;
   children: ReactNode;
 }) {
+  // iOS Safari 的 safe area（刘海 + 底部手势区）+ scroll bounce 区域显示的
+  // 是 <html> 背景色，不是 React 树里 div 的。挂载时把 html 染成 zinc-950
+  // + color-scheme: dark（同时让 Safari 的 UI chrome 也走暗色），卸载时
+  // 恢复 —— Mini App 页面还是走 TG 主题。
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevBg = html.style.backgroundColor;
+    const prevScheme = html.style.colorScheme;
+    html.style.backgroundColor = "#09090b"; // zinc-950
+    html.style.colorScheme = "dark";
+    return () => {
+      html.style.backgroundColor = prevBg;
+      html.style.colorScheme = prevScheme;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
       <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur">
