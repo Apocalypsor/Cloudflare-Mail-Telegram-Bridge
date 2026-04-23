@@ -174,8 +174,10 @@ export function MailFab({
     }
     tg.showPopup(
       {
+        // title + message 都不能为空：TG 客户端对 message 校验严格，
+        // 空串会让 popup 静默不弹（这就是上一版"按钮点了没反应"的根因）
         title: "邮件操作",
-        message: "",
+        message: "选择要执行的操作",
         buttons: actions.map<PopupButton>((a) => ({
           id: a.id,
           type: a.type,

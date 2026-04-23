@@ -175,8 +175,13 @@ export interface MainButtonConfig {
  *   text 为 undefined → 隐藏按钮
  * 卸载时自动 hide + 摘 handler。
  *
- * 注意：onClick 每次变化都会重新摘旧 handler 绑新的 —— 保证 cb 闭包拿到
- * 最新 props/state，不会指向陈旧值。
+ * **注意**：实现走 `setText` + `enable/disable` + `show/hide` 三段式而不是
+ * `setParams`，因为 Android 客户端历史上对 `setParams` 的可见性 / 启用状态有
+ * 兼容问题（见 vkruglikov/react-telegram-web-app discussion #69 / 类似 issue
+ * 一堆）。三段式是 TG 官方示例的写法，所有客户端都稳。
+ *
+ * onClick 每次变化都会重新摘旧 handler 绑新的 —— 保证 cb 闭包拿到最新
+ * props/state，不会指向陈旧值。
  */
 export function useMainButton({
   text,
@@ -192,10 +197,12 @@ export function useMainButton({
       mb.hide();
       return;
     }
-    const isActive = !disabled && !loading;
-    mb.setParams({ text, is_active: isActive, is_visible: true });
+    mb.setText(text);
+    if (disabled || loading) mb.disable();
+    else mb.enable();
     if (loading) mb.showProgress(false);
     else mb.hideProgress();
+    mb.show();
     mb.onClick(onClick);
     return () => {
       mb.offClick(onClick);
