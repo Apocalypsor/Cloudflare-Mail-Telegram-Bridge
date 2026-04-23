@@ -83,9 +83,7 @@ async function resolveMailContext(
  * 预览页 POST 邮件操作的公共入口：解析 body + 校验 token + 取 account。
  * 失败时返回 `Response`（调用方直接 return）；成功返回 `{ account, emailMessageId, body }`。
  */
-export async function resolveMailAction<
-  B extends MailActionBody = MailActionBody,
->(
+async function resolveMailAction<B extends MailActionBody = MailActionBody>(
   c: Context<AppEnv>,
 ): Promise<
   | { ok: true; account: Account; emailMessageId: string; body: B }
