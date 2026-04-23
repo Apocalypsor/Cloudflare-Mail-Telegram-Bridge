@@ -6,19 +6,18 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { api, extractErrorMessage } from "@/api/client";
 import {
+  ROUTE_MINI_APP_API_LIST,
+  ROUTE_MINI_APP_API_MARK_ALL_READ,
+  ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
+} from "@/api/routes";
+import {
   bulkActionResponseSchema,
   type MailListType,
   mailListResponseSchema,
   mailListTypeSchema,
 } from "@/api/schemas";
+import { MAIL_LIST_TITLES, MAIL_LIST_TYPES } from "@/constants";
 import { useBackButton } from "@/hooks/use-back-button";
-import {
-  MAIL_LIST_TITLES,
-  MAIL_LIST_TYPES,
-  ROUTE_MINI_APP_API_LIST,
-  ROUTE_MINI_APP_API_MARK_ALL_READ,
-  ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
-} from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 
 interface BulkAction {

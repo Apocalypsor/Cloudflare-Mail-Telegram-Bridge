@@ -4,11 +4,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { api } from "@/api/client";
+import { ROUTE_MINI_APP_API_MAIL } from "@/api/routes";
 import { mailPreviewResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
 import { useBackButton } from "@/hooks/use-back-button";
-import { ROUTE_MINI_APP_API_MAIL } from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 
 // accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。

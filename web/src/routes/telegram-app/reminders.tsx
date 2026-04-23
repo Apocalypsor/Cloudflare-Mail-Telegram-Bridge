@@ -6,16 +6,16 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { api, extractErrorMessage } from "@/api/client";
 import {
+  ROUTE_REMINDERS_API,
+  ROUTE_REMINDERS_API_EMAIL_CONTEXT,
+} from "@/api/routes";
+import {
   emailContextResponseSchema,
   okResponseSchema,
   type Reminder,
   remindersListResponseSchema,
 } from "@/api/schemas";
 import { useBackButton } from "@/hooks/use-back-button";
-import {
-  ROUTE_REMINDERS_API,
-  ROUTE_REMINDERS_API_EMAIL_CONTEXT,
-} from "@/paths";
 import { getTelegram } from "@/providers/telegram";
 
 // 三件套任缺其一 → 退化为"所有待提醒"列表模式。用 fallback 吞掉格式错误，
