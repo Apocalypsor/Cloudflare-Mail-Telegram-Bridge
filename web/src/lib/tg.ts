@@ -206,21 +206,36 @@ export interface MainButtonConfig {
   loading?: boolean;
   /** 禁用（灰色、不可点），默认 false */
   disabled?: boolean;
+  /** 背景填充色（hex，`#RRGGBB`）；不设 → 跟 TG 主题 */
+  color?: string;
+  /** 文字颜色（hex）；不设 → 跟 TG 主题 */
+  textColor?: string;
+}
+
+export interface SecondaryButtonConfig extends MainButtonConfig {
+  /** Secondary 相对 Main 的位置；默认 "right"（Main 在左 / Secondary 在右） */
+  position?: "left" | "right" | "top" | "bottom";
 }
 
 /**
- * MainButton / SecondaryButton 的公共行为：挂文字 + 启用 / 进度 / 可见性，
- * 卸载自动 hide + offClick。同一套三段式实现两边共用。
+ * MainButton / SecondaryButton 的公共行为：挂文字 + 启用 / 进度 / 可见性 +
+ * 配色 + 位置（仅 Secondary），卸载自动 hide + offClick。
  *
- * 走 `setText` + `enable/disable` + `show/hide` 三段而不是 `setParams`：
- * Android 客户端历史上对 `setParams` 的可见性 / 启用状态组合有兼容问题（见
- * vkruglikov/react-telegram-web-app discussion #69 / 类似 issue 一堆）。
- * 三段式是 TG 官方示例的写法，所有客户端都稳。
+ * `text` / `is_active` / `is_visible` 走 `setText` + `enable/disable` +
+ * `show/hide` 三段而不是 `setParams`：Android 客户端历史上对 `setParams` 的
+ * 可见性 / 启用状态组合有兼容问题（见 vkruglikov/react-telegram-web-app
+ * discussion #69 / 类似 issue 一堆）。三段式是 TG 官方示例的写法，所有客户端
+ * 都稳。
+ *
+ * `color` / `text_color` / `position` 不受那个 bug 影响，可以走 `setParams`
+ * 单独下发。
  */
 function useBottomButton(
   getBtn: () => TelegramMainButton | TelegramSecondaryButton | undefined,
-  { text, onClick, loading, disabled }: MainButtonConfig,
+  config: SecondaryButtonConfig,
 ): void {
+  const { text, onClick, loading, disabled, color, textColor, position } =
+    config;
   useEffect(() => {
     const btn = getBtn();
     if (!btn) return;
@@ -233,6 +248,18 @@ function useBottomButton(
     else btn.enable();
     if (loading) btn.showProgress(false);
     else btn.hideProgress();
+    // 颜色 / 位置用 setParams 单独下发，避免 is_active / is_visible 的兼容坑
+    const params: {
+      color?: string;
+      text_color?: string;
+      position?: "left" | "right" | "top" | "bottom";
+    } = {};
+    if (color) params.color = color;
+    if (textColor) params.text_color = textColor;
+    if (position) params.position = position;
+    if (Object.keys(params).length > 0) {
+      (btn.setParams as (p: typeof params) => void)(params);
+    }
     btn.show();
     btn.onClick(onClick);
     return () => {
@@ -240,7 +267,7 @@ function useBottomButton(
       btn.hideProgress();
       btn.hide();
     };
-  }, [text, onClick, loading, disabled, getBtn]);
+  }, [text, onClick, loading, disabled, color, textColor, position, getBtn]);
 }
 
 const getMainButton = () => getTelegram()?.MainButton;
@@ -252,6 +279,6 @@ export function useMainButton(config: MainButtonConfig): void {
 }
 
 /** 页面声明 SecondaryButton（Bot API 7.10+）。老客户端无此 API，自动 no-op。 */
-export function useSecondaryButton(config: MainButtonConfig): void {
+export function useSecondaryButton(config: SecondaryButtonConfig): void {
   useBottomButton(getSecondaryButton, config);
 }

@@ -233,6 +233,9 @@ export function MailFab({
     onClick: handleMainButtonClick,
     loading: pending,
     disabled: pending,
+    // Main 用 TG 主题按钮蓝（accent），明确写出来和 Secondary 的色区分
+    color: "#3b82f6",
+    textColor: "#ffffff",
   });
 
   // ─── 分享 / 跳 TG 原消息（SecondaryButton） ──────────────────────────────
@@ -307,6 +310,11 @@ export function MailFab({
   useSecondaryButton({
     text: secondaryButtonText,
     onClick: handleSecondaryButtonClick,
+    // position 'right' 表示 Secondary 放右边 → Main 自然在左边
+    position: "right",
+    // Secondary 用板岩灰填充，跟 Main 的蓝色拉开差距
+    color: "#475569",
+    textColor: "#ffffff",
   });
 
   // 没渲染任何 DOM —— UI 全在 TG 宿主
