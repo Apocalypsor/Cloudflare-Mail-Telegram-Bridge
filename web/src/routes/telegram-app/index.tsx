@@ -1,3 +1,4 @@
+import { Card, Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, extractErrorMessage } from "@/lib/api";
@@ -75,9 +76,20 @@ function RouterPage() {
   }, [navigate]);
 
   if (error) {
-    return <p style={{ padding: 20, color: "var(--danger)" }}>{error}</p>;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="max-w-sm w-full p-6 text-center">
+          <p className="text-sm text-[color:var(--danger)]">{error}</p>
+        </Card>
+      </div>
+    );
   }
-  return <p style={{ padding: 20, color: "var(--hint)" }}>加载中…</p>;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6">
+      <Spinner size="lg" />
+      <p className="text-sm text-[color:var(--muted)]">加载中…</p>
+    </div>
+  );
 }
 
 export const Route = createFileRoute("/telegram-app/")({

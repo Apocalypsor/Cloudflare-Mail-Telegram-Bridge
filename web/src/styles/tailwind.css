@@ -1,43 +1,63 @@
-@import "tailwindcss";
+/**
+ * HeroUI v3 已内嵌 `@import "tailwindcss"` 和全套主题 / 组件 CSS，
+ * 一行足够。无需再单独 `@import "tailwindcss"`。
+ */
+@import "@heroui/styles";
 
-/* Telegram WebApp 主题色：`window.Telegram.WebApp.themeParams` 由 TG 客户端通过
- * CSS 变量 `--tg-theme-*` 注入；下方 CSS 变量给一份深色默认值兜底，保证在
- * 非 TG 浏览器里打开也能显示。页面组件全部读 `var(--bg)` / `var(--text)` 等
- * 语义变量，和 Tailwind utility 按需混用。 */
-:root {
-  color-scheme: light dark;
-  --bg: var(--tg-theme-bg-color, #0f172a);
-  --surface: var(--tg-theme-secondary-bg-color, #1e293b);
-  --text: var(--tg-theme-text-color, #e2e8f0);
-  --hint: var(--tg-theme-hint-color, #94a3b8);
-  --link: var(--tg-theme-link-color, #60a5fa);
-  --button: var(--tg-theme-button-color, #3b82f6);
-  --button-text: var(--tg-theme-button-text-color, #ffffff);
-  --separator: var(
-    --tg-theme-section-separator-color,
-    rgba(127, 127, 127, 0.18)
-  );
-  --danger: #ef4444;
-  --border: rgba(127, 127, 127, 0.18);
+/**
+ * TG Mini App 主题融合：把 Telegram 宿主注入的 `--tg-theme-*` 变量映射到
+ * HeroUI 的设计 token（`--background` / `--foreground` / `--surface` 等）。
+ * 用 var() 嵌 var()，TG 客户端没注入时自动落回 HeroUI 默认 OKLCH。
+ *
+ * light / dark 都覆一份，实际模式切换靠 `<html data-theme="light|dark">`
+ * （由 main.tsx 根据 `window.Telegram.WebApp.colorScheme` 写入）。
+ */
+:root,
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
+  --background: var(--tg-theme-bg-color, oklch(0.9702 0 0));
+  --foreground: var(--tg-theme-text-color, oklch(0.2103 0.0059 285.89));
+  --surface: var(--tg-theme-secondary-bg-color, oklch(100% 0 0));
+  --surface-foreground: var(--tg-theme-text-color, oklch(0.2103 0.0059 285.89));
+  --muted: var(--tg-theme-hint-color, oklch(0.5517 0.0138 285.94));
+  --accent: var(--tg-theme-button-color, oklch(0.6204 0.195 253.83));
+  --accent-foreground: var(--tg-theme-button-text-color, oklch(0.9911 0 0));
+  --field-background: var(--tg-theme-bg-color, oklch(100% 0 0));
+  --field-foreground: var(--tg-theme-text-color, oklch(0.2103 0.0059 285.89));
+  --field-placeholder: var(--tg-theme-hint-color, oklch(0.5517 0.0138 285.94));
+}
+
+/* 页面进入过渡：路由切换时内容淡入 + 轻微上移，100ms 不干扰感知。
+ * Tailwind v4 的 @keyframes 直接在 CSS 声明，HeroUI 不管这块。 */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-page-enter] {
+  animation: page-enter 120ms ease-out both;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 * {
   box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-tap-highlight-color: transparent;
-}
-
-#root {
-  min-height: 100vh;
 }

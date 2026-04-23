@@ -1,3 +1,4 @@
+import { Button, Card, Chip, Skeleton } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
@@ -133,121 +134,69 @@ function MailListPage() {
   const isRefreshing = listQuery.isFetching;
 
   return (
-    <div
-      className="wrap"
-      style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: "4px 0" }}>
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
+      <div className="flex justify-between items-center gap-2">
+        <h1 className="text-xl font-semibold text-[color:var(--foreground)]">
           {MAIL_LIST_TITLES[type]}
         </h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="flex items-center gap-2">
           {bulk && (
-            <button
+            <Button
               type="button"
               onClick={handleBulk}
-              disabled={bulkMut.isPending}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 16,
-                background: "transparent",
-                border: `1px solid ${bulk.danger ? "rgba(239,68,68,.35)" : "var(--separator)"}`,
-                color: bulk.danger ? "var(--danger)" : "var(--link)",
-                fontSize: 13,
-                lineHeight: 1.2,
-                whiteSpace: "nowrap",
-                cursor: bulkMut.isPending ? "default" : "pointer",
-                opacity: bulkMut.isPending ? 0.4 : 1,
-              }}
+              isDisabled={bulkMut.isPending}
+              variant={bulk.danger ? "danger-soft" : "outline"}
+              size="sm"
+              className="rounded-full"
             >
               {bulk.label}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button
+            isIconOnly
+            variant="outline"
+            size="sm"
             onClick={() =>
               qc.invalidateQueries({ queryKey: ["mail-list", type] })
             }
-            title="强制刷新"
             aria-label="强制刷新"
-            style={{
-              width: 32,
-              height: 32,
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "50%",
-              background: "transparent",
-              border: "1px solid var(--separator)",
-              color: "var(--link)",
-              fontSize: 18,
-              lineHeight: 1,
-              cursor: "pointer",
-              animation: isRefreshing ? "spin 1s linear infinite" : undefined,
-            }}
+            className={`rounded-full ${isRefreshing ? "animate-spin" : ""}`}
           >
             ↻
-          </button>
+          </Button>
         </div>
       </div>
 
       <div
-        style={{
-          fontSize: 13,
-          color:
-            meta?.kind === "error"
-              ? "var(--danger)"
-              : meta?.kind === "ok"
-                ? "#22c55e"
-                : "var(--hint)",
-          margin: "8px 0 12px",
-          minHeight: 18,
-        }}
+        className={`text-[13px] min-h-[18px] ${
+          meta?.kind === "error"
+            ? "text-[color:var(--danger)]"
+            : meta?.kind === "ok"
+              ? "text-[color:var(--success)]"
+              : "text-[color:var(--muted)]"
+        }`}
       >
         {meta?.msg ?? (data?.total != null ? `共 ${data.total} 封` : "")}
       </div>
 
       {listQuery.isLoading ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "28px 16px",
-            color: "var(--hint)",
-            fontSize: 14,
-          }}
-        >
-          加载中…
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="p-4 space-y-3">
+              <Skeleton className="h-4 w-1/3 rounded-md" />
+              <Skeleton className="h-3 w-full rounded-md" />
+              <Skeleton className="h-3 w-5/6 rounded-md" />
+            </Card>
+          ))}
         </div>
       ) : isError ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "28px 16px",
-            color: "var(--danger)",
-            fontSize: 14,
-          }}
-        >
-          查询失败
-        </div>
+        <Card className="p-10 text-center">
+          <div className="text-sm text-[color:var(--danger)]">查询失败</div>
+        </Card>
       ) : !data?.total ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "28px 16px",
-            color: "var(--hint)",
-            fontSize: 14,
-          }}
-        >
-          暂无邮件
-        </div>
+        <Card className="p-10 text-center">
+          <div className="text-sm text-[color:var(--muted)]">暂无邮件</div>
+        </Card>
       ) : (
         data.results.map((r) => {
           if (r.error) {
@@ -257,7 +206,9 @@ function MailListPage() {
                 errored
                 label={r.accountEmail || `Account #${r.accountId}`}
               >
-                <span>查询失败</span>
+                <div className="px-4 py-3 text-sm text-[color:var(--danger)]">
+                  查询失败
+                </div>
               </AccountBox>
             );
           }
@@ -268,35 +219,23 @@ function MailListPage() {
               label={r.accountEmail || `Account #${r.accountId}`}
               count={r.total}
             >
-              {r.items.map((it) => (
-                <button
-                  type="button"
-                  key={it.id}
-                  onClick={() => openMail(it.id, r.accountId, it.token)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    background: "transparent",
-                    border: 0,
-                    borderTop: "1px solid var(--separator)",
-                    color: "inherit",
-                    cursor: "pointer",
-                    fontSize: 14,
-                    wordBreak: "break-word",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {it.title || "(无主题)"}
-                </button>
-              ))}
+              <ul className="divide-y divide-[color:var(--surface-secondary)]">
+                {r.items.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      onClick={() => openMail(it.id, r.accountId, it.token)}
+                      className="block w-full text-left px-4 py-3 text-sm break-words hover:bg-[color:var(--surface-secondary)] active:bg-[color:var(--surface-tertiary)] transition-colors"
+                    >
+                      {it.title || "(无主题)"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </AccountBox>
           );
         })
       )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -313,32 +252,20 @@ function AccountBox({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        background: "var(--surface)",
-        borderRadius: 14,
-        padding: "6px 0",
-        marginBottom: 14,
-        overflow: "hidden",
-      }}
-    >
+    <Card className="overflow-hidden">
       <div
-        style={{
-          padding: "10px 14px",
-          fontSize: 13,
-          color: errored ? "var(--danger)" : "var(--hint)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
+        className={`flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] ${
+          errored ? "text-[color:var(--danger)]" : "text-[color:var(--muted)]"
+        }`}
       >
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
         {count != null && (
-          <span style={{ color: "var(--link)", fontWeight: 600 }}>{count}</span>
+          <Chip size="sm" variant="soft" color="accent">
+            {count}
+          </Chip>
         )}
-        {errored && !count && children}
       </div>
-      {!errored && children}
-    </div>
+      {children}
+    </Card>
   );
 }

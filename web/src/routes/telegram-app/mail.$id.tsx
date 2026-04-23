@@ -1,3 +1,4 @@
+import { Skeleton } from "@heroui/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
@@ -74,18 +75,31 @@ function MailPreviewPage() {
   }, [search.back]);
 
   if (q.isLoading) {
-    return <div style={{ padding: 20, color: "var(--hint)" }}>加载中…</div>;
+    return (
+      <div>
+        <div className="bg-[color:var(--surface)] border-b border-[color:var(--surface-secondary)] px-4 py-3 space-y-2">
+          <Skeleton className="h-6 w-2/3 rounded-md" />
+          <Skeleton className="h-3 w-1/3 rounded-md" />
+          <Skeleton className="h-3 w-1/2 rounded-md" />
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <Skeleton className="h-4 w-full rounded-md" />
+          <Skeleton className="h-4 w-11/12 rounded-md" />
+          <Skeleton className="h-4 w-10/12 rounded-md" />
+          <Skeleton className="h-4 w-9/12 rounded-md" />
+        </div>
+      </div>
+    );
   }
   if (q.isError || !q.data) {
     return (
-      <div style={{ padding: 20, color: "var(--danger)" }}>邮件加载失败</div>
+      <div className="p-5 text-sm text-[color:var(--danger)]">邮件加载失败</div>
     );
   }
 
   const d = q.data;
   return (
     <>
-      <style>{PAGE_CSS}</style>
       <MailMetaHeader
         subject={d.meta.subject ?? null}
         from={d.meta.from ?? null}
@@ -95,7 +109,7 @@ function MailPreviewPage() {
         webMailUrl={d.webMailUrl}
         tgMessageLink={d.tgMessageLink}
       />
-      <div className="mail-body">
+      <div className="px-4 py-4 pb-24 break-words">
         <MailBodyFrame bodyHtml={d.bodyHtml} />
       </div>
       <MailFab
@@ -163,82 +177,66 @@ function MailMetaHeader({
   }
 
   return (
-    <div className="mail-meta">
-      {subject && webMailUrl && (
-        <a
-          className="subject"
-          href={webMailUrl}
-          onClick={(e) => openExternal(e, webMailUrl, "browser")}
-          title="在浏览器打开"
-        >
-          {subject}
-          <span className="ext">↗</span>
-        </a>
-      )}
-      {subject && !webMailUrl && <div className="subject">{subject}</div>}
-      <div className="actions">
+    <div className="bg-[color:var(--surface)] text-[color:var(--surface-foreground)] border-b border-[color:var(--surface-secondary)] px-4 py-3 text-[13px] leading-7">
+      {subject &&
+        (webMailUrl ? (
+          <a
+            href={webMailUrl}
+            onClick={(e) => openExternal(e, webMailUrl, "browser")}
+            title="在浏览器打开"
+            className="block text-[22px] font-semibold break-words text-[color:var(--accent)] mb-1.5 active:opacity-60 no-underline"
+          >
+            {subject}
+            <span className="text-sm opacity-70 ml-1">↗</span>
+          </a>
+        ) : (
+          <div className="text-[22px] font-semibold break-words text-[color:var(--accent)] mb-1.5">
+            {subject}
+          </div>
+        ))}
+
+      <div className="flex gap-3 flex-wrap mt-1.5">
         {tgMessageLink && (
           <a
             href={tgMessageLink}
             onClick={(e) => openExternal(e, tgMessageLink, "tg")}
+            className="text-xs text-[color:var(--accent)] active:opacity-60 no-underline"
           >
             💬 跳到 TG 原消息
           </a>
         )}
         {webMailUrl && (
-          <button type="button" onClick={share}>
+          <button
+            type="button"
+            onClick={share}
+            className="text-xs text-[color:var(--accent)] active:opacity-60 bg-transparent border-0 p-0 cursor-pointer"
+          >
             📤 分享
           </button>
         )}
       </div>
+
       {from && (
         <div>
-          <span className="label">From:</span> {from}
+          <span className="text-[color:var(--muted)]">From:</span> {from}
         </div>
       )}
       {to && (
         <div>
-          <span className="label">To:</span> {to}
+          <span className="text-[color:var(--muted)]">To:</span> {to}
         </div>
       )}
       {accountEmail && (
         <div>
-          <span className="label">Account:</span> {accountEmail}
+          <span className="text-[color:var(--muted)]">Account:</span>{" "}
+          {accountEmail}
         </div>
       )}
       {date && (
         <div>
-          <span className="label">Date:</span> {date}
+          <span className="text-[color:var(--muted)]">Date:</span> {date}
         </div>
       )}
     </div>
   );
 }
-
-const PAGE_CSS = `
-.mail-meta {
-  background: var(--surface);
-  border-bottom: 1px solid var(--separator);
-  padding: 12px 16px;
-  font-size: 13px;
-  line-height: 1.7;
-}
-.mail-meta .subject {
-  font-size: 22px; font-weight: 600; margin-bottom: 6px; word-break: break-word;
-  color: var(--link);
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  display: block; text-decoration: none;
-}
-.mail-meta .subject:active { opacity: .6; }
-.mail-meta .subject .ext { font-size: 14px; opacity: .7; margin-left: 4px; }
-.mail-meta .actions { margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
-.mail-meta .actions a, .mail-meta .actions button {
-  font-size: 12px; color: var(--link);
-  text-decoration: none; -webkit-tap-highlight-color: transparent;
-  background: transparent; border: 0; padding: 0; cursor: pointer;
-  font-family: inherit;
-}
-.mail-meta .actions a:active, .mail-meta .actions button:active { opacity: .6; }
-.mail-meta .label { color: var(--hint); }
-.mail-body { padding: 16px; padding-bottom: 100px; word-break: break-word; }
-`;

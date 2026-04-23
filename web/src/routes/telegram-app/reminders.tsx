@@ -1,3 +1,4 @@
+import { Button, Card, Chip, Skeleton, Spinner } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
@@ -76,7 +77,7 @@ function RemindersPage() {
   const qc = useQueryClient();
   const [status, setStatus] = useState<{
     msg: string;
-    kind: "ok" | "error" | "info";
+    kind: "ok" | "error";
   } | null>(null);
   const [date, setDate] = useState<string>(() =>
     ymd(new Date(Date.now() + 60_000)),
@@ -87,7 +88,6 @@ function RemindersPage() {
   const [text, setText] = useState("");
   const [activePreset, setActivePreset] = useState<number | null>(null);
 
-  // 邮件模式 → 拉 email 上下文展示卡片；列表模式跳过
   const emailCtx = useQuery({
     queryKey: [
       "email-context",
@@ -110,7 +110,6 @@ function RemindersPage() {
     },
   });
 
-  // 提醒列表：有 email 上下文就按该邮件过滤，否则拉用户全部
   const remindersKey = useMemo(
     () =>
       listOnly
@@ -188,7 +187,6 @@ function RemindersPage() {
     setActivePreset(idx);
   }
 
-  // 点击邮件卡片跳到预览页
   function openMail() {
     if (listOnly) return;
     const back = encodeURIComponent(
@@ -199,10 +197,8 @@ function RemindersPage() {
       `?accountId=${search.accountId}&t=${encodeURIComponent(search.token ?? "")}&back=${back}`;
   }
 
-  // 邮件模式下最小日期限 = 今天（防止选过去）
   const minDate = ymd(new Date());
 
-  // 隐藏 BackButton（root 页，从 mail 页返回后可能残留显示）
   useEffect(() => {
     getTelegram()?.BackButton?.hide();
   }, []);
@@ -210,11 +206,8 @@ function RemindersPage() {
   const reminders = remindersQuery.data?.reminders ?? [];
 
   return (
-    <div
-      className="wrap"
-      style={{ maxWidth: 560, margin: "0 auto", padding: 16 }}
-    >
-      <h1 style={{ fontSize: 20, fontWeight: 600, margin: "4px 0 16px" }}>
+    <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-4">
+      <h1 className="text-xl font-semibold text-[color:var(--foreground)]">
         {listOnly ? "⏰ 我的提醒" : "⏰ 邮件提醒"}
       </h1>
 
@@ -242,7 +235,7 @@ function RemindersPage() {
           onTextChange={setText}
           onPreset={applyPreset}
           onSave={() => {
-            setStatus({ msg: "保存中…", kind: "info" });
+            setStatus(null);
             createMut.mutate();
           }}
         />
@@ -252,6 +245,7 @@ function RemindersPage() {
         listOnly={listOnly}
         reminders={reminders}
         loading={remindersQuery.isLoading}
+        deletingId={deleteMut.isPending ? (deleteMut.variables ?? null) : null}
         onDelete={(id) => deleteMut.mutate(id)}
       />
     </div>
@@ -271,43 +265,33 @@ function EmailCard({
   error: boolean;
   onClick: () => void;
 }) {
+  // Card 不是多态（只能 div），包一层 button 做交互；外观保持卡片感
   return (
     <button
       type="button"
-      className="email-card"
       onClick={onClick}
-      style={{
-        display: "block",
-        width: "100%",
-        textAlign: "left",
-        padding: "12px 14px",
-        borderLeft: "3px solid var(--button)",
-        borderTop: 0,
-        borderRight: 0,
-        borderBottom: 0,
-        background: "var(--surface)",
-        borderRadius: 8,
-        marginBottom: 14,
-        cursor: "pointer",
-        color: "inherit",
-        fontFamily: "inherit",
-      }}
+      className="block w-full text-left rounded-xl border-l-4 border-[color:var(--accent)] bg-[color:var(--surface)] text-[color:var(--surface-foreground)] shadow-sm p-4 hover:opacity-90 active:opacity-75 transition-opacity cursor-pointer"
     >
-      <div style={{ fontSize: 15, fontWeight: 600, wordBreak: "break-word" }}>
-        {loading
-          ? "加载中…"
-          : error
-            ? "邮件信息加载失败"
-            : subject || "(无主题)"}
-      </div>
-      {accountEmail && (
-        <div style={{ fontSize: 12, color: "var(--hint)", marginTop: 2 }}>
-          账号: {accountEmail}
+      {loading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-3/4 rounded-md" />
+          <Skeleton className="h-3 w-1/2 rounded-md" />
         </div>
+      ) : (
+        <>
+          <div className="text-[15px] font-semibold break-words">
+            {error ? "邮件信息加载失败" : subject || "(无主题)"}
+          </div>
+          {accountEmail && (
+            <div className="text-xs text-[color:var(--muted)] mt-1">
+              账号: {accountEmail}
+            </div>
+          )}
+          <div className="text-[11px] text-[color:var(--accent)] mt-2">
+            点击查看邮件 →
+          </div>
+        </>
       )}
-      <div style={{ fontSize: 11, color: "var(--button)", marginTop: 6 }}>
-        点击查看邮件 →
-      </div>
     </button>
   );
 }
@@ -332,7 +316,7 @@ function AddSection({
   minDate: string;
   activePreset: number | null;
   saving: boolean;
-  status: { msg: string; kind: "ok" | "error" | "info" } | null;
+  status: { msg: string; kind: "ok" | "error" } | null;
   onDateChange: (v: string) => void;
   onTimeChange: (v: string) => void;
   onTextChange: (v: string) => void;
@@ -340,131 +324,97 @@ function AddSection({
   onSave: () => void;
 }) {
   return (
-    <div
-      className="section"
-      style={{
-        background: "var(--surface)",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 14,
-      }}
-    >
-      <label
-        htmlFor="when-date"
-        style={{
-          display: "block",
-          fontSize: 13,
-          color: "var(--hint)",
-          marginBottom: 6,
-        }}
-      >
-        提醒时间
-      </label>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          id="when-date"
-          type="date"
-          value={date}
-          min={minDate}
-          onChange={(e) => onDateChange(e.target.value)}
-          style={{ ...inputStyle, flex: "1 1 auto" }}
-        />
-        <input
-          id="when-time"
-          type="time"
-          value={time}
-          onChange={(e) => onTimeChange(e.target.value)}
-          style={{ ...inputStyle, flex: "0 0 38%" }}
-        />
+    <Card className="p-4 space-y-4">
+      <div>
+        <label
+          htmlFor="when-date"
+          className="block text-xs text-[color:var(--muted)] mb-2"
+        >
+          提醒时间
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="when-date"
+            type="date"
+            value={date}
+            min={minDate}
+            onChange={(e) => onDateChange(e.target.value)}
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+          />
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => onTimeChange(e.target.value)}
+            className="flex-[0_0_38%] min-w-0 px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+          />
+        </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          marginTop: 4,
-        }}
-      >
+      <div className="flex flex-wrap gap-2">
         {PRESETS.map((p, i) => (
-          <button
+          <Button
             key={p.label}
             type="button"
             onClick={() => onPreset(i)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: "1px solid var(--border)",
-              background: activePreset === i ? "var(--button)" : "transparent",
-              color: activePreset === i ? "var(--button-text)" : "var(--text)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
+            variant={activePreset === i ? "primary" : "outline"}
+            size="sm"
+            className="rounded-full"
           >
             {p.label}
-          </button>
+          </Button>
         ))}
       </div>
 
-      <label
-        htmlFor="text"
-        style={{
-          display: "block",
-          fontSize: 13,
-          color: "var(--hint)",
-          margin: "14px 0 6px",
-        }}
-      >
-        备注（可选）
-      </label>
-      <textarea
-        id="text"
-        maxLength={1000}
-        placeholder="可留空 —— 不填只发送邮件主题和链接"
-        value={text}
-        onChange={(e) => onTextChange(e.target.value)}
-        style={{ ...inputStyle, minHeight: 70, resize: "vertical" }}
-      />
-
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={saving}
-        style={{
-          width: "100%",
-          padding: 13,
-          border: "none",
-          borderRadius: 12,
-          background: "var(--button)",
-          color: "var(--button-text)",
-          fontSize: 16,
-          fontWeight: 600,
-          cursor: saving ? "not-allowed" : "pointer",
-          opacity: saving ? 0.5 : 1,
-          marginTop: 14,
-        }}
-      >
-        保存提醒
-      </button>
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 13,
-          minHeight: 18,
-          color:
-            status?.kind === "error"
-              ? "var(--danger)"
-              : status?.kind === "ok"
-                ? "#22c55e"
-                : "var(--text)",
-        }}
-      >
-        {status?.msg ?? ""}
+      <div>
+        <label
+          htmlFor="remind-text"
+          className="block text-xs text-[color:var(--muted)] mb-2"
+        >
+          备注（可选）
+        </label>
+        <textarea
+          id="remind-text"
+          maxLength={1000}
+          placeholder="可留空 —— 不填只发送邮件主题和链接"
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+          className="w-full min-h-[80px] px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] resize-y outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 placeholder:text-[color:var(--field-placeholder)]"
+        />
       </div>
-      <div style={{ color: "var(--hint)", fontSize: 12, marginTop: 6 }}>
+
+      <Button
+        onClick={onSave}
+        isDisabled={saving}
+        variant="primary"
+        size="lg"
+        fullWidth
+      >
+        {saving ? (
+          <span className="inline-flex items-center gap-2">
+            <Spinner size="sm" />
+            保存中…
+          </span>
+        ) : (
+          "保存提醒"
+        )}
+      </Button>
+
+      {status && (
+        <div
+          className={`text-sm text-center ${
+            status.kind === "error"
+              ? "text-[color:var(--danger)]"
+              : "text-[color:var(--success)]"
+          }`}
+        >
+          {status.msg}
+        </div>
+      )}
+
+      <div className="text-xs text-[color:var(--muted)]">
         时间按你设备的本地时区
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -472,117 +422,75 @@ function ListSection({
   listOnly,
   reminders,
   loading,
+  deletingId,
   onDelete,
 }: {
   listOnly: boolean;
   reminders: Reminder[];
   loading: boolean;
+  deletingId: number | null;
   onDelete: (id: number) => void;
 }) {
   return (
-    <div
-      className="section"
-      style={{
-        background: "var(--surface)",
-        borderRadius: 14,
-        padding: 14,
-      }}
-    >
-      <div style={{ fontSize: 13, color: "var(--hint)", marginBottom: 6 }}>
-        {listOnly ? "所有待提醒" : "已设的提醒"}
-        {reminders.length > 0 && <span> ({reminders.length})</span>}
+    <Card className="p-4">
+      <div className="text-xs text-[color:var(--muted)] mb-3 flex items-center gap-2">
+        <span>{listOnly ? "所有待提醒" : "已设的提醒"}</span>
+        {reminders.length > 0 && (
+          <Chip size="sm" variant="soft" color="accent">
+            {reminders.length}
+          </Chip>
+        )}
       </div>
+
       {loading ? (
-        <div style={{ color: "var(--hint)", fontSize: 13, padding: "6px 0" }}>
-          加载中…
+        <div className="space-y-3">
+          {[0, 1].map((i) => (
+            <div key={i} className="space-y-2 py-2">
+              <Skeleton className="h-3 w-1/3 rounded-md" />
+              <Skeleton className="h-4 w-4/5 rounded-md" />
+            </div>
+          ))}
         </div>
       ) : reminders.length === 0 ? (
-        <div style={{ color: "var(--hint)", fontSize: 13, padding: "6px 0" }}>
+        <div className="text-sm text-[color:var(--muted)] py-2">
           {listOnly ? "暂无待提醒事项" : "本邮件还没有设过提醒"}
         </div>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul className="divide-y divide-[color:var(--surface-secondary)]/80">
           {reminders.map((it) => (
             <li
               key={it.id}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: "1px solid var(--border)",
-                gap: 10,
-              }}
+              className="flex items-start justify-between gap-3 py-3 first:pt-1 last:pb-1"
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  minWidth: 0,
-                  flex: 1,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--hint)",
-                    marginBottom: 2,
-                  }}
-                >
+              <div className="flex flex-col min-w-0 flex-1">
+                <div className="text-xs text-[color:var(--muted)] mb-1">
                   {fmtWhen(it.remind_at)}
                 </div>
                 {listOnly && it.email_subject && (
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--hint)",
-                      marginTop: 2,
-                      wordBreak: "break-word",
-                    }}
-                  >
+                  <div className="text-[13px] text-[color:var(--muted)] break-words">
                     📧 {it.email_subject}
                   </div>
                 )}
                 {it.text && (
-                  <div style={{ fontSize: 14, wordBreak: "break-word" }}>
+                  <div className="text-sm break-words text-[color:var(--foreground)] mt-0.5">
                     {it.text}
                   </div>
                 )}
               </div>
-              <button
-                type="button"
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
                 onClick={() => onDelete(it.id)}
-                title="删除"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--danger)",
-                  fontSize: 18,
-                  cursor: "pointer",
-                  padding: "4px 8px",
-                }}
+                isDisabled={deletingId === it.id}
+                aria-label="删除提醒"
               >
-                🗑
-              </button>
+                {deletingId === it.id ? <Spinner size="sm" /> : "🗑"}
+              </Button>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "11px 12px",
-  borderRadius: 10,
-  border: "1px solid var(--border)",
-  background: "var(--bg)",
-  color: "var(--text)",
-  fontSize: 15,
-  fontFamily: "inherit",
-  outline: "none",
-  WebkitAppearance: "none",
-  appearance: "none",
-  minWidth: 0,
-};

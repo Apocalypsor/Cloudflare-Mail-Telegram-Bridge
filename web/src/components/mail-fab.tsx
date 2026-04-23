@@ -1,3 +1,4 @@
+import { Button, Spinner } from "@heroui/react";
 import { useState } from "react";
 import { api, extractErrorMessage } from "@/lib/api";
 import { okResponseSchema } from "@/lib/schemas";
@@ -23,7 +24,7 @@ type Action =
   | "move-to-inbox";
 
 /**
- * 邮件预览页右下角的悬浮操作按钮组。替掉原 web + miniapp 共用的 Hono JSX 版。
+ * 邮件预览页右下角的悬浮操作按钮组。展开时从主按钮向上叠加动作按钮，
  * 每个按钮 POST 到 `/api/mail/:id/<action>`（Worker 侧 token 鉴权，不走 initData）。
  */
 export function MailFab({
@@ -40,7 +41,7 @@ export function MailFab({
   const [starred, setStarred] = useState(initialStarred);
   const [status, setStatus] = useState<string | null>(null);
   const [pending, setPending] = useState<Action | null>(null);
-  /** 某些 action（trash/mark-as-junk）成功后整个邮件被移走，其余 FAB 按钮禁用 */
+  /** 某些 action（trash/mark-as-junk）成功后整封邮件状态改变，其余 FAB 按钮禁用 */
   const [allDisabled, setAllDisabled] = useState(false);
 
   async function callAction(
@@ -57,7 +58,7 @@ export function MailFab({
 
   async function onAction(action: Action) {
     setPending(action);
-    setStatus("处理中...");
+    setStatus("处理中…");
     try {
       if (action === "toggle-star") {
         const next = !starred;
@@ -86,147 +87,128 @@ export function MailFab({
     }
   }
 
+  const isBusy = pending != null;
+
   return (
-    <>
-      <style>{FAB_CSS}</style>
-      <div id="mail-fab">
-        {status && <div className="fab-status show">{status}</div>}
-        <div className={`fab-actions${open ? " show" : ""}`}>
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] flex flex-col items-end gap-2">
+      {status && (
+        <div className="bg-[color:var(--surface)] text-[color:var(--surface-foreground)] px-4 py-2 rounded-2xl text-[13px] border border-[color:var(--surface-secondary)] shadow-lg max-w-[280px] text-center">
+          {status}
+        </div>
+      )}
+
+      {open && (
+        <div className="flex flex-col items-end gap-2">
           {!inArchive && (
-            <FabButton
-              className={starred ? "starred" : "star"}
-              disabled={allDisabled || pending != null}
+            <ActionButton
+              label={starred ? "✅ 已星标" : "⭐ 星标"}
+              busy={pending === "toggle-star"}
+              disabled={allDisabled || isBusy}
+              tint={starred ? "success" : "star"}
               onClick={() => onAction("toggle-star")}
-            >
-              {starred ? "✅ 已星标" : "⭐ 星标"}
-            </FabButton>
+            />
           )}
           {inJunk ? (
             <>
-              <FabButton
-                className="inbox"
-                disabled={allDisabled || pending != null}
+              <ActionButton
+                label="📥 移到收件箱"
+                busy={pending === "move-to-inbox"}
+                disabled={allDisabled || isBusy}
+                tint="primary"
                 onClick={() => onAction("move-to-inbox")}
-              >
-                📥 移到收件箱
-              </FabButton>
-              <FabButton
-                className="del"
-                disabled={allDisabled || pending != null}
+              />
+              <ActionButton
+                label="🗑 删除邮件"
+                busy={pending === "trash"}
+                disabled={allDisabled || isBusy}
+                tint="danger"
                 onClick={() => onAction("trash")}
-              >
-                🗑 删除邮件
-              </FabButton>
+              />
             </>
           ) : inArchive ? (
-            <FabButton
-              className="inbox"
-              disabled={allDisabled || pending != null}
+            <ActionButton
+              label="📥 移出归档"
+              busy={pending === "unarchive"}
+              disabled={allDisabled || isBusy}
+              tint="primary"
               onClick={() => onAction("unarchive")}
-            >
-              📥 移出归档
-            </FabButton>
+            />
           ) : (
             <>
               {canArchive && (
-                <FabButton
-                  className="archive"
-                  disabled={allDisabled || pending != null}
+                <ActionButton
+                  label="📥 归档"
+                  busy={pending === "archive"}
+                  disabled={allDisabled || isBusy}
+                  tint="archive"
                   onClick={() => onAction("archive")}
-                >
-                  📥 归档
-                </FabButton>
+                />
               )}
-              <FabButton
-                className="del"
-                disabled={allDisabled || pending != null}
+              <ActionButton
+                label="🚫 标记为垃圾"
+                busy={pending === "mark-as-junk"}
+                disabled={allDisabled || isBusy}
+                tint="danger"
                 onClick={() => onAction("mark-as-junk")}
-              >
-                🚫 标记为垃圾
-              </FabButton>
+              />
             </>
           )}
         </div>
-        <button
-          type="button"
-          className={`fab-main${open ? " open" : ""}`}
-          onClick={() => {
-            setOpen((v) => !v);
-            setStatus(null);
-          }}
-        >
-          ⚡
-        </button>
-      </div>
-    </>
+      )}
+
+      <Button
+        isIconOnly
+        variant="primary"
+        size="lg"
+        onClick={() => {
+          setOpen((v) => !v);
+          setStatus(null);
+        }}
+        aria-label={open ? "收起操作" : "展开操作"}
+        className={`!w-14 !h-14 !rounded-full text-2xl shadow-xl transition-transform ${
+          open ? "rotate-45" : ""
+        }`}
+      >
+        ⚡
+      </Button>
+    </div>
   );
 }
 
-function FabButton({
-  className,
+function ActionButton({
+  label,
+  busy,
   disabled,
+  tint,
   onClick,
-  children,
 }: {
-  className: string;
+  label: string;
+  busy: boolean;
   disabled: boolean;
+  tint: "primary" | "danger" | "success" | "star" | "archive";
   onClick: () => void;
-  children: React.ReactNode;
 }) {
+  // 五种色调映射：primary/danger 走 HeroUI 语义色，其余用自定义 tailwind
+  const tintClass =
+    tint === "primary"
+      ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)]"
+      : tint === "danger"
+        ? "bg-[color:var(--danger)] text-white"
+        : tint === "success"
+          ? "bg-emerald-500 text-white"
+          : tint === "star"
+            ? "bg-amber-500 text-white"
+            : "bg-indigo-500 text-white";
+
   return (
     <button
       type="button"
-      className={`fab-btn ${className}`}
-      disabled={disabled}
       onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-full text-sm font-medium shadow-lg whitespace-nowrap transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${tintClass}`}
     >
-      {children}
+      {busy && <Spinner size="sm" />}
+      {label}
     </button>
   );
 }
-
-const FAB_CSS = `
-#mail-fab {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-@media (max-width: 640px) { #mail-fab { bottom: 16px; right: 16px; } }
-#mail-fab .fab-main {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--button); color: #fff; border: none;
-  font-size: 22px; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
-  transition: transform .2s, background .2s;
-  -webkit-tap-highlight-color: transparent;
-}
-#mail-fab .fab-main.open { transform: rotate(45deg); background: var(--border); }
-#mail-fab .fab-actions {
-  display: none; flex-direction: column; align-items: flex-end; gap: 8px;
-}
-#mail-fab .fab-actions.show { display: flex; }
-#mail-fab .fab-btn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 18px; border-radius: 24px; border: none;
-  color: #fff; font-size: 14px; cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .3);
-  white-space: nowrap; transition: opacity .2s;
-  -webkit-tap-highlight-color: transparent;
-  font-family: inherit;
-}
-@media (max-width: 640px) { #mail-fab .fab-btn { padding: 12px 20px; font-size: 15px; } }
-#mail-fab .fab-btn:disabled { opacity: .5; cursor: default; }
-#mail-fab .fab-btn.inbox { background: var(--button); }
-#mail-fab .fab-btn.del { background: var(--danger); }
-#mail-fab .fab-btn.star { background: #f59e0b; }
-#mail-fab .fab-btn.starred { background: #22c55e; }
-#mail-fab .fab-btn.archive { background: #6366f1; }
-#mail-fab .fab-status {
-  background: var(--surface); color: var(--text);
-  padding: 8px 16px; border-radius: 16px; font-size: 13px;
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
-  display: none; max-width: 260px; text-align: center;
-}
-#mail-fab .fab-status.show { display: block; }
-`.trim();

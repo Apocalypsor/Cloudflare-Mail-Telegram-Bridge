@@ -1,3 +1,4 @@
+import { Card } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -6,9 +7,15 @@ import { createFileRoute } from "@tanstack/react-router";
  */
 function LandingPage() {
   return (
-    <div style={{ padding: 24, color: "var(--hint)", textAlign: "center" }}>
-      <h1 style={{ fontSize: 20, margin: "0 0 8px" }}>Telemail</h1>
-      <p>请通过 Telegram 打开 Mini App。</p>
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <Card className="max-w-sm w-full p-8 text-center">
+        <h1 className="text-xl font-semibold mb-2 text-[color:var(--foreground)]">
+          Telemail
+        </h1>
+        <p className="text-sm text-[color:var(--muted)]">
+          请通过 Telegram 打开 Mini App
+        </p>
+      </Card>
     </div>
   );
 }

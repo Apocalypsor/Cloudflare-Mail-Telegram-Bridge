@@ -16,6 +16,10 @@ export interface TelegramWebApp {
       language_code?: string;
     };
   };
+  /** "light" | "dark"，由 TG 宿主按当前主题推断 */
+  colorScheme?: "light" | "dark";
+  onEvent?: (event: string, handler: () => void) => void;
+  offEvent?: (event: string, handler: () => void) => void;
   ready: () => void;
   expand: () => void;
   close?: () => void;
@@ -50,11 +54,28 @@ export function getInitData(): string {
   return getTelegram()?.initData ?? "";
 }
 
+/** 把当前 TG colorScheme 写到 `<html data-theme>`，HeroUI 主题跟着切。
+ *  非 TG 环境（本地 Vite）落到系统偏好。 */
+export function syncThemeFromTelegram(): void {
+  if (typeof document === "undefined") return;
+  const tg = getTelegram();
+  const scheme =
+    tg?.colorScheme ??
+    (window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light");
+  document.documentElement.dataset.theme = scheme;
+  document.documentElement.classList.toggle("dark", scheme === "dark");
+}
+
 /** 每个页面挂载时调用一次：ready + expand + 默认隐藏 BackButton（跨页面状态持久化） */
 export function initTelegramChrome(): void {
   const tg = getTelegram();
+  syncThemeFromTelegram();
   if (!tg) return;
   tg.ready();
   tg.expand();
   tg.BackButton?.hide();
+  // TG 切换主题时（用户改系统设置）广播 themeChanged 事件，实时跟上
+  tg.onEvent?.("themeChanged", syncThemeFromTelegram);
 }
