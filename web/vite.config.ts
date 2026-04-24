@@ -46,7 +46,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(root, "index.html"),
-        miniapp: path.resolve(root, "miniapp.html"),
+        miniapp: path.resolve(root, "miniapp/index.html"),
       },
     },
   },
