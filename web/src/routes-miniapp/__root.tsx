@@ -5,7 +5,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-interface RouterContext {
+export interface RouterContext {
   queryClient: QueryClient;
 }
 

@@ -3,8 +3,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryProvider, queryClient } from "@/providers/query";
 import { TelegramProvider } from "@/providers/telegram";
-import { routeTree } from "./routeTree.gen";
-import "./styles/tailwind.css";
+import { routeTree } from "./routeTree.miniapp.gen";
+import "./styles/miniapp.css";
 
 const router = createRouter({
   routeTree,

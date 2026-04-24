@@ -173,7 +173,7 @@ dist
 src/assets/tailwind.ts
 
 # TanStack Router auto-generated manifest (regenerated on every web build)
-web/src/routeTree.gen.ts
+web/src/routeTree.*.gen.ts
 
 # Build artifacts
 web/dist/
