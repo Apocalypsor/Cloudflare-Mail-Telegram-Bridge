@@ -83,8 +83,11 @@ async function resolveMailContext(
 }
 
 /**
- * 预览页 POST 邮件操作的公共入口：解析 body + 校验 token + 取 account。
- * 失败时返回 `Response`（调用方直接 return）；成功返回 `{ account, emailMessageId, body }`。
+ * 预览页 POST 邮件操作的公共入口：解析 body + 校验 token + 取 account
+ * + **校验 account 归属**（必须是当前登录用户的，admin 全过）。
+ *
+ * 调用方必须先挂 `requireSessionOrMiniApp` middleware（c.var.userId / isAdmin
+ * 才会有值）。失败时返回 `Response`（调用方直接 return）。
  */
 async function resolveMailAction<B extends MailActionBody = MailActionBody>(
   c: Context<AppEnv>,
@@ -105,6 +108,19 @@ async function resolveMailAction<B extends MailActionBody = MailActionBody>(
       response: c.json({ ok: false, error: ctx.error }, ctx.status),
     };
   }
+
+  // token 只证明持有人有看这封邮件的权限，不证明就是账号 owner ——
+  // 必须再 check `account.telegram_user_id === current user`，否则别人
+  // 拿到链接 + 自己 TG 登录就能替 owner 操作邮件。admin 全过。
+  const userId = c.get("userId");
+  const isAdmin = c.get("isAdmin");
+  if (!isAdmin && ctx.account.telegram_user_id !== userId) {
+    return {
+      ok: false,
+      response: c.json({ ok: false, error: "Forbidden" }, 403),
+    };
+  }
+
   return {
     ok: true,
     account: ctx.account,
