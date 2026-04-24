@@ -1,7 +1,10 @@
 import { buildEmailKeyboard } from "@bot/keyboards";
 import { getAccountById } from "@db/accounts";
 import { getMappingsByEmailIds } from "@db/message-map";
-import { requireTelegramLogin } from "@handlers/hono/middleware";
+import {
+  requireSessionOrMiniApp,
+  requireTelegramLogin,
+} from "@handlers/hono/middleware";
 import {
   ROUTE_CORS_PROXY,
   ROUTE_JUNK_CHECK_API,
@@ -203,7 +206,7 @@ preview.get(ROUTE_MAIL_API, async (c) => {
   });
 });
 
-preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
+preview.post(ROUTE_MAIL_MOVE_TO_INBOX, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction(c);
   if (!resolved.ok) return resolved.response;
   const { account, emailMessageId } = resolved;
@@ -243,7 +246,7 @@ preview.post(ROUTE_MAIL_MOVE_TO_INBOX, async (c) => {
   }
 });
 
-preview.post(ROUTE_MAIL_TRASH, async (c) => {
+preview.post(ROUTE_MAIL_TRASH, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction(c);
   if (!resolved.ok) return resolved.response;
   const { account, emailMessageId } = resolved;
@@ -261,7 +264,7 @@ preview.post(ROUTE_MAIL_TRASH, async (c) => {
   }
 });
 
-preview.post(ROUTE_MAIL_MARK_JUNK, async (c) => {
+preview.post(ROUTE_MAIL_MARK_JUNK, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction(c);
   if (!resolved.ok) return resolved.response;
   const { account, emailMessageId } = resolved;
@@ -279,7 +282,7 @@ preview.post(ROUTE_MAIL_MARK_JUNK, async (c) => {
   }
 });
 
-preview.post(ROUTE_MAIL_ARCHIVE, async (c) => {
+preview.post(ROUTE_MAIL_ARCHIVE, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction(c);
   if (!resolved.ok) return resolved.response;
   const { account, emailMessageId } = resolved;
@@ -302,7 +305,7 @@ preview.post(ROUTE_MAIL_ARCHIVE, async (c) => {
   }
 });
 
-preview.post(ROUTE_MAIL_UNARCHIVE, async (c) => {
+preview.post(ROUTE_MAIL_UNARCHIVE, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction(c);
   if (!resolved.ok) return resolved.response;
   const { account, emailMessageId } = resolved;
@@ -338,7 +341,7 @@ preview.post(ROUTE_MAIL_UNARCHIVE, async (c) => {
   }
 });
 
-preview.post(ROUTE_MAIL_TOGGLE_STAR, async (c) => {
+preview.post(ROUTE_MAIL_TOGGLE_STAR, requireSessionOrMiniApp, async (c) => {
   const resolved = await resolveMailAction<{
     accountId?: number;
     token?: string;

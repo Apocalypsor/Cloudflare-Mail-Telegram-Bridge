@@ -9,6 +9,7 @@ import { ROUTE_MAIL_API } from "@/api/routes";
 import { mailPreviewResponseSchema, okResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { WebLayout } from "@/components/web-layout";
+import { useSession } from "@/hooks/use-session";
 
 const searchSchema = z.object({
   accountId: z.coerce.number(),
@@ -150,6 +151,7 @@ interface ToolbarProps {
 }
 
 function WebMailToolbar(props: ToolbarProps) {
+  const session = useSession();
   const [starred, setStarred] = useState(props.starred);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState<{ text: string; kind: "ok" | "error" } | null>(
@@ -199,6 +201,12 @@ function WebMailToolbar(props: ToolbarProps) {
     setMsg(null);
     mut.mutate({ action, starredNext });
   }
+
+  // 邮件操作需要 Telegram 登录（session cookie）—— Worker 的
+  // `requireSessionOrMiniApp` middleware 对未登录请求返 401。session 没
+  // 拿到（加载中或未登录）直接不渲染 toolbar，用户走 header 右上的 "登录"
+  // 链接进 `/login`，回来后 session 就有了，toolbar 自然出现。
+  if (!session.data) return null;
 
   const isDisabled = done || mut.isPending;
 
