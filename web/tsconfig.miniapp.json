@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "src/main-miniapp.tsx",
+    "src/routes-miniapp/**/*.ts",
+    "src/routes-miniapp/**/*.tsx",
+    "src/routeTree.miniapp.gen.ts",
+    "src/api/**/*.ts",
+    "src/hooks/**/*.ts",
+    "src/providers/**/*.ts",
+    "src/providers/**/*.tsx",
+    "src/components/mail-body-frame.tsx",
+    "src/components/mail-fab.tsx",
+    "src/paths.ts",
+    "src/constants.ts"
+  ]
+}

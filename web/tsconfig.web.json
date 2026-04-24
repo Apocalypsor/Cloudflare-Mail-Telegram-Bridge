@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "src/main-web.tsx",
+    "src/routes-web/**/*.ts",
+    "src/routes-web/**/*.tsx",
+    "src/routeTree.web.gen.ts",
+    "src/api/**/*.ts",
+    "src/hooks/**/*.ts",
+    "src/providers/**/*.ts",
+    "src/providers/**/*.tsx",
+    "src/components/mail-body-frame.tsx",
+    "src/components/web-layout.tsx",
+    "src/paths.ts",
+    "src/constants.ts"
+  ]
+}

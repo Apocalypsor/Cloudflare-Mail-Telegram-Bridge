@@ -1,8 +1,12 @@
-# SPA 回退：前端拥有的 UI 路径回到 index.html，让 TanStack Router 接管。
+# SPA 回退：前端拥有的 UI 路径回到对应 entry HTML，让 TanStack Router 接管。
 # `/assets/*`、`/favicon.png` 等不在规则里，缺失走真 404（不被盖成 HTML，
 # 避免浏览器拿旧 hash 的 script 请求报 "text/html is not a valid JavaScript
 # MIME type"）。
-/telegram-app/*   /index.html   200
-/mail/*           /index.html   200
-/preview          /index.html   200
-/junk-check       /index.html   200
+#
+# 两套 bundle 物理隔离：/telegram-app/* → miniapp.html（含 TG SDK，TG 主题），
+# 其余 → index.html（纯暗色 web，不加载 TG SDK）。
+/telegram-app       /miniapp.html   200
+/telegram-app/*     /miniapp.html   200
+/mail/*             /index.html     200
+/preview            /index.html     200
+/junk-check         /index.html     200
