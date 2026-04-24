@@ -1,18 +1,48 @@
 import { getBotInfo } from "@bot/index";
 import { LoginDeniedPage, LoginPage } from "@components/web/login";
 import { getUserByTelegramId, upsertUser } from "@db/users";
-import { ROUTE_LOGIN, ROUTE_LOGIN_CALLBACK } from "@handlers/hono/routes";
+import {
+  ROUTE_LOGIN,
+  ROUTE_LOGIN_CALLBACK,
+  ROUTE_SESSION_WHOAMI,
+} from "@handlers/hono/routes";
 import {
   generateSessionCookie,
   type TelegramLoginData,
+  verifySessionCookie,
   verifyTelegramLogin,
 } from "@utils/session";
 import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import { SESSION_COOKIE_NAME } from "@/constants";
 import type { AppEnv } from "@/types";
 
 const auth = new Hono<AppEnv>();
+
+/**
+ * Session 探测接口 —— 非 Mini App 的 web 页（/preview, /junk-check）在挂载
+ * 时调用。跟 `requireTelegramLogin()` 用的是同一套 session cookie + approved
+ * 校验，但失败返回 401 JSON（不是 302），让 SPA 自己决定怎么跳 `/login`。
+ */
+auth.get(ROUTE_SESSION_WHOAMI, async (c) => {
+  const cookie = getCookie(c, SESSION_COOKIE_NAME);
+  if (cookie) {
+    const telegramId = await verifySessionCookie(c.env.ADMIN_SECRET, cookie);
+    if (telegramId) {
+      const user = await getUserByTelegramId(c.env.DB, telegramId);
+      const isAdmin = telegramId === c.env.ADMIN_TELEGRAM_ID;
+      if (user && (user.approved || isAdmin)) {
+        return c.json({
+          telegramId,
+          isAdmin,
+          firstName: user.first_name,
+          username: user.username,
+        });
+      }
+    }
+  }
+  return c.json({ error: "Unauthorized" }, 401);
+});
 
 auth.get(ROUTE_LOGIN, async (c) => {
   const returnTo = c.req.query("return_to") || "/";

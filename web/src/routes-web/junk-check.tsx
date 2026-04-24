@@ -8,13 +8,16 @@ import {
 } from "@/api/client";
 import { ROUTE_JUNK_CHECK_API } from "@/api/routes";
 import { junkCheckResponseSchema } from "@/api/schemas";
+import { SessionGatePlaceholder } from "@/components/session-gate-placeholder";
 import { WebLayout } from "@/components/web-layout";
+import { useRequireTelegramLogin } from "@/hooks/use-require-telegram-login";
 
 export const Route = createFileRoute("/junk-check")({
   component: JunkCheckPage,
 });
 
 function JunkCheckPage() {
+  const session = useRequireTelegramLogin();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +40,14 @@ function JunkCheckPage() {
 
   const result = mut.data;
   const hasValidResult = result && !result.error;
+
+  if (session.isLoading || session.isRedirecting || !session.data) {
+    return (
+      <WebLayout subtitle="垃圾邮件检测">
+        <SessionGatePlaceholder redirecting={session.isRedirecting} />
+      </WebLayout>
+    );
+  }
 
   return (
     <WebLayout subtitle="垃圾邮件检测">

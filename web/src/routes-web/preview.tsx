@@ -8,13 +8,16 @@ import {
 } from "@/api/client";
 import { ROUTE_PREVIEW_API } from "@/api/routes";
 import { previewResponseSchema } from "@/api/schemas";
+import { SessionGatePlaceholder } from "@/components/session-gate-placeholder";
 import { WebLayout } from "@/components/web-layout";
+import { useRequireTelegramLogin } from "@/hooks/use-require-telegram-login";
 
 export const Route = createFileRoute("/preview")({
   component: PreviewPage,
 });
 
 function PreviewPage() {
+  const session = useRequireTelegramLogin();
   const [html, setHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +36,14 @@ function PreviewPage() {
   });
 
   const data = mut.data;
+
+  if (session.isLoading || session.isRedirecting || !session.data) {
+    return (
+      <WebLayout subtitle="HTML → MarkdownV2">
+        <SessionGatePlaceholder redirecting={session.isRedirecting} />
+      </WebLayout>
+    );
+  }
 
   return (
     <WebLayout subtitle="HTML → MarkdownV2">

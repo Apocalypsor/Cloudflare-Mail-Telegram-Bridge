@@ -10,6 +10,7 @@
     "src/providers/**/*.ts",
     "src/providers/**/*.tsx",
     "src/components/mail-body-frame.tsx",
+    "src/components/session-gate-placeholder.tsx",
     "src/components/web-layout.tsx",
     "src/paths.ts",
     "src/constants.ts",

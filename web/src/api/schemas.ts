@@ -109,6 +109,16 @@ export const junkCheckResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+// ─── Session ────────────────────────────────────────────────────────────────
+
+export const whoamiResponseSchema = z.object({
+  telegramId: z.string(),
+  isAdmin: z.boolean(),
+  firstName: z.string(),
+  username: z.string().nullable(),
+});
+export type Whoami = z.infer<typeof whoamiResponseSchema>;
+
 // ─── Generic { ok, error? } ─────────────────────────────────────────────────
 
 export const okResponseSchema = z.object({

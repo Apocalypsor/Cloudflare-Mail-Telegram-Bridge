@@ -8,6 +8,9 @@ export const ROUTE_CORS_PROXY = "/api/cors-proxy";
 // ── Auth routes ──────────────────────────────────────────────────────────────
 export const ROUTE_LOGIN = "/login";
 export const ROUTE_LOGIN_CALLBACK = "/login/callback";
+// Session status probe —— 非 Mini App 的 web 页（/preview, /junk-check）在挂载
+// 时调这个检查登录；200 = 已登录 + approved，401 = 跳登录页。
+export const ROUTE_SESSION_WHOAMI = "/api/session/whoami";
 
 // ── Path param names ─────────────────────────────────────────────────────────
 export const PARAM_PROVIDER = "provider";
