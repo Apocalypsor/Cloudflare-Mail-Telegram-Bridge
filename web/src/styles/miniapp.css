@@ -43,4 +43,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  /**
+   * iPad 上 `TelegramProvider` 调 `requestFullscreen()` 进全屏后，TG 客户端
+   * 在顶部绘制浮动 pill + 菜单，这块浮层会盖住 web content。TG 把需要让出
+   * 的像素通过 `--tg-content-safe-area-inset-*` 暴露给页面，body 按这四个
+   * 变量留内边距即可。非全屏时变量不存在，fallback 到 0，没副作用。
+   */
+  padding-top: var(--tg-content-safe-area-inset-top, 0px);
+  padding-bottom: var(--tg-content-safe-area-inset-bottom, 0px);
+  padding-left: var(--tg-content-safe-area-inset-left, 0px);
+  padding-right: var(--tg-content-safe-area-inset-right, 0px);
 }
