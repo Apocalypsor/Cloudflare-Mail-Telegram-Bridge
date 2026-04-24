@@ -1,4 +1,4 @@
-import { getCachedBotInfo } from "@db/kv";
+import { getBotInfo } from "@bot/index";
 import { countPendingRemindersForEmail } from "@db/reminders";
 import { t } from "@i18n";
 import {
@@ -9,18 +9,6 @@ import {
 } from "@utils/mail-token";
 import { InlineKeyboard } from "grammy";
 import type { Env } from "@/types";
-
-/** 从 KV 缓存读 bot username（webhook 第一次请求会写入；不应缺失） */
-async function getCachedBotUsername(env: Env): Promise<string | null> {
-  const raw = await getCachedBotInfo(env.EMAIL_KV);
-  if (!raw) return null;
-  try {
-    const info = JSON.parse(raw) as { username?: string };
-    return info.username ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ── 邮件信息键盘（星标 / 查看原文）─────────────────────────────────────────
 
@@ -108,8 +96,16 @@ export async function buildEmailKeyboard(
   }
 
   // 群聊：走 `t.me/<bot>/<short>?startapp=<feature>_<chat>_<msg>` deep link
+  // getBotInfo 在 module 顶层做了 isolate-scope memoize，跟 webhook 入口
+  // 共享同一份缓存，这里不会触发额外 KV read。cache miss + Telegram API
+  // getMe 失败时退化为 null —— 群聊降级成裸 web 链接，而不是整条键盘构建
+  // 炸掉。
   const shortName = env.TG_MINI_APP_SHORT_NAME;
-  const username = shortName ? await getCachedBotUsername(env) : null;
+  const username = shortName
+    ? await getBotInfo(env)
+        .then((info) => info.username)
+        .catch(() => null)
+    : null;
   if (shortName && username) {
     const deepLink = (feature: "r" | "m") =>
       `https://t.me/${username}/${shortName}?startapp=${feature}_${chatId}_${tgMessageId}`;
