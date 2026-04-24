@@ -18,6 +18,8 @@ export const ROUTE_PUBLIC_BOT_INFO = "/api/public/bot-info";
 // Session status probe —— 非 Mini App 的 web 页（/preview, /junk-check）在挂载
 // 时调这个检查登录；200 = 已登录 + approved，401 = 跳登录页。
 export const ROUTE_SESSION_WHOAMI = "/api/session/whoami";
+// POST 清 session cookie 登出 —— web 页 header 里的下拉菜单调这个。
+export const ROUTE_SESSION_LOGOUT = "/api/session/logout";
 
 // ── Path param names ─────────────────────────────────────────────────────────
 export const PARAM_PROVIDER = "provider";

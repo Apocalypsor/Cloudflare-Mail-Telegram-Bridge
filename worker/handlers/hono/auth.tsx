@@ -4,6 +4,7 @@ import {
   ROUTE_LOGIN,
   ROUTE_LOGIN_CALLBACK,
   ROUTE_PUBLIC_BOT_INFO,
+  ROUTE_SESSION_LOGOUT,
   ROUTE_SESSION_WHOAMI,
 } from "@handlers/hono/routes";
 import {
@@ -13,7 +14,7 @@ import {
   verifyTelegramLogin,
 } from "@utils/session";
 import { Hono } from "hono";
-import { getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { SESSION_COOKIE_NAME } from "@/constants";
 import type { AppEnv } from "@/types";
 
@@ -42,6 +43,15 @@ auth.get(ROUTE_SESSION_WHOAMI, async (c) => {
     }
   }
   return c.json({ error: "Unauthorized" }, 401);
+});
+
+/**
+ * 登出 —— 把 session cookie 清掉（set `Max-Age=0`），web 页 header 下拉
+ * 菜单点 "登出" 调这个。没有 session 也无所谓，清一次就完事。
+ */
+auth.post(ROUTE_SESSION_LOGOUT, async (c) => {
+  deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+  return c.json({ ok: true });
 });
 
 /**
