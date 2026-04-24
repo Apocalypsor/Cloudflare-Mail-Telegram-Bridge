@@ -86,3 +86,36 @@ export async function requireMiniAppAuth(
   c.set("isAdmin", userId === c.env.ADMIN_TELEGRAM_ID);
   await next();
 }
+
+/**
+ * Session cookie 鉴权（同 `requireTelegramLogin` 但不跳转，失败返回 null）。
+ * 供 `requireSessionOrMiniApp` 这类"两条路任一通过即可"的组合 middleware 用。
+ */
+async function authenticateSession(c: Context<AppEnv>): Promise<string | null> {
+  const cookie = getCookie(c, SESSION_COOKIE_NAME);
+  if (!cookie) return null;
+  const telegramId = await verifySessionCookie(c.env.ADMIN_SECRET, cookie);
+  if (!telegramId) return null;
+  const user = await getUserByTelegramId(c.env.DB, telegramId);
+  if (!user || (!user.approved && telegramId !== c.env.ADMIN_TELEGRAM_ID)) {
+    return null;
+  }
+  return telegramId;
+}
+
+/**
+ * 邮件操作类 API（POST /api/mail/:id/*）共用的 auth —— Mini App 调用带
+ * `X-Telegram-Init-Data`，web 登录用户带 session cookie，任一通过即可。
+ * 失败返回 401 JSON（不是 302，避免 XHR 被当 HTML 响应跟进重定向）。
+ */
+export async function requireSessionOrMiniApp(
+  c: Context<AppEnv>,
+  next: () => Promise<void>,
+) {
+  const userId =
+    (await authenticateSession(c)) ?? (await authenticateMiniApp(c));
+  if (!userId) return c.json({ error: "Unauthorized" }, 401);
+  c.set("userId", userId);
+  c.set("isAdmin", userId === c.env.ADMIN_TELEGRAM_ID);
+  await next();
+}
