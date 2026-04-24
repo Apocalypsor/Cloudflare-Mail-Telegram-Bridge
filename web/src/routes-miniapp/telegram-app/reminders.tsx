@@ -1,4 +1,4 @@
-import { Button, Card, Chip, Skeleton, Spinner } from "@heroui/react";
+import { Skeleton, Spinner } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
@@ -207,7 +207,7 @@ function RemindersPage() {
 
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-4">
-      <h1 className="text-xl font-semibold text-[color:var(--foreground)]">
+      <h1 className="text-xl font-semibold text-zinc-100">
         {listOnly ? "⏰ 我的提醒" : "⏰ 邮件提醒"}
       </h1>
 
@@ -265,12 +265,11 @@ function EmailCard({
   error: boolean;
   onClick: () => void;
 }) {
-  // Card 不是多态（只能 div），包一层 button 做交互；外观保持卡片感
   return (
     <button
       type="button"
       onClick={onClick}
-      className="block w-full text-left rounded-xl border-l-4 border-[color:var(--accent)] bg-[color:var(--surface)] text-[color:var(--surface-foreground)] shadow-sm p-4 hover:opacity-90 active:opacity-75 transition-opacity cursor-pointer"
+      className="block w-full text-left rounded-xl border border-zinc-800 border-l-4 border-l-emerald-500 bg-zinc-900 p-4 hover:bg-zinc-900/80 active:bg-zinc-900/60 transition-colors cursor-pointer"
     >
       {loading ? (
         <div className="space-y-2">
@@ -279,15 +278,15 @@ function EmailCard({
         </div>
       ) : (
         <>
-          <div className="text-[15px] font-semibold break-words">
+          <div className="text-[15px] font-semibold break-words text-zinc-100">
             {error ? "邮件信息加载失败" : subject || "(无主题)"}
           </div>
           {accountEmail && (
-            <div className="text-xs text-[color:var(--muted)] mt-1">
+            <div className="text-xs text-zinc-500 mt-1">
               账号: {accountEmail}
             </div>
           )}
-          <div className="text-[11px] text-[color:var(--accent)] mt-2">
+          <div className="text-[11px] text-emerald-400 mt-2">
             点击查看邮件 →
           </div>
         </>
@@ -323,12 +322,15 @@ function AddSection({
   onPreset: (idx: number) => void;
   onSave: () => void;
 }) {
+  const inputClass =
+    "px-3 py-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-100 text-[15px] outline-none focus:border-emerald-500 placeholder:text-zinc-600 transition-colors";
+
   return (
-    <Card className="p-4 space-y-4">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
       <div>
         <label
           htmlFor="when-date"
-          className="block text-xs text-[color:var(--muted)] mb-2"
+          className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2"
         >
           提醒时间
         </label>
@@ -339,36 +341,38 @@ function AddSection({
             value={date}
             min={minDate}
             onChange={(e) => onDateChange(e.target.value)}
-            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+            className={`flex-1 min-w-0 ${inputClass}`}
           />
           <input
             type="time"
             value={time}
             onChange={(e) => onTimeChange(e.target.value)}
-            className="flex-[0_0_38%] min-w-0 px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+            className={`flex-[0_0_38%] min-w-0 ${inputClass}`}
           />
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {PRESETS.map((p, i) => (
-          <Button
+          <button
             key={p.label}
             type="button"
             onClick={() => onPreset(i)}
-            variant={activePreset === i ? "primary" : "outline"}
-            size="sm"
-            className="rounded-full"
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+              activePreset === i
+                ? "bg-emerald-500 border-emerald-500 text-emerald-950"
+                : "bg-zinc-800 border-zinc-700 text-zinc-100 hover:bg-zinc-700"
+            }`}
           >
             {p.label}
-          </Button>
+          </button>
         ))}
       </div>
 
       <div>
         <label
           htmlFor="remind-text"
-          className="block text-xs text-[color:var(--muted)] mb-2"
+          className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2"
         >
           备注（可选）
         </label>
@@ -378,36 +382,31 @@ function AddSection({
           placeholder="可留空 —— 不填只发送邮件主题和链接"
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
-          className="w-full min-h-[80px] px-3 py-2.5 rounded-lg border border-[color:var(--field-border,transparent)] bg-[color:var(--field-background)] text-[color:var(--field-foreground)] text-[15px] resize-y outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 placeholder:text-[color:var(--field-placeholder)]"
+          className={`w-full min-h-[80px] resize-y ${inputClass}`}
         />
       </div>
 
-      <Button
+      <button
+        type="button"
         onClick={onSave}
-        isDisabled={saving}
-        variant="primary"
-        size="lg"
-        fullWidth
+        disabled={saving}
+        className="w-full px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
       >
         {saving ? <Spinner size="sm" /> : "保存提醒"}
-      </Button>
+      </button>
 
       {status && (
         <div
           className={`text-sm text-center ${
-            status.kind === "error"
-              ? "text-[color:var(--danger)]"
-              : "text-[color:var(--success)]"
+            status.kind === "error" ? "text-red-400" : "text-emerald-400"
           }`}
         >
           {status.msg}
         </div>
       )}
 
-      <div className="text-xs text-[color:var(--muted)]">
-        时间按你设备的本地时区
-      </div>
-    </Card>
+      <div className="text-xs text-zinc-500">时间按你设备的本地时区</div>
+    </div>
   );
 }
 
@@ -425,13 +424,13 @@ function ListSection({
   onDelete: (id: number) => void;
 }) {
   return (
-    <Card className="p-4">
-      <div className="text-xs text-[color:var(--muted)] mb-3 flex items-center gap-2">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <div className="text-xs font-medium tracking-wide text-zinc-400 uppercase mb-3 flex items-center gap-2">
         <span>{listOnly ? "所有待提醒" : "已设的提醒"}</span>
         {reminders.length > 0 && (
-          <Chip size="sm" variant="soft" color="accent">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold">
             {reminders.length}
-          </Chip>
+          </span>
         )}
       </div>
 
@@ -445,45 +444,44 @@ function ListSection({
           ))}
         </div>
       ) : reminders.length === 0 ? (
-        <div className="text-sm text-[color:var(--muted)] py-2">
+        <div className="text-sm text-zinc-500 py-2">
           {listOnly ? "暂无待提醒事项" : "本邮件还没有设过提醒"}
         </div>
       ) : (
-        <ul className="divide-y divide-[color:var(--surface-secondary)]/80">
+        <ul className="divide-y divide-zinc-800/80">
           {reminders.map((it) => (
             <li
               key={it.id}
               className="flex items-start justify-between gap-3 py-3 first:pt-1 last:pb-1"
             >
               <div className="flex flex-col min-w-0 flex-1">
-                <div className="text-xs text-[color:var(--muted)] mb-1">
+                <div className="text-xs text-zinc-500 mb-1">
                   {fmtWhen(it.remind_at)}
                 </div>
                 {listOnly && it.email_subject && (
-                  <div className="text-[13px] text-[color:var(--muted)] break-words">
+                  <div className="text-[13px] text-zinc-400 break-words">
                     📧 {it.email_subject}
                   </div>
                 )}
                 {it.text && (
-                  <div className="text-sm break-words text-[color:var(--foreground)] mt-0.5">
+                  <div className="text-sm break-words text-zinc-100 mt-0.5">
                     {it.text}
                   </div>
                 )}
               </div>
-              <Button
-                isIconOnly
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => onDelete(it.id)}
-                isDisabled={deletingId === it.id}
+                disabled={deletingId === it.id}
                 aria-label="删除提醒"
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-800 hover:text-red-400 active:bg-zinc-700 transition-colors disabled:opacity-40"
               >
                 {deletingId === it.id ? <Spinner size="sm" /> : "🗑"}
-              </Button>
+              </button>
             </li>
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Card, Spinner } from "@heroui/react";
+import { Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, extractErrorMessage } from "@/api/client";
@@ -82,15 +82,15 @@ function RouterPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-sm w-full p-6 text-center">
-          <p className="text-sm text-[color:var(--danger)]">{error}</p>
-        </Card>
+        <div className="max-w-sm w-full rounded-xl border border-red-900/50 bg-red-950/30 p-6 text-center">
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
       </div>
     );
   }
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <Spinner size="lg" />
+      <Spinner size="lg" color="success" />
     </div>
   );
 }

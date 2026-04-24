@@ -1,4 +1,4 @@
-import { Button, Card, Chip, Skeleton, Spinner } from "@heroui/react";
+import { Skeleton, Spinner } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
@@ -109,7 +109,6 @@ function MailListPage() {
     if (!bulk) return;
     const tg = getTelegram();
     const run = () => {
-      // 不再写 loadingText，按钮自己走 isDisabled + Spinner
       setMeta(null);
       bulkMut.mutate();
     };
@@ -137,44 +136,46 @@ function MailListPage() {
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
       <div className="flex justify-between items-center gap-2">
-        <h1 className="text-xl font-semibold text-[color:var(--foreground)]">
+        <h1 className="text-xl font-semibold text-zinc-100">
           {MAIL_LIST_TITLES[type]}
         </h1>
         <div className="flex items-center gap-2">
           {bulk && (
-            <Button
+            <button
               type="button"
               onClick={handleBulk}
-              isDisabled={bulkMut.isPending}
-              variant={bulk.danger ? "danger-soft" : "outline"}
-              size="sm"
-              className="rounded-full"
+              disabled={bulkMut.isPending}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                bulk.danger
+                  ? "bg-red-950/40 hover:bg-red-950/60 text-red-300 border border-red-900/60"
+                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700"
+              }`}
             >
               {bulkMut.isPending ? <Spinner size="sm" /> : bulk.label}
-            </Button>
+            </button>
           )}
-          <Button
-            isIconOnly
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() =>
               qc.invalidateQueries({ queryKey: ["mail-list", type] })
             }
             aria-label="强制刷新"
-            className={`rounded-full ${isRefreshing ? "animate-spin" : ""}`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 transition-colors ${
+              isRefreshing ? "animate-spin" : ""
+            }`}
           >
             ↻
-          </Button>
+          </button>
         </div>
       </div>
 
       <div
         className={`text-[13px] min-h-[18px] ${
           meta?.kind === "error"
-            ? "text-[color:var(--danger)]"
+            ? "text-red-400"
             : meta?.kind === "ok"
-              ? "text-[color:var(--success)]"
-              : "text-[color:var(--muted)]"
+              ? "text-emerald-400"
+              : "text-zinc-500"
         }`}
       >
         {meta?.msg ?? (data?.total != null ? `共 ${data.total} 封` : "")}
@@ -183,21 +184,24 @@ function MailListPage() {
       {listQuery.isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <Card key={i} className="p-4 space-y-3">
+            <div
+              key={i}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3"
+            >
               <Skeleton className="h-4 w-1/3 rounded-md" />
               <Skeleton className="h-3 w-full rounded-md" />
               <Skeleton className="h-3 w-5/6 rounded-md" />
-            </Card>
+            </div>
           ))}
         </div>
       ) : isError ? (
-        <Card className="p-10 text-center">
-          <div className="text-sm text-[color:var(--danger)]">查询失败</div>
-        </Card>
+        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-10 text-center text-sm text-red-400">
+          查询失败
+        </div>
       ) : !data?.total ? (
-        <Card className="p-10 text-center">
-          <div className="text-sm text-[color:var(--muted)]">暂无邮件</div>
-        </Card>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-10 text-center text-sm text-zinc-500">
+          暂无邮件
+        </div>
       ) : (
         data.results.map((r) => {
           if (r.error) {
@@ -207,9 +211,7 @@ function MailListPage() {
                 errored
                 label={r.accountEmail || `Account #${r.accountId}`}
               >
-                <div className="px-4 py-3 text-sm text-[color:var(--danger)]">
-                  查询失败
-                </div>
+                <div className="px-4 py-3 text-sm text-red-400">查询失败</div>
               </AccountBox>
             );
           }
@@ -220,13 +222,13 @@ function MailListPage() {
               label={r.accountEmail || `Account #${r.accountId}`}
               count={r.total}
             >
-              <ul className="divide-y divide-[color:var(--surface-secondary)]">
+              <ul className="divide-y divide-zinc-800">
                 {r.items.map((it) => (
                   <li key={it.id}>
                     <button
                       type="button"
                       onClick={() => openMail(it.id, r.accountId, it.token)}
-                      className="block w-full text-left px-4 py-3 text-sm break-words hover:bg-[color:var(--surface-secondary)] active:bg-[color:var(--surface-tertiary)] transition-colors"
+                      className="block w-full text-left px-4 py-3 text-sm text-zinc-100 break-words hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
                     >
                       {it.title || "(无主题)"}
                     </button>
@@ -253,20 +255,20 @@ function AccountBox({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
       <div
-        className={`flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] ${
-          errored ? "text-[color:var(--danger)]" : "text-[color:var(--muted)]"
+        className={`flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] bg-zinc-950/30 border-b border-zinc-800 ${
+          errored ? "text-red-400" : "text-zinc-400"
         }`}
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate font-medium">{label}</span>
         {count != null && (
-          <Chip size="sm" variant="soft" color="accent">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold">
             {count}
-          </Chip>
+          </span>
         )}
       </div>
       {children}
-    </Card>
+    </div>
   );
 }

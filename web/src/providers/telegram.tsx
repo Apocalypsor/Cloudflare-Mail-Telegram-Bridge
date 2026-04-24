@@ -127,35 +127,21 @@ export function getInitData(): string {
   return getTelegram()?.initData ?? "";
 }
 
-function syncThemeFromTelegram(): void {
-  if (typeof document === "undefined") return;
-  const tg = getTelegram();
-  const scheme =
-    tg?.colorScheme ??
-    (window.matchMedia?.("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light");
-  document.documentElement.dataset.theme = scheme;
-  document.documentElement.classList.toggle("dark", scheme === "dark");
-}
-
 const TelegramContext = createContext<TelegramWebApp | null>(null);
 
 // 挂根部一次。Back/Main/Secondary 按钮的可见性由子页面各自声明 —— React
 // effect 运行顺序是子先于父，这里 show/hide 会被子组件覆盖。
+//
+// Mini App 永远走 zinc/emerald 固定深色（和 web 一致），不跟 TG 客户端的
+// light/dark，所以不再监听 themeChanged。
 export function TelegramProvider({ children }: { children: ReactNode }) {
   const [tg] = useState<TelegramWebApp | null>(() => getTelegram());
 
   useEffect(() => {
-    syncThemeFromTelegram();
     if (!tg) return;
     tg.ready();
     tg.expand();
     tg.disableVerticalSwipes?.();
-    tg.onEvent?.("themeChanged", syncThemeFromTelegram);
-    return () => {
-      tg.offEvent?.("themeChanged", syncThemeFromTelegram);
-    };
   }, [tg]);
 
   return (

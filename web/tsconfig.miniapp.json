@@ -13,6 +13,7 @@
     "src/components/mail-fab.tsx",
     "src/paths.ts",
     "src/constants.ts",
+    "src/styles/theme.ts",
     "../src/handlers/hono/routes.ts"
   ]
 }

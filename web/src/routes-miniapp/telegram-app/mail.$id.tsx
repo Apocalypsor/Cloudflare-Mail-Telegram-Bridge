@@ -60,7 +60,7 @@ function MailPreviewPage() {
   if (q.isLoading) {
     return (
       <div>
-        <div className="bg-[color:var(--surface)] border-b border-[color:var(--surface-secondary)] px-4 py-3 space-y-2">
+        <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-4 space-y-2">
           <Skeleton className="h-6 w-2/3 rounded-md" />
           <Skeleton className="h-3 w-1/3 rounded-md" />
           <Skeleton className="h-3 w-1/2 rounded-md" />
@@ -75,9 +75,7 @@ function MailPreviewPage() {
     );
   }
   if (q.isError || !q.data) {
-    return (
-      <div className="p-5 text-sm text-[color:var(--danger)]">邮件加载失败</div>
-    );
+    return <div className="p-5 text-sm text-red-400">邮件加载失败</div>;
   }
 
   const d = q.data;
@@ -115,6 +113,9 @@ function MailPreviewPage() {
 /**
  * 邮件 meta 信息头：标题（可点 → 浏览器打开原文） + From/To/Account/Date。
  * 分享 / 跳 TG 原消息两个动作已移到底部 SecondaryButton，这里不再渲染。
+ *
+ * 背景用 zinc-950/80 + backdrop-blur，延续 web 的毛玻璃效果；标题用 emerald
+ * 和 web 版 mail.$id 一致。
  */
 function MailMetaHeader({
   subject,
@@ -142,43 +143,42 @@ function MailMetaHeader({
   }
 
   return (
-    <div className="bg-[color:var(--surface)] text-[color:var(--surface-foreground)] border-b border-[color:var(--surface-secondary)] px-4 py-3 text-[13px] leading-7">
+    <div className="sticky top-0 z-10 bg-zinc-950/80 backdrop-blur border-b border-zinc-800/80 px-4 py-3 text-[13px] leading-7 text-zinc-200">
       {subject &&
         (webMailUrl ? (
           <a
             href={webMailUrl}
             onClick={openInBrowser}
             title="在浏览器打开"
-            className="block text-[22px] font-semibold break-words text-[color:var(--accent)] mb-1.5 active:opacity-60 no-underline"
+            className="block text-[22px] font-semibold break-words text-emerald-400 mb-1.5 active:opacity-60 no-underline"
           >
             {subject}
             <span className="text-sm opacity-70 ml-1">↗</span>
           </a>
         ) : (
-          <div className="text-[22px] font-semibold break-words text-[color:var(--accent)] mb-1.5">
+          <div className="text-[22px] font-semibold break-words text-emerald-400 mb-1.5">
             {subject}
           </div>
         ))}
 
       {from && (
         <div>
-          <span className="text-[color:var(--muted)]">From:</span> {from}
+          <span className="text-zinc-500">From:</span> {from}
         </div>
       )}
       {to && (
         <div>
-          <span className="text-[color:var(--muted)]">To:</span> {to}
+          <span className="text-zinc-500">To:</span> {to}
         </div>
       )}
       {accountEmail && (
         <div>
-          <span className="text-[color:var(--muted)]">Account:</span>{" "}
-          {accountEmail}
+          <span className="text-zinc-500">Account:</span> {accountEmail}
         </div>
       )}
       {date && (
         <div>
-          <span className="text-[color:var(--muted)]">Date:</span> {date}
+          <span className="text-zinc-500">Date:</span> {date}
         </div>
       )}
     </div>
