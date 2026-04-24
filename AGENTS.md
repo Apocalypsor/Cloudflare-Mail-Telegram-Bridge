@@ -21,9 +21,9 @@ Run `pnpm cf-typegen` after changing bindings in wrangler.jsonc.
 
 ## Project layout
 
-- **`src/`** — Cloudflare Worker (Hono): bot webhook, queue consumer, cron, email providers, D1 access, `/api/*` + `/mail/:id` + `/oauth/*` + `/login*` pages.
+- **`src/`** — Cloudflare Worker (Hono): bot webhook, queue consumer, cron, email providers, D1 access, `/api/*` + `/oauth/*` + `/login*` pages. (`/mail/:id`, `/preview`, `/junk-check` HTML 页面在 Pages，不在 Worker。)
 - **`web/`** — Cloudflare Pages frontend (Vite + React 19 + TanStack Router + TanStack Query + ky + zod). pnpm workspace child package `telemail-web`. **Multi-entry**: two independent bundles from one Vite build — `miniapp.html` + `src/main-miniapp.tsx` + `src/routes-miniapp/` (TG SDK, TG 主题, HeroUI) and `index.html` + `src/main-web.tsx` + `src/routes-web/` (固定深色 zinc/emerald，无 TG SDK). Shared code (`api/`, `providers/`, `hooks/`, `components/`, `paths.ts`, `constants.ts`) tree-shaken per entry.
-- **Deployment (方案 A)**: single custom domain, Workers Routes split by path. `example.com/api/*`, `example.com/oauth/*`, `example.com/login*`, `example.com/mail/*`, `example.com/preview*`, `example.com/junk-check` → Worker; everything else → Pages. Same origin, zero CORS. Pages `_redirects` rewrites `/telegram-app/*` → `/miniapp.html`（其余 → `/index.html`），两套 bundle 物理隔离。`WORKER_URL` and BotFather `/setdomain` point at the root domain.
+- **Deployment (方案 A)**: single custom domain, Workers Routes split by path. `example.com/api/*`, `example.com/oauth/*`, `example.com/login*` → Worker; everything else (incl. `/mail/:id`, `/preview`, `/junk-check`, `/telegram-app/*`, `/`) → Pages. Same origin, zero CORS. Pages `_redirects` rewrites `/telegram-app/*` → `/miniapp.html`（其余 → `/index.html`），两套 bundle 物理隔离。`WORKER_URL` and BotFather `/setdomain` point at the root domain.
 
 ## Conventions
 
