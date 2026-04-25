@@ -37,6 +37,8 @@ export interface MailListEmailItem {
   /** TG 消息位置（junk/archive 列表里被隐藏，因为 TG 消息可能已被删） */
   tgChatId?: string;
   tgMessageId?: number;
+  /** 发件人（仅 search 列表填充，给前端在 subject 缺失时也能展示来源） */
+  from?: string;
 }
 
 export interface MailListAccountResult {
@@ -161,6 +163,7 @@ export async function searchMail(
               ),
               tgChatId: mapping?.tg_chat_id,
               tgMessageId: mapping?.tg_message_id,
+              from: msg.from,
             };
           }),
         );

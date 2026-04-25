@@ -3,6 +3,7 @@ export interface GraphMessage {
   subject?: string;
   parentFolderId?: string;
   flag?: { flagStatus: string };
+  from?: { emailAddress?: { name?: string; address?: string } };
 }
 
 export interface GraphMessageList {

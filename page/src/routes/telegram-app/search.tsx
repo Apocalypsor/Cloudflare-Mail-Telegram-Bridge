@@ -1,26 +1,48 @@
 import { Skeleton, Spinner } from "@heroui/react";
-import { useMutation } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { api, extractErrorMessage } from "@/api/client";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { fallback, zodValidator } from "@tanstack/zod-adapter";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { api } from "@/api/client";
 import { ROUTE_MINI_APP_API_SEARCH } from "@/api/routes";
 import { mailSearchResponseSchema } from "@/api/schemas";
 import { useBackButton } from "@/hooks/use-back-button";
-import { getTelegram } from "@/providers/telegram";
+
+// 查询字串放 URL，目的有二：
+// 1) 搜索状态可被浏览器 / TG WebView 历史保留 —— 点击邮件后回退能回到带结果的搜索页
+// 2) useQuery 用 q 做 cacheKey，回退时直接 hit 缓存，不再发请求
+const searchSchema = z.object({
+  q: fallback(z.string().optional(), undefined),
+});
 
 export const Route = createFileRoute("/telegram-app/search")({
   component: SearchPage,
+  validateSearch: zodValidator(searchSchema),
 });
 
 function SearchPage() {
-  // 搜索页是从邮件键盘进入的根页 —— 不显示 BackButton（关闭走 TG 自带的 ✕）
+  const { q: urlQ } = Route.useSearch();
+  const navigate = useNavigate();
+
+  // 搜索页是从主菜单进入的根页 —— 不显示 BackButton
   useBackButton(undefined);
 
-  const [input, setInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // input 是 URL 的可编辑镜像。URL 变化时同步过来（含从 mail 页回退到这里的场景）。
+  const [input, setInput] = useState(urlQ ?? "");
+  useEffect(() => {
+    setInput(urlQ ?? "");
+  }, [urlQ]);
 
-  const searchMut = useMutation({
-    mutationFn: async (q: string) => {
+  const q = (urlQ ?? "").trim();
+
+  const searchQuery = useQuery({
+    queryKey: ["search", q],
+    enabled: q.length > 0,
+    // 搜索结果在用户停留期间认为是新鲜的；切回页面不重新打 provider
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    queryFn: async () => {
       const data = await api
         .get(ROUTE_MINI_APP_API_SEARCH.replace(/^\//, ""), {
           searchParams: { q },
@@ -28,21 +50,13 @@ function SearchPage() {
         .json();
       return mailSearchResponseSchema.parse(data);
     },
-    onError: async (err) => {
-      setError(await extractErrorMessage(err));
-      getTelegram()?.HapticFeedback?.notificationOccurred("error");
-    },
-    onSuccess: () => {
-      setError(null);
-    },
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const q = input.trim();
-    if (!q) return;
-    setError(null);
-    searchMut.mutate(q);
+    const next = input.trim();
+    if (!next || next === q) return;
+    navigate({ to: "/telegram-app/search", search: { q: next } });
   }
 
   function openMail(id: string, accountId: number, token: string) {
@@ -52,7 +66,8 @@ function SearchPage() {
     window.location.href = `/telegram-app/mail/${encodeURIComponent(id)}?accountId=${accountId}&t=${encodeURIComponent(token)}&back=${back}`;
   }
 
-  const data = searchMut.data;
+  const data = searchQuery.data;
+  const errMsg = searchQuery.error ? extractErrorSync(searchQuery.error) : null;
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
@@ -70,25 +85,25 @@ function SearchPage() {
         />
         <button
           type="submit"
-          disabled={searchMut.isPending || !input.trim()}
+          disabled={searchQuery.isFetching || !input.trim()}
           className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center min-w-[68px]"
         >
-          {searchMut.isPending ? <Spinner size="sm" /> : "搜索"}
+          {searchQuery.isFetching ? <Spinner size="sm" /> : "搜索"}
         </button>
       </form>
 
       <div
         className={`text-[13px] min-h-[18px] ${
-          error ? "text-red-400" : "text-zinc-500"
+          errMsg ? "text-red-400" : "text-zinc-500"
         }`}
       >
-        {error ??
+        {errMsg ??
           (data
             ? `找到 ${data.total} 封匹配 “${data.query}”`
             : "支持跨所有账号检索（Gmail / Outlook 走原生搜索语法）")}
       </div>
 
-      {searchMut.isPending ? (
+      {!q ? null : searchQuery.isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
             <div
@@ -133,9 +148,16 @@ function SearchPage() {
                     <button
                       type="button"
                       onClick={() => openMail(it.id, r.accountId, it.token)}
-                      className="block w-full text-left px-4 py-3 text-sm text-zinc-100 break-words hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
+                      className="block w-full text-left px-4 py-3 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
                     >
-                      {it.title || "(无主题)"}
+                      <div className="text-sm text-zinc-100 break-words">
+                        {it.title || "(无主题)"}
+                      </div>
+                      {it.from && (
+                        <div className="text-xs text-zinc-500 break-words mt-1">
+                          {it.from}
+                        </div>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -146,6 +168,14 @@ function SearchPage() {
       )}
     </div>
   );
+}
+
+// useQuery 错误同步取一个能渲染的字符串。HTTPError body 解析需要 async，
+// 这里暂时只读 message —— ky 错误对象的 .message 已经包含 status + URL，
+// 对调试足够；要看后端 error 字段可以打开网络面板。
+function extractErrorSync(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }
 
 function AccountBox({

@@ -8,6 +8,8 @@ import type { Account, AppEnv, Env, MailMeta } from "@/types";
 export interface EmailListItem {
   id: string;
   subject?: string;
+  /** 发件人，已格式化为 `Name <addr>` 或裸 addr。仅 search 类列表填充。 */
+  from?: string;
 }
 
 /** 邮件当前所在位置 —— 对账时用这个值决定 TG 侧如何处理 */

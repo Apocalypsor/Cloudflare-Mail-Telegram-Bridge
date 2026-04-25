@@ -213,7 +213,7 @@ export class ImapProvider extends EmailProvider {
       maxResults,
     });
     const { messages } = (await resp.json()) as {
-      messages: { id: string; subject?: string }[];
+      messages: { id: string; subject?: string; from?: string }[];
     };
     return messages ?? [];
   }

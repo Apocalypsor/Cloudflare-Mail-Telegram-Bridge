@@ -41,6 +41,8 @@ export const mailListItemSchema = z.object({
   token: z.string(),
   tgChatId: z.string().optional(),
   tgMessageId: z.number().optional(),
+  /** 仅 search API 填充：subject 缺失时也能看出是谁发的 */
+  from: z.string().optional(),
 });
 
 export const mailListAccountResultSchema = z.object({

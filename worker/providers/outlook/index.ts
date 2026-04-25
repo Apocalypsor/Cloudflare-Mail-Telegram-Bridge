@@ -377,10 +377,18 @@ export class OutlookProvider extends EmailProvider {
     const escaped = query.replace(/"/g, '\\"');
     const data = await graphGet<GraphMessageList>(
       await this.token(),
-      `/me/messages?$search=${encodeURIComponent(`"${escaped}"`)}&$select=id,subject&$top=${maxResults}`,
+      `/me/messages?$search=${encodeURIComponent(`"${escaped}"`)}&$select=id,subject,from&$top=${maxResults}`,
     );
     if (!data.value) return [];
-    return data.value.map((m) => ({ id: m.id, subject: m.subject }));
+    return data.value.map((m) => {
+      const ea = m.from?.emailAddress;
+      const from = ea?.address
+        ? ea.name
+          ? `${ea.name} <${ea.address}>`
+          : ea.address
+        : ea?.name;
+      return { id: m.id, subject: m.subject, from };
+    });
   }
 
   async markAsJunk(messageId: string) {

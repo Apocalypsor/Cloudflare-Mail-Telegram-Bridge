@@ -374,9 +374,30 @@ export class GmailProvider extends EmailProvider {
 
   async searchMessages(query: string, maxResults: number = 20) {
     const token = await this.token();
-    // Gmail `q=` 直接吃用户原文（支持 from:/subject:/has: 等高级语法），
-    // 用 encodeURIComponent 走 URL；空匹配会被 list 接口拒绝，调用方过滤。
-    return this.listByQuery(token, encodeURIComponent(query), maxResults);
+    // Gmail `q=` 直接吃用户原文（from:/subject:/has: 等高级语法都支持）。
+    // 单独走一条路径：metadata 里多带个 From header，方便结果页 subject 缺失时
+    // 仍能展示发件人 —— 否则一堆通讯类邮件会全显示成 "(无主题)"。
+    const data = await gmailGet<GmailMessageList>(
+      token,
+      `/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`,
+    );
+    if (!data.messages) return [];
+    return Promise.all(
+      data.messages.map(async ({ id }) => {
+        try {
+          const msg = await gmailGet<GmailMessage>(
+            token,
+            `/users/me/messages/${id}?format=METADATA&metadataHeaders=Subject&metadataHeaders=From`,
+          );
+          const headers = msg.payload?.headers ?? [];
+          const get = (n: string) =>
+            headers.find((h) => h.name.toLowerCase() === n)?.value;
+          return { id, subject: get("subject"), from: get("from") };
+        } catch {
+          return { id };
+        }
+      }),
+    );
   }
 
   async listArchived(maxResults: number = 20) {
