@@ -218,6 +218,16 @@ export class ImapProvider extends EmailProvider {
     return messages ?? [];
   }
 
+  async markAllAsRead(_maxResults?: number) {
+    // IMAP 一条 STORE +\Seen 就把整 INBOX 未读全标了，maxResults 在这里被忽略 ——
+    // bridge 会 SEARCH UNSEEN 拿全部未读 UID 一起 STORE，没有 partial-failure 概念。
+    const resp = await callBridge(this.env, "POST", "/api/mark-all-read", {
+      accountId: this.account.id,
+    });
+    const { count } = (await resp.json()) as { count: number };
+    return { success: count, failed: 0 };
+  }
+
   async markAsJunk(messageId: string) {
     await callBridge(this.env, "POST", "/api/mark-as-junk", {
       accountId: this.account.id,

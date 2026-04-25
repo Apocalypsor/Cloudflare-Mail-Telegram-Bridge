@@ -1,6 +1,6 @@
 import { deleteAccount, getOwnAccounts } from "@db/accounts";
 import { deleteFailedEmailsByAccountId } from "@db/failed-emails";
-import { deleteCachedAccessToken } from "@db/kv";
+import { deleteCachedAccessToken, deleteCachedOutlookFolderIds } from "@db/kv";
 import { deleteMappingsByAccountId } from "@db/message-map";
 import { deleteUser } from "@db/users";
 import { getEmailProvider } from "@providers";
@@ -39,6 +39,8 @@ export async function cleanupAndDeleteAccount(
     deleteMappingsByAccountId(env.DB, account.id),
     deleteFailedEmailsByAccountId(env.DB, account.id),
     deleteCachedAccessToken(env.EMAIL_KV, account.id),
+    // Outlook folder ID 缓存（其他 provider 没写入也无副作用，统一删）
+    deleteCachedOutlookFolderIds(env.EMAIL_KV, account.id),
   ]);
 }
 

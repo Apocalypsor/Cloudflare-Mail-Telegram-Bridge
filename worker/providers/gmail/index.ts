@@ -15,7 +15,11 @@ import {
   gmailGet,
   gmailPost,
 } from "@providers/gmail/utils";
-import type { MessageState, PreviewContent } from "@providers/types";
+import type {
+  EmailListItem,
+  MessageState,
+  PreviewContent,
+} from "@providers/types";
 import { base64urlToArrayBuffer, base64urlToString } from "@utils/base64url";
 import { wrapPlainText } from "@utils/format";
 import type { Hono } from "hono";
@@ -378,31 +382,13 @@ export class GmailProvider extends EmailProvider {
   }
 
   async searchMessages(query: string, maxResults: number = 20) {
-    const token = await this.token();
     // Gmail `q=` 直接吃用户原文（from:/subject:/has: 等高级语法都支持）。
-    // messages.list 只返回 [{id, threadId}] 不带 subject —— 用 batch API 把 N 条
-    // metadata 合并成 1 个 multipart 请求拿回，省 subrequest 配额、避免并发
-    // burst 触发的偶发 "(无主题)"。
+    const token = await this.token();
     const data = await gmailGet<GmailMessageList>(
       token,
       `/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`,
     );
-    if (!data.messages) return [];
-
-    const ids = data.messages.map((m) => m.id);
-    const metaMap = await gmailBatchGetMetadata(token, ids, [
-      "Subject",
-      "From",
-    ]);
-
-    return ids.map((id) => {
-      const msg = metaMap.get(id);
-      if (!msg) return { id }; // batch 里这条挂了，subject/from 缺省即可
-      const headers = msg.payload?.headers ?? [];
-      const get = (n: string) =>
-        headers.find((h) => h.name.toLowerCase() === n)?.value;
-      return { id, subject: get("subject"), from: get("from") };
-    });
+    return this.hydrateListItems(token, data.messages);
   }
 
   async listArchived(maxResults: number = 20) {
@@ -413,23 +399,25 @@ export class GmailProvider extends EmailProvider {
       token,
       `/users/me/messages?labelIds=${encodeURIComponent(labelId)}&maxResults=${maxResults}`,
     );
-    if (!data.messages) return [];
-    return Promise.all(
-      data.messages.map(async ({ id }) => {
-        try {
-          const msg = await gmailGet<GmailMessage>(
-            token,
-            `/users/me/messages/${id}?format=METADATA&metadataHeaders=Subject`,
-          );
-          const subjectHeader = msg.payload?.headers?.find(
-            (h) => h.name.toLowerCase() === "subject",
-          );
-          return { id, subject: subjectHeader?.value };
-        } catch {
-          return { id };
-        }
-      }),
+    return this.hydrateListItems(token, data.messages);
+  }
+
+  async markAllAsRead(maxResults: number = 20) {
+    // list unread → batchModify removeLabelIds=["UNREAD"]，1 个 modify call 全搞定。
+    // batchModify 要么整批成功要么整批抛 —— 没有部分失败概念，所以 failed 始终 0。
+    const token = await this.token();
+    const data = await gmailGet<GmailMessageList>(
+      token,
+      `/users/me/messages?q=is:unread&maxResults=${maxResults}`,
     );
+    if (!data.messages || data.messages.length === 0)
+      return { success: 0, failed: 0 };
+    const ids = data.messages.map((m) => m.id);
+    await gmailPost(token, "/users/me/messages/batchModify", {
+      ids,
+      removeLabelIds: ["UNREAD"],
+    });
+    return { success: ids.length, failed: 0 };
   }
 
   async markAsJunk(messageId: string) {
@@ -523,23 +511,36 @@ export class GmailProvider extends EmailProvider {
       token,
       `/users/me/messages?q=${query}&maxResults=${maxResults}`,
     );
-    if (!data.messages) return [];
-    return Promise.all(
-      data.messages.map(async ({ id }) => {
-        try {
-          const msg = await gmailGet<GmailMessage>(
-            token,
-            `/users/me/messages/${id}?format=METADATA&metadataHeaders=Subject`,
-          );
-          const subjectHeader = msg.payload?.headers?.find(
-            (h) => h.name.toLowerCase() === "subject",
-          );
-          return { id, subject: subjectHeader?.value };
-        } catch {
-          return { id };
-        }
-      }),
-    );
+    return this.hydrateListItems(token, data.messages);
+  }
+
+  /**
+   * 把 `messages.list` 返回的 `[{id, threadId}]` 用一次 batch metadata fetch
+   * 补全成带 subject + from 的列表项 —— 替代 N 次并发 `messages.get`。
+   *
+   * 三处 list/search 调用面共用这个：listByQuery（unread/starred/junk）、
+   * listArchived、searchMessages。subject + from 一直一起取，反正 batch
+   * 响应体大小可忽略；前端是否展示 from 由 UI 决定，list 页不渲染就当不存在。
+   * 单条 sub-request 失败（404 等）会从 metaMap 里缺失，对应项只回 `{ id }`。
+   */
+  private async hydrateListItems(
+    token: string,
+    messages: { id: string }[] | undefined,
+  ): Promise<EmailListItem[]> {
+    if (!messages || messages.length === 0) return [];
+    const ids = messages.map((m) => m.id);
+    const metaMap = await gmailBatchGetMetadata(token, ids, [
+      "Subject",
+      "From",
+    ]);
+    return ids.map((id) => {
+      const msg = metaMap.get(id);
+      if (!msg) return { id };
+      const headers = msg.payload?.headers ?? [];
+      const get = (n: string) =>
+        headers.find((h) => h.name.toLowerCase() === n)?.value;
+      return { id, subject: get("subject"), from: get("from") };
+    });
   }
 }
 

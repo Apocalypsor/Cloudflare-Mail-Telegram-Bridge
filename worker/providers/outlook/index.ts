@@ -1,20 +1,20 @@
 import { getAccountById } from "@db/accounts";
 import {
   deleteMsSubscription,
+  getCachedOutlookFolderIds,
   getMsAccountBySubscription,
   getMsSubscriptionId,
+  type OutlookFolderIds,
+  putCachedOutlookFolderIds,
   putMsSubscription,
   refreshMsSubAccountMapping,
 } from "@db/kv";
 import { EmailProvider } from "@providers/base";
-import type {
-  GraphFolder,
-  GraphMessage,
-  GraphMessageList,
-} from "@providers/outlook/types";
+import type { GraphMessage, GraphMessageList } from "@providers/outlook/types";
 import {
   fetchRawMime,
   getAccessToken,
+  graphBatch,
   graphGet,
   graphPatch,
   graphPost,
@@ -281,45 +281,101 @@ export class OutlookProvider extends EmailProvider {
     return msg.flag?.flagStatus === "flagged";
   }
 
+  /**
+   * 拿 4 个 well-known folder ID（Inbox / JunkEmail / archive / DeletedItems）。
+   * 首次走 Graph `$batch` 一次 HTTP 拿全 4 个，写 KV 缓存 30 天；之后命中缓存
+   * 0 个 HTTP。folder ID 在账号生命周期内稳定，所以长 TTL 安全。
+   */
+  private async getFolderIds(): Promise<OutlookFolderIds> {
+    const cached = await getCachedOutlookFolderIds(
+      this.env.EMAIL_KV,
+      this.account.id,
+    );
+    if (cached) return cached;
+
+    const token = await this.token();
+    const responses = await graphBatch(token, [
+      {
+        id: "inbox",
+        method: "GET",
+        url: `/me/mailFolders('Inbox')?$select=id`,
+      },
+      {
+        id: "junk",
+        method: "GET",
+        url: `/me/mailFolders('JunkEmail')?$select=id`,
+      },
+      {
+        id: "archive",
+        method: "GET",
+        url: `/me/mailFolders('archive')?$select=id`,
+      },
+      {
+        id: "deleted",
+        method: "GET",
+        url: `/me/mailFolders('DeletedItems')?$select=id`,
+      },
+    ]);
+    const byId = new Map(responses.map((r) => [r.id, r]));
+    const get = (key: string): string => {
+      const r = byId.get(key);
+      if (!r || r.status < 200 || r.status >= 300 || !r.body) {
+        throw new Error(
+          `Outlook getFolderIds: ${key} sub-request failed (status=${r?.status})`,
+        );
+      }
+      const body = r.body as { id?: string };
+      if (!body.id) throw new Error(`Outlook getFolderIds: ${key} missing id`);
+      return body.id;
+    };
+    const ids: OutlookFolderIds = {
+      inbox: get("inbox"),
+      junk: get("junk"),
+      archive: get("archive"),
+      deleted: get("deleted"),
+    };
+    await putCachedOutlookFolderIds(
+      this.env.EMAIL_KV,
+      this.account.id,
+      ids,
+    ).catch(() => {
+      // 缓存写失败不影响主流程，下次再写
+    });
+    return ids;
+  }
+
   async isJunk(messageId: string) {
     const token = await this.token();
-    const msg = await graphGet<GraphMessage>(
-      token,
-      `/me/messages/${messageId}?$select=parentFolderId`,
-    );
-    if (!msg.parentFolderId) return false;
-    const junkFolder = await graphGet<GraphFolder>(
-      token,
-      `/me/mailFolders('JunkEmail')?$select=id`,
-    );
-    return msg.parentFolderId === junkFolder.id;
+    const [msg, folders] = await Promise.all([
+      graphGet<GraphMessage>(
+        token,
+        `/me/messages/${messageId}?$select=parentFolderId`,
+      ),
+      this.getFolderIds(),
+    ]);
+    return !!msg.parentFolderId && msg.parentFolderId === folders.junk;
   }
 
   /**
-   * Outlook 需要先拿 parentFolderId + flag，再对比 4 个 well-known folder 的 id；
-   * 这些文件夹 id 在账号生命周期内稳定，但首次查要并行跑 5 个请求。
+   * 对账邮件位置：拿 parentFolderId + flag，跟 4 个 well-known folder ID 对比。
+   * folder ID 走 KV 缓存（`getFolderIds`），warm path 只 1 个 HTTP（取 message
+   * 本身），cold path 也只 2 个并发 HTTP（message + 1 个 $batch 拿 4 folder）。
    */
   async resolveMessageState(messageId: string): Promise<MessageState> {
     const token = await this.token();
     try {
-      const [msg, junk, archive, deleted, inbox] = await Promise.all([
+      const [msg, folders] = await Promise.all([
         graphGet<GraphMessage>(
           token,
           `/me/messages/${messageId}?$select=flag,parentFolderId`,
         ),
-        graphGet<GraphFolder>(token, `/me/mailFolders('JunkEmail')?$select=id`),
-        graphGet<GraphFolder>(token, `/me/mailFolders('archive')?$select=id`),
-        graphGet<GraphFolder>(
-          token,
-          `/me/mailFolders('DeletedItems')?$select=id`,
-        ),
-        graphGet<GraphFolder>(token, `/me/mailFolders('Inbox')?$select=id`),
+        this.getFolderIds(),
       ]);
       const parent = msg.parentFolderId;
-      if (parent === deleted.id) return { location: "deleted" };
-      if (parent === junk.id) return { location: "junk" };
-      if (parent === archive.id) return { location: "archive" };
-      if (parent === inbox.id) {
+      if (parent === folders.deleted) return { location: "deleted" };
+      if (parent === folders.junk) return { location: "junk" };
+      if (parent === folders.archive) return { location: "archive" };
+      if (parent === folders.inbox) {
         return {
           location: "inbox",
           starred: msg.flag?.flagStatus === "flagged",
@@ -458,13 +514,43 @@ export class OutlookProvider extends EmailProvider {
     );
     if (!data.value || data.value.length === 0) return 0;
     const ids = data.value.map((m) => m.id);
-    await Promise.all(
-      ids.map((id) =>
-        graphPost(token, `/me/messages/${id}/move`, {
-          destinationId: "DeletedItems",
-        }),
-      ),
+    // Graph $batch：100 封 → 5 个 HTTP 请求（每批 20）。整批的子请求失败不影响其他子请求。
+    const responses = await graphBatch(
+      token,
+      ids.map((id, i) => ({
+        id: String(i),
+        method: "POST",
+        url: `/me/messages/${id}/move`,
+        body: { destinationId: "DeletedItems" },
+      })),
     );
-    return ids.length;
+    return responses.filter((r) => r.status >= 200 && r.status < 300).length;
+  }
+
+  async markAllAsRead(maxResults: number = 20) {
+    const token = await this.token();
+    const data = await graphGet<GraphMessageList>(
+      token,
+      `/me/mailFolders('Inbox')/messages?$filter=isRead eq false&$select=id&$top=${maxResults}`,
+    );
+    if (!data.value || data.value.length === 0)
+      return { success: 0, failed: 0 };
+    const ids = data.value.map((m) => m.id);
+    const responses = await graphBatch(
+      token,
+      ids.map((id, i) => ({
+        id: String(i),
+        method: "PATCH",
+        url: `/me/messages/${id}`,
+        body: { isRead: true },
+      })),
+    );
+    let success = 0;
+    let failed = 0;
+    for (const r of responses) {
+      if (r.status >= 200 && r.status < 300) success++;
+      else failed++;
+    }
+    return { success, failed };
   }
 }

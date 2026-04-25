@@ -67,6 +67,15 @@ export abstract class EmailProvider {
     maxResults?: number,
   ): Promise<EmailListItem[]>;
   abstract markAsJunk(messageId: string): Promise<void>;
+  /**
+   * 批量把当前账号 INBOX 里所有未读邮件标记为已读，返回 (success, failed)。
+   * 各 provider 用各自的 bulk API：Gmail `messages.batchModify`、Outlook `$batch`、
+   * IMAP 单个 STORE `\Seen`。`maxResults` 限制单次扫多少封 —— 主要给 OAuth provider
+   * 控制 list 上限（IMAP 直接对 INBOX 全量 STORE，参数被忽略）。
+   */
+  abstract markAllAsRead(
+    maxResults?: number,
+  ): Promise<{ success: number; failed: number }>;
   abstract moveToInbox(messageId: string): Promise<string>;
   /** 把邮件从归档文件夹移回收件箱，返回新 messageId（Gmail 不变，IMAP/Outlook 会换） */
   abstract unarchiveMessage(messageId: string): Promise<string>;

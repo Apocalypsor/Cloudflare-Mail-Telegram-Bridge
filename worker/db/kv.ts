@@ -6,6 +6,7 @@ const KV_OAUTH_STATE_PREFIX = "oauth_state:";
 const KV_OAUTH_BOT_MSG_PREFIX = "oauth_bot_msg:";
 const KV_MS_SUB_ACCOUNT_PREFIX = "ms_sub_account:";
 const KV_MS_SUBSCRIPTION_PREFIX = "ms_subscription:";
+const KV_OUTLOOK_FOLDERS_PREFIX = "outlook_folders:";
 const KV_BOT_INFO_KEY = "telegram:bot_info";
 const KV_BOT_COMMANDS_VERSION_KEY = "telegram:bot_commands_version";
 
@@ -14,6 +15,7 @@ const KV_BOT_COMMANDS_VERSION_KEY = "telegram:bot_commands_version";
 const MAIL_HTML_CACHE_TTL = 60 * 60 * 24 * 7; // 7 天
 const OAUTH_STATE_TTL_SECONDS = 10 * 60; // 10 分钟
 const BOT_INFO_TTL = 86400 * 30; // 30 天
+const OUTLOOK_FOLDERS_TTL = 86400 * 30; // 30 天 —— well-known folder ID 在账号生命周期内稳定
 const MAIL_LIST_CACHE_TTL = 60; // KV 最小 TTL
 
 // ─── Access Token Cache ─────────────────────────────────────────────────────
@@ -212,6 +214,47 @@ export async function deleteMsSubscription(
   if (subId) {
     await kv.delete(`${KV_MS_SUB_ACCOUNT_PREFIX}${subId}`);
   }
+}
+
+// ─── Outlook Well-known Folder IDs Cache ───────────────────────────────────
+// Graph API 的 well-known folder name (Inbox / JunkEmail / archive / DeletedItems)
+// 解析出来的 ID 在账号生命周期内稳定，存 KV 30 天，省掉 resolveMessageState/isJunk
+// 每次 4 个 GET 的开销。删账号时清掉。
+
+export interface OutlookFolderIds {
+  inbox: string;
+  junk: string;
+  archive: string;
+  deleted: string;
+}
+
+export async function getCachedOutlookFolderIds(
+  kv: KVNamespace,
+  accountId: number,
+): Promise<OutlookFolderIds | null> {
+  return kv.get<OutlookFolderIds>(
+    `${KV_OUTLOOK_FOLDERS_PREFIX}${accountId}`,
+    "json",
+  );
+}
+
+export async function putCachedOutlookFolderIds(
+  kv: KVNamespace,
+  accountId: number,
+  ids: OutlookFolderIds,
+): Promise<void> {
+  await kv.put(
+    `${KV_OUTLOOK_FOLDERS_PREFIX}${accountId}`,
+    JSON.stringify(ids),
+    { expirationTtl: OUTLOOK_FOLDERS_TTL },
+  );
+}
+
+export async function deleteCachedOutlookFolderIds(
+  kv: KVNamespace,
+  accountId: number,
+): Promise<void> {
+  await kv.delete(`${KV_OUTLOOK_FOLDERS_PREFIX}${accountId}`);
 }
 
 // ─── Bot Info Cache ─────────────────────────────────────────────────────────

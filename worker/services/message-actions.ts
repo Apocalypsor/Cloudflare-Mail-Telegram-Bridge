@@ -244,7 +244,8 @@ export async function markAsReadByMessage(
   }
 }
 
-/** 标记用户所有账号的未读邮件为已读 */
+/** 标记用户所有账号的未读邮件为已读。各 provider 各自走 bulk API（Gmail
+ *  batchModify / Outlook $batch / IMAP 单条 STORE），不再 N 次单调 modify。 */
 export async function markAllAsRead(
   env: Env,
   userId: string,
@@ -257,17 +258,9 @@ export async function markAllAsRead(
   for (const account of accounts) {
     try {
       const provider = getEmailProvider(account, env);
-      const unread = await provider.listUnread(maxPerAccount);
-      await Promise.all(
-        unread.map(async (msg) => {
-          try {
-            await provider.markAsRead(msg.id);
-            success++;
-          } catch {
-            failed++;
-          }
-        }),
-      );
+      const result = await provider.markAllAsRead(maxPerAccount);
+      success += result.success;
+      failed += result.failed;
     } catch (err) {
       await reportErrorToObservability(env, "bot.mark_all_read_failed", err, {
         accountId: account.id,
