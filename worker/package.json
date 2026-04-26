@@ -6,8 +6,11 @@
   "author": "Apocalypsor <chthon605@gmail.com>",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:cookie": "node scripts/dev-session-cookie.mjs",
+    "dev:seed": "node scripts/dev-seed-admin.mjs",
     "typegen": "wrangler types",
-    "migrate": "wrangler d1 migrations apply gmail-tg-bridge --remote",
+    "migrate:local": "wrangler d1 migrations apply gmail-tg-bridge --local",
+    "migrate:remote": "wrangler d1 migrations apply gmail-tg-bridge --remote",
     "deploy": "wrangler deploy",
     "deploy:version": "wrangler versions upload",
     "typecheck": "tsc --noEmit"

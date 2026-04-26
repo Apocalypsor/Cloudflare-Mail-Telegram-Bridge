@@ -1,0 +1,42 @@
+[
+  {
+    "label": "dev: worker",
+    "command": "pnpm",
+    "args": ["dev:worker"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "dev: page",
+    "command": "pnpm",
+    "args": ["dev:page"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "dev: cookie (sign session)",
+    "command": "pnpm",
+    "args": ["dev:cookie"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": true
+  },
+  {
+    "label": "dev: seed admin user",
+    "command": "pnpm",
+    "args": ["dev:seed"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "dev: migrate local D1",
+    "command": "pnpm",
+    "args": ["migrate:worker:local"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]

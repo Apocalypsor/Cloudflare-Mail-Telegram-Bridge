@@ -13,21 +13,28 @@
 
 ```sh
 # 后端（Worker）
-pnpm dev:worker      # wrangler dev（本地 127.0.0.1:8787）
-pnpm deploy:worker   # wrangler deploy
-pnpm typegen:worker  # 根据 worker/wrangler.jsonc 重新生成 worker-configuration.d.ts
-pnpm migrate:worker  # 应用 D1 migrations 到远端
+pnpm dev:worker            # wrangler dev（本地 127.0.0.1:8787）
+pnpm deploy:worker         # wrangler deploy
+pnpm typegen:worker        # 根据 worker/wrangler.jsonc 重新生成 worker-configuration.d.ts
+pnpm migrate:worker:remote # 应用 D1 migrations 到远端
+pnpm migrate:worker:local  # 应用 D1 migrations 到本地 miniflare D1
 
 # 前端（Pages）
-pnpm dev:page        # Vite dev server (127.0.0.1:5173)，/api/* 自动代理到本地 Worker
-pnpm build:page      # 构建到 page/dist
+pnpm dev:page              # Vite dev server (127.0.0.1:5173)，/api/* 自动代理到本地 Worker
+pnpm build:page            # 构建到 page/dist
+
+# 本地登录辅助（详见下面"本地测 web 登录页"）
+pnpm dev:cookie            # 用 .dev.vars 里的 ADMIN_SECRET 签 session cookie
+pnpm dev:seed              # 把 ADMIN_TELEGRAM_ID 写入本地 D1 users 表
 
 # 共用
-pnpm check           # Biome lint + 格式检查（pre-commit 自动触发，覆盖全仓库）
-pnpm typecheck       # pnpm -r typecheck（worker tsc + page tsc）
+pnpm check                 # Biome lint + 格式检查（pre-commit 自动触发，覆盖全仓库）
+pnpm typecheck             # pnpm -r typecheck（worker tsc + page tsc）
 ```
 
 也可以直接进子包跑（worker 包里 `pnpm dev` / `pnpm deploy` 等是无前缀短名）。
+
+Zed 用户：`.zed/tasks.json` 已经配好上述常用任务，cmd-shift-p → "task: spawn" 选择即可。
 
 ## 前端开发流程
 
@@ -35,6 +42,34 @@ pnpm typecheck       # pnpm -r typecheck（worker tsc + page tsc）
 2. 另一个终端跑 `pnpm dev:page`（Vite 起在 :5173）
 3. 浏览器开 <http://localhost:5173/telegram-app/> 测 Mini App 页，或 `/mail/:id` / `/preview` 等 web 页，`/api/*` 自动代理到本地 Worker
 4. TG WebApp 相关功能（`initData`、`BackButton`、`HapticFeedback`、`requestFullscreen` 等）在本地浏览器里 `TelegramProvider` 会检测到 `initData` 为空后 no-op；要测这些得在 Telegram 客户端里连真实 Bot
+
+## 本地测 web 登录页（`/preview`、`/junk-check`）
+
+这两个页面靠 `tg_session` cookie 鉴权，cookie 由生产环境里 Telegram Login Widget 走完 callback 后由 Worker 颁发。本地浏览器 `localhost` 加载不了 widget（Telegram 要求 `data-auth-url` 域名匹配 BotFather `/setdomain`），所以本地测的办法是**自己签一份 cookie 塞进去**。
+
+一次性 setup：
+
+1. **拿到自己的 Telegram user id**：在生产 bot 私聊里发 `/secrets`，`ADMIN_TELEGRAM_ID` 那一行就是（消息 60 秒后自销毁）。
+2. **创建 `worker/.dev.vars`**（`.gitignore` 内）：
+
+   ```
+   ADMIN_SECRET=local-dev-secret-pick-anything
+   ADMIN_TELEGRAM_ID=<你的TG id>
+   ```
+
+   `ADMIN_SECRET` 不要和生产共用 —— 本地 cookie 跟生产 cookie 完全独立，用任意字符串即可。要测 `/junk-check` 再加 `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL`。
+3. **灌本地 D1 schema**：`pnpm migrate:worker:local`
+4. **seed admin 用户**：`pnpm dev:seed`（`requireTelegramLogin` 即使是 admin 也要求 `users` 表里有 row）
+
+每次进浏览器测：
+
+1. `pnpm dev:worker` + `pnpm dev:page`
+2. `pnpm dev:cookie` —— 打印一行 `document.cookie = "..."`
+3. 浏览器打开 `http://localhost:5173/preview`，F12 → Console 粘上面那行回车，刷新
+
+cookie 有效期 7 天。改 `ADMIN_SECRET` 或换 `ADMIN_TELEGRAM_ID` 后要重签。
+
+> Mini App 路由（`/telegram-app/*`）需要 `X-Telegram-Init-Data` 头，浏览器里没法伪造（HMAC 用 bot token 签），只能在真实 Telegram 客户端 + 公网隧道下测。这部分见 [DEPLOYMENT.md](./DEPLOYMENT.md) 里的 cloudflared 隧道 + dev bot 流程。
 
 ## 提交前必跑
 

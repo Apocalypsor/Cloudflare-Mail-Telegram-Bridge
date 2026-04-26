@@ -15,16 +15,19 @@ Your knowledge of Cloudflare Workers APIs may be outdated. Retrieve current docs
 
 Root is pure orchestration (workspaces: `worker/` + `page/`). All commands run from repo root unless noted.
 
-| Command                | Purpose                                                  |
-| ---------------------- | -------------------------------------------------------- |
-| `pnpm dev:worker`      | `wrangler dev` (Worker, port 8787)                       |
-| `pnpm dev:page`        | Vite dev server for `page/` (port 5173, proxies /api)    |
-| `pnpm deploy:worker`   | `wrangler deploy` (deploy Worker to Cloudflare)          |
-| `pnpm build:page`      | Build React SPA (`page/` → `page/dist`, deploy to Pages) |
-| `pnpm migrate:worker`  | Apply D1 migrations (remote)                             |
-| `pnpm typegen:worker`  | Generate `worker-configuration.d.ts` from wrangler.jsonc |
-| `pnpm check`           | Biome lint + format (single config covers all packages)  |
-| `pnpm typecheck`       | tsc on worker + page (`pnpm -r typecheck`)               |
+| Command                       | Purpose                                                  |
+| ----------------------------- | -------------------------------------------------------- |
+| `pnpm dev:worker`             | `wrangler dev` (Worker, port 8787)                       |
+| `pnpm dev:page`               | Vite dev server for `page/` (port 5173, proxies /api)    |
+| `pnpm dev:cookie`             | Sign a local `tg_session` cookie from `worker/.dev.vars` |
+| `pnpm dev:seed`               | Seed `ADMIN_TELEGRAM_ID` into local D1 `users` (admin row) |
+| `pnpm deploy:worker`          | `wrangler deploy` (deploy Worker to Cloudflare)          |
+| `pnpm build:page`             | Build React SPA (`page/` → `page/dist`, deploy to Pages) |
+| `pnpm migrate:worker:remote`  | Apply D1 migrations (remote)                             |
+| `pnpm migrate:worker:local`   | Apply D1 migrations (local miniflare)                    |
+| `pnpm typegen:worker`         | Generate `worker-configuration.d.ts` from wrangler.jsonc |
+| `pnpm check`                  | Biome lint + format (single config covers all packages)  |
+| `pnpm typecheck`              | tsc on worker + page (`pnpm -r typecheck`)               |
 
 Run `pnpm typegen:worker` after changing bindings in `worker/wrangler.jsonc`.
 

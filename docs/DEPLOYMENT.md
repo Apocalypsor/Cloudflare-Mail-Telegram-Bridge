@@ -69,10 +69,10 @@ gcloud pubsub subscriptions create gmail-push-sub \
 pnpm wrangler d1 create gmail-tg-bridge
 ```
 
-把返回的 `database_id` 填入 `wrangler.jsonc` 中 `d1_databases[0].database_id`。然后：
+把返回的 `database_id` 填入 `wrangler.jsonc` 中 `d1_databases[0].database_id`。然后从仓库根跑：
 
 ```sh
-pnpm wrangler d1 migrations apply gmail-tg-bridge --remote
+pnpm migrate:worker:remote
 ```
 
 ### 4.2 KV 命名空间

@@ -6,8 +6,11 @@
   "author": "Apocalypsor <chthon605@gmail.com>",
   "scripts": {
     "dev:worker": "pnpm --filter telemail-worker dev",
+    "dev:cookie": "pnpm --filter telemail-worker dev:cookie",
+    "dev:seed": "pnpm --filter telemail-worker dev:seed",
     "typegen:worker": "pnpm --filter telemail-worker typegen",
-    "migrate:worker": "pnpm --filter telemail-worker migrate",
+    "migrate:worker:local": "pnpm --filter telemail-worker migrate:local",
+    "migrate:worker:remote": "pnpm --filter telemail-worker migrate:remote",
     "deploy:worker": "pnpm --filter telemail-worker run deploy",
     "dev:page": "pnpm --filter telemail-page dev",
     "build:page": "pnpm --filter telemail-page build",
