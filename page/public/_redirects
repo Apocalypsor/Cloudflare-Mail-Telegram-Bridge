@@ -1,12 +1,3 @@
-# SPA 回退：前端拥有的 UI 路径全部回到 root `/`（由 Pages 默认 index 机制
-# 服务 `dist/index.html`），让 TanStack Router 接管。
-# `/assets/*`、`/favicon.png` 等不在规则里，缺失走真 404（不被盖成 HTML，
-# 避免浏览器拿旧 hash 的 script 请求报 "text/html is not a valid JavaScript
-# MIME type"）。
-#
-# 注意：rewrite target 不能沾 `.html`。CF Pages 的 pretty-URL 会把 `.html`
-# 后缀剥成 extensionless 路径并 301 重定向，打断 200 rewrite，URL 跳到 `/`，
-# 所有非根路由都落到 landing 页（PR #22 解过一次，#27 回归，这次再修）。
 /telegram-app       /   200
 /telegram-app/*     /   200
 /mail/*             /   200
