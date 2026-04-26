@@ -144,6 +144,8 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
 
     const secrets: Array<{ label: string; value: string }> = [
       { label: "TELEGRAM_WEBHOOK_SECRET", value: env.TELEGRAM_WEBHOOK_SECRET },
+      { label: "ADMIN_SECRET", value: env.ADMIN_SECRET },
+      { label: "ADMIN_TELEGRAM_ID", value: env.ADMIN_TELEGRAM_ID },
     ];
 
     // code-span 内只需转义 ` 和 \（escapeMdV2 会过度转义 . 等）
