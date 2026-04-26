@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   getTelegram,
   type TelegramMainButton,
@@ -67,14 +67,24 @@ function useBottomButton(
     }
   }, [text, loading, disabled, color, textColor, position, getBtn]);
 
+  // 点击 handler 走 ref：每次 onClick 变（label 切换、props 变都会让上层
+  // useCallback 重建）就 register/unregister 一轮，Mac TG Desktop 几次循环
+  // 后会进入 onClick 不再 fire 的死锁状态。这里只在按钮可见性变化时重新
+  // 挂一个稳定 wrapper，wrapper 跑的时候去 ref 里读最新 callback。
+  const onClickRef = useRef(onClick);
+  useEffect(() => {
+    onClickRef.current = onClick;
+  });
+
   useEffect(() => {
     const btn = getBtn();
-    if (!btn || !text) return;
-    btn.onClick(onClick);
+    if (!btn || !visible) return;
+    const wrapped = () => onClickRef.current();
+    btn.onClick(wrapped);
     return () => {
-      btn.offClick(onClick);
+      btn.offClick(wrapped);
     };
-  }, [onClick, text, getBtn]);
+  }, [visible, getBtn]);
 }
 
 const getMainButton = () => getTelegram()?.MainButton;
