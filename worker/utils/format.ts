@@ -8,6 +8,28 @@ import type { Address } from "postal-mime";
 import TurndownService from "turndown";
 import { MAX_BODY_CHARS, MAX_LINKS } from "@/constants";
 
+const utf8Decoder = new TextDecoder("utf-8", {
+  fatal: false,
+  ignoreBOM: false,
+});
+
+/**
+ * 解 quoted-printable —— 先去掉 `=\n` 软换行，再把每段连续的 `=XX=YY...`
+ * 收成字节序列、按 UTF-8 解码。逐字节 `String.fromCharCode` 会把多字节序列
+ * 炸成 mojibake（`=C2=A9` → `Â©` 而不是 `©`），别走那条路。
+ */
+function decodeQuotedPrintable(input: string): string {
+  return input
+    .replace(/=\r?\n/g, "")
+    .replace(/(?:=[0-9A-Fa-f]{2})+/g, (run) => {
+      const bytes = new Uint8Array(run.length / 3);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = Number.parseInt(run.substr(i * 3 + 1, 2), 16);
+      }
+      return utf8Decoder.decode(bytes);
+    });
+}
+
 /** HTML → Markdown 转换器实例（linkedom DOM + turndown） */
 const turndown = new TurndownService({
   bulletListMarker: "-",
@@ -26,12 +48,7 @@ turndown.addRule("stripImages", {
 
 export function htmlToMarkdown(html: string): string {
   // Fallback: decode quoted-printable if the MIME parser left it un-decoded
-  if (html.includes("=3D"))
-    html = html
-      .replace(/=\r?\n/g, "")
-      .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) =>
-        String.fromCharCode(Number.parseInt(hex, 16)),
-      );
+  if (html.includes("=3D")) html = decodeQuotedPrintable(html);
 
   // linkedom can't handle orphan elements between <!doctype> and <html>;
   // they cause document.body to be empty. Strip them before parsing.

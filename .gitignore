@@ -1,5 +1,6 @@
 .agents/
 .claude/skills
+**/.DS_Store
 
 # Logs
 

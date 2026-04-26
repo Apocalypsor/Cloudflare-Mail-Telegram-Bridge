@@ -1,4 +1,4 @@
-import { Button, Card, Spinner } from "@heroui/react";
+import { Button, Spinner } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ROUTE_PREVIEW_API } from "@worker/handlers/hono/routes";
@@ -81,7 +81,7 @@ function PreviewPage() {
               onChange={(e) => setHtml(e.target.value)}
               placeholder="<html>..."
               spellCheck={false}
-              className="w-full h-72 sm:h-96 lg:h-[480px] bg-transparent text-emerald-300 font-mono text-[13px] leading-6 resize-none outline-none placeholder:text-zinc-700"
+              className="block w-full h-full p-4 bg-transparent text-emerald-300 font-mono text-[13px] leading-6 resize-none outline-none placeholder:text-zinc-700"
             />
           </Pane>
 
@@ -92,19 +92,21 @@ function PreviewPage() {
               data ? `${data.length} 字符` : error ? "错误" : "等待输入"
             }
           >
-            {error ? (
-              <div className="font-mono text-[13px] text-red-400 whitespace-pre-wrap">
-                {error}
-              </div>
-            ) : data ? (
-              <pre className="font-mono text-[13px] leading-6 text-emerald-300 whitespace-pre-wrap break-all">
-                {data.result}
-              </pre>
-            ) : (
-              <div className="text-zinc-700 font-mono text-[13px]">
-                转换结果将显示在这里
-              </div>
-            )}
+            <div className="h-full p-4 overflow-auto">
+              {error ? (
+                <div className="font-mono text-[13px] text-red-400 whitespace-pre-wrap">
+                  {error}
+                </div>
+              ) : data ? (
+                <pre className="font-mono text-[13px] leading-6 text-emerald-300 whitespace-pre-wrap break-all">
+                  {data.result}
+                </pre>
+              ) : (
+                <div className="text-zinc-700 font-mono text-[13px]">
+                  转换结果将显示在这里
+                </div>
+              )}
+            </div>
           </Pane>
         </div>
       </section>
@@ -128,7 +130,7 @@ function Pane({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="bg-zinc-900 border border-zinc-800 overflow-hidden">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-950/30">
         <div className="flex items-baseline gap-2">
           <span className="text-[11px] font-semibold tracking-widest text-emerald-500">
@@ -138,9 +140,7 @@ function Pane({
         </div>
         <span className="text-xs text-zinc-600 tabular-nums">{sideLabel}</span>
       </div>
-      <div className="p-4 min-h-72 sm:min-h-96 lg:min-h-[480px]">
-        {children}
-      </div>
-    </Card>
+      <div className="h-72 sm:h-96 lg:h-[480px]">{children}</div>
+    </div>
   );
 }
