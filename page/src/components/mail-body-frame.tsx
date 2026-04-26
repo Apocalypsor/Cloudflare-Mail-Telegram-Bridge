@@ -68,7 +68,12 @@ export function MailBodyFrame({ bodyHtml }: { bodyHtml: string }) {
     };
   }, []);
 
-  const srcDoc = `<base target="_blank">${bodyHtml}`;
+  // 注入两行 CSS：
+  // - `html,body{overflow:hidden}` —— iframe 高度由外层 resize() 管，内层不需要
+  //   也不应该有自己的 scrollbar；亚像素四舍五入或 body 默认 margin 经常造成
+  //   1-2px 偏差让 iframe 显示自己的 scrollbar。
+  // - `body{margin:0}` —— 去掉默认 8px margin，让 scrollHeight 测量更准。
+  const srcDoc = `<base target="_blank"><style>html,body{overflow:hidden!important;}body{margin:0;}</style>${bodyHtml}`;
   return (
     <iframe
       ref={frameRef}
