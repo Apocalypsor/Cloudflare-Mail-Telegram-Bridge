@@ -242,12 +242,14 @@ export function MailFab({
     const list: ExtraDef[] = [];
     if (webMailUrl) list.push({ id: "share", label: "📤 分享", run: doShare });
     if (tgMessageLink)
-      list.push({ id: "tg-link", label: "💬 跳到 TG 原消息", run: doOpenTg });
+      list.push({ id: "tg-link", label: "💬 原消息", run: doOpenTg });
     // CORS 图片代理 toggle 总是出现在 SecondaryButton 里 —— 单独 extra 时
     // SecondaryButton 直接做 toggle；和分享/跳转共存时在「更多」popup 里选。
+    // label 尽量短（≤ 6 字符）—— TG Desktop popup 按总文本宽度决定排列，
+    // 长 label 会让 3 项强制换成竖排 + 右对齐，跟 Main 的横排不一致。
     list.push({
       id: "toggle-proxy",
-      label: useProxy ? "🖼 关闭图片代理" : "🖼 开启图片代理",
+      label: useProxy ? "🖼 图片代理 关" : "🖼 图片代理 开",
       run: onToggleProxy,
     });
     return list;
