@@ -22,7 +22,7 @@ import { escapeMdV2 } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import type { Env, TelegramUser } from "@/types";
+import { type Env, QueueMessageType, type TelegramUser } from "@/types";
 
 function userListText(users: TelegramUser[]): string {
   if (users.length === 0) return t("admin:users.noUsers");
@@ -175,27 +175,15 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
       parse_mode: "MarkdownV2",
     });
 
-    // 60 秒后自动删除：bot 自己的回复 + 用户发的 /secrets 命令本身。
-    // 依赖 webhook 注入的 env.waitUntil（handlers/hono/telegram.tsx）；
-    // 失败一律吞掉（消息可能已被手动删除 / 权限丢失）。
-    env.waitUntil?.(
-      new Promise<void>((resolve) => {
-        setTimeout(async () => {
-          try {
-            await ctx.api.deleteMessage(sent.chat.id, sent.message_id);
-          } catch {
-            // ignore
-          }
-          if (ctx.message) {
-            try {
-              await ctx.api.deleteMessage(ctx.chat.id, ctx.message.message_id);
-            } catch {
-              // ignore
-            }
-          }
-          resolve();
-        }, autoDeleteSeconds * 1000);
-      }),
+    // 通过 EMAIL_QUEUE + delaySeconds 排定删除（私聊里 bot 删不掉用户发的
+    // /secrets 命令，TG API 限制，所以只删 bot 自己的回复）。
+    await env.EMAIL_QUEUE.send(
+      {
+        type: QueueMessageType.DeleteTgMessage,
+        chatId: String(sent.chat.id),
+        messageId: sent.message_id,
+      },
+      { delaySeconds: autoDeleteSeconds },
     );
   });
 

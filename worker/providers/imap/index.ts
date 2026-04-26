@@ -6,7 +6,7 @@ import type { EmailListItem, MessageState } from "@providers/types";
 import { base64ToArrayBuffer } from "@utils/base64url";
 import type { Hono } from "hono";
 import { IMAP_FLAG_FLAGGED, IMAP_FLAG_SEEN } from "@/constants";
-import type { AppEnv, Env } from "@/types";
+import { type AppEnv, type Env, QueueMessageType } from "@/types";
 
 export {
   checkImapBridgeHealth,
@@ -85,7 +85,11 @@ export class ImapProvider extends EmailProvider {
       `IMAP push: new message for ${account.email}, rfcMessageId=${rfcMessageId}`,
     );
     // 队列里用 emailMessageId 字段（跨 provider 统一）；对 IMAP 来说它就是 RFC Message-Id
-    await env.EMAIL_QUEUE.send({ accountId, emailMessageId: rfcMessageId });
+    await env.EMAIL_QUEUE.send({
+      type: QueueMessageType.Email,
+      accountId,
+      emailMessageId: rfcMessageId,
+    });
   }
 
   // ─── Message actions ──────────────────────────────────────────────────

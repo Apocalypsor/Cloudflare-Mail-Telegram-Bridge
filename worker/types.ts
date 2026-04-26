@@ -118,11 +118,27 @@ export interface MailMeta {
   date?: string | null;
 }
 
-/** 队列消息体 */
-export interface QueueMessage {
+export enum QueueMessageType {
+  Email = "email",
+  DeleteTgMessage = "delete-tg-message",
+}
+
+/** 队列消息体（discriminated union, 按 type 派发） */
+export type QueueMessage = EmailQueueMessage | DeleteTgMessageQueueMessage;
+
+/** 邮件投递任务（默认主用途） */
+export interface EmailQueueMessage {
+  type: QueueMessageType.Email;
   accountId: number;
   /** Provider 原生邮件 id：Gmail messageId / Outlook Graph id / IMAP RFC 822 Message-Id（非 per-folder UID） */
   emailMessageId: string;
+}
+
+/** 延迟删除 Telegram 消息（用于 /secrets 自销毁等） */
+export interface DeleteTgMessageQueueMessage {
+  type: QueueMessageType.DeleteTgMessage;
+  chatId: string;
+  messageId: number;
 }
 
 /** Pub/Sub push 请求体 */

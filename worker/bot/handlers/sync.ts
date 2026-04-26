@@ -4,7 +4,7 @@ import { t } from "@i18n";
 import { getEmailProvider } from "@providers";
 import { reportErrorToObservability } from "@utils/observability";
 import type { Bot } from "grammy";
-import type { Account, Env } from "@/types";
+import { type Account, type Env, QueueMessageType } from "@/types";
 
 const MAX_SYNC_PER_ACCOUNT = 50;
 
@@ -30,7 +30,11 @@ async function syncAccount(
 
     await env.EMAIL_QUEUE.sendBatch(
       newMessages.map((m) => ({
-        body: { accountId: account.id, emailMessageId: m.id },
+        body: {
+          type: QueueMessageType.Email,
+          accountId: account.id,
+          emailMessageId: m.id,
+        },
       })),
     );
     return { enqueued: newMessages.length };

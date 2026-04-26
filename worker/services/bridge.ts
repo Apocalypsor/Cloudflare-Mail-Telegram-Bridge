@@ -35,7 +35,7 @@ import { escapeMdV2, wrapExpandableQuote } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
 import PostalMime from "postal-mime";
 import { MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE } from "@/constants";
-import type { Account, Env, QueueMessage } from "@/types";
+import type { Account, EmailQueueMessage, Env } from "@/types";
 
 // ---------------------------------------------------------------------------
 // 私有 helper
@@ -344,7 +344,7 @@ export async function deliverEmailToTelegram(
 
 /** 按账号类型拉取原始邮件并投递到 Telegram */
 export async function processEmailMessage(
-  msg: QueueMessage,
+  msg: EmailQueueMessage,
   env: Env,
   waitUntil: (p: Promise<unknown>) => void,
 ): Promise<void> {

@@ -33,7 +33,12 @@ import {
   MS_OAUTH_TOKEN_URL,
   MS_SUBSCRIPTION_LIFETIME_MINUTES,
 } from "@/constants";
-import type { AppEnv, Env } from "@/types";
+import {
+  type AppEnv,
+  type EmailQueueMessage,
+  type Env,
+  QueueMessageType,
+} from "@/types";
 
 export class OutlookProvider extends EmailProvider {
   static displayName = "Outlook";
@@ -111,9 +116,7 @@ export class OutlookProvider extends EmailProvider {
     },
     env: Env,
   ): Promise<void> {
-    const batch: Array<{
-      body: { accountId: number; emailMessageId: string };
-    }> = [];
+    const batch: Array<{ body: EmailQueueMessage }> = [];
 
     for (const notification of body.value) {
       if (notification.clientState !== env.MS_WEBHOOK_SECRET) {
@@ -146,7 +149,11 @@ export class OutlookProvider extends EmailProvider {
       }
 
       batch.push({
-        body: { accountId: account.id, emailMessageId: messageId },
+        body: {
+          type: QueueMessageType.Email,
+          accountId: account.id,
+          emailMessageId: messageId,
+        },
       });
     }
 

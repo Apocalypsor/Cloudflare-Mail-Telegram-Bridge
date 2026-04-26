@@ -29,7 +29,14 @@ import {
   GOOGLE_OAUTH_AUTHORIZE_URL,
   GOOGLE_OAUTH_TOKEN_URL,
 } from "@/constants";
-import type { Account, AppEnv, Env, MailMeta, PubSubPushBody } from "@/types";
+import {
+  type Account,
+  type AppEnv,
+  type Env,
+  type MailMeta,
+  type PubSubPushBody,
+  QueueMessageType,
+} from "@/types";
 
 export class GmailProvider extends EmailProvider {
   static displayName = "Gmail";
@@ -132,7 +139,11 @@ export class GmailProvider extends EmailProvider {
       );
       await env.EMAIL_QUEUE.sendBatch(
         messageIds.map((id) => ({
-          body: { accountId: account.id, emailMessageId: id },
+          body: {
+            type: QueueMessageType.Email,
+            accountId: account.id,
+            emailMessageId: id,
+          },
         })),
       );
     }
