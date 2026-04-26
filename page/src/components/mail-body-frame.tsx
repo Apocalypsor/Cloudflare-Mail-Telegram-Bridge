@@ -30,7 +30,11 @@ export function MailBodyFrame({ bodyHtml }: { bodyHtml: string }) {
     }
 
     const observers: ResizeObserver[] = [];
-    function onLoad() {
+    // DOM parse 完就跑（不等图片）—— 邮件常带十几张走 cors-proxy 的图，
+    // 等 iframe load 事件（要所有 subresource 完成）会让 iframe 在默认
+    // ~150px 卡好几秒。这里挂 img onload + ResizeObserver(body)，图片陆续
+    // 加载时会自动把 iframe 撑高。
+    function setup() {
       resize();
       try {
         const doc = f?.contentDocument;
@@ -41,14 +45,6 @@ export function MailBodyFrame({ bodyHtml }: { bodyHtml: string }) {
             img.addEventListener("error", resize);
           }
         });
-        // 慢网兜底：所有 subresource (img/css/font) 都加载完后再测一次。
-        // contentWindow 的 load 比 iframe 的 onLoad 触发更晚 —— iframe load
-        // 在 srcdoc DOM parse 完就 fire，contentWindow load 等所有外部资源
-        // 完成。两个事件都接，覆盖各种边界。
-        f?.contentWindow?.addEventListener("load", resize);
-        // ResizeObserver 必须观察 body —— documentElement (<html>) 在 iframe
-        // 里默认尺寸 = iframe viewport，不会因为内部内容生长而变化，观察它
-        // 永远不 fire；body 才会随内容（图片加载、字体替换）实际增高。
         if (doc.body) {
           const ro = new ResizeObserver(resize);
           ro.observe(doc.body);
@@ -59,15 +55,21 @@ export function MailBodyFrame({ bodyHtml }: { bodyHtml: string }) {
       }
     }
 
-    f.addEventListener("load", onLoad);
+    const doc = f.contentDocument;
+    // readyState `loading` = DOM 还在 parse；`interactive` = DOM 已 parse、
+    // 资源未加载完；`complete` = 全部完成。我们要的是"DOM 一可用就 setup"。
+    if (doc && doc.readyState === "loading") {
+      doc.addEventListener("DOMContentLoaded", setup, { once: true });
+    } else {
+      setup();
+    }
+    // 全部 subresource 完成后再 resize 一次兜底（处理无 width/height 属性
+    // 的图片、字体替换等可能改 layout 的尾声情况）。
+    f.addEventListener("load", resize);
     window.addEventListener("resize", resize);
-    // srcdoc 是同步处理的：iframe 的 load 事件可能在 React commit 完、
-    // useEffect 跑到这里之前就已经 fire 了。错过了那次事件 → resize 永远
-    // 不会跑，iframe 卡在浏览器默认 ~150px。这里检查 readyState，已经
-    // complete 的话立刻手动跑一次 onLoad。
-    if (f.contentDocument?.readyState === "complete") onLoad();
     return () => {
-      f.removeEventListener("load", onLoad);
+      doc?.removeEventListener("DOMContentLoaded", setup);
+      f.removeEventListener("load", resize);
       window.removeEventListener("resize", resize);
       for (const o of observers) o.disconnect();
     };

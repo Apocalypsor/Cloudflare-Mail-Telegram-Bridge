@@ -121,7 +121,7 @@ function AuthStatus() {
         >
           <Dropdown.Item
             id="logout"
-            className="px-3 py-1.5 rounded-md text-sm text-zinc-100 data-hovered:bg-zinc-800 data-focused:bg-zinc-80 data-disabled:text-zinc-500 data-disabled:bg-transparent outline-none cursor-pointer transition-colors"
+            className="rounded-md text-sm text-zinc-100 data-hovered:bg-zinc-800 data-focused:bg-zinc-80 data-disabled:text-zinc-500 data-disabled:bg-transparent outline-none cursor-pointer transition-colors"
           >
             {logoutMut.isPending ? "登出中…" : "登出"}
           </Dropdown.Item>
