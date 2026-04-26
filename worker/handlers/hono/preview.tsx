@@ -213,6 +213,7 @@ preview.get(ROUTE_MAIL_API, async (c) => {
     meta: result.meta,
     accountEmail: account.email,
     bodyHtml: result.proxiedHtml,
+    bodyHtmlRaw: result.rawHtml,
     inJunk: result.inJunk,
     inArchive: result.fetchFolder === "archive",
     starred: result.starred,

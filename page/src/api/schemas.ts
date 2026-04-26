@@ -92,7 +92,10 @@ export const mailMetaSchema = z.object({
 export const mailPreviewResponseSchema = z.object({
   meta: mailMetaSchema,
   accountEmail: z.string().nullable(),
+  /** 已走 CORS 代理改写的 HTML —— UI 默认渲染这个 */
   bodyHtml: z.string(),
+  /** 未走代理的原始 HTML —— 用户在预览页关闭代理时渲染 */
+  bodyHtmlRaw: z.string(),
   inJunk: z.boolean(),
   inArchive: z.boolean(),
   starred: z.boolean(),

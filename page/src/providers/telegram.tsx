@@ -158,19 +158,6 @@ function isIPad(): boolean {
   return false;
 }
 
-/** 桌面 TG 客户端 (macOS / Windows / Linux Telegram Desktop)。
- *  浏览器里直接访问页面 (`initData` 空) 也算非桌面，返回 false。 */
-const DESKTOP_TG_PLATFORMS: ReadonlySet<string> = new Set([
-  "macos",
-  "tdesktop",
-]);
-
-export function isDesktopTgClient(): boolean {
-  const tg = getTelegram();
-  if (!tg || !tg.initData || !tg.platform) return false;
-  return DESKTOP_TG_PLATFORMS.has(tg.platform);
-}
-
 const TelegramContext = createContext<TelegramWebApp | null>(null);
 
 // 挂根部一次。Back/Main/Secondary 按钮的可见性由子页面各自声明 —— React

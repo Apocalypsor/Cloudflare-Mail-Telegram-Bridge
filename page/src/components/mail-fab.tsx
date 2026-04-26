@@ -18,6 +18,10 @@ export interface MailFabProps {
   webMailUrl?: string | null;
   /** 跳到 TG 原消息的 deep link。缺失 → 不显示跳转入口 */
   tgMessageLink?: string | null;
+  /** 当前 CORS 图片代理是否开启 —— 决定 SecondaryButton 里 toggle 文案 */
+  useProxy: boolean;
+  /** 切换 CORS 图片代理；点击 SecondaryButton 时调用，纯前端状态切换 */
+  onToggleProxy: () => void;
   /** FAB 动作成功后通知父组件 refetch 预览数据；交给 caller 处理 */
   onChanged?: () => void;
 }
@@ -30,7 +34,7 @@ interface ActionDef {
   terminal: boolean;
 }
 
-type ExtraId = "share" | "tg-link";
+type ExtraId = "share" | "tg-link" | "toggle-proxy";
 
 interface ExtraDef {
   id: ExtraId;
@@ -66,6 +70,8 @@ export function MailFab({
   subject,
   webMailUrl,
   tgMessageLink,
+  useProxy,
+  onToggleProxy,
   onChanged,
 }: MailFabProps) {
   const { starred, done, pending, run } = useMailActions({
@@ -237,8 +243,15 @@ export function MailFab({
     if (webMailUrl) list.push({ id: "share", label: "📤 分享", run: doShare });
     if (tgMessageLink)
       list.push({ id: "tg-link", label: "💬 跳到 TG 原消息", run: doOpenTg });
+    // CORS 图片代理 toggle 总是出现在 SecondaryButton 里 —— 单独 extra 时
+    // SecondaryButton 直接做 toggle；和分享/跳转共存时在「更多」popup 里选。
+    list.push({
+      id: "toggle-proxy",
+      label: useProxy ? "🖼 关闭图片代理" : "🖼 开启图片代理",
+      run: onToggleProxy,
+    });
     return list;
-  }, [webMailUrl, tgMessageLink, doShare, doOpenTg]);
+  }, [webMailUrl, tgMessageLink, useProxy, doShare, doOpenTg, onToggleProxy]);
 
   const handleSecondaryButtonClick = useCallback(() => {
     if (extras.length === 0) return;

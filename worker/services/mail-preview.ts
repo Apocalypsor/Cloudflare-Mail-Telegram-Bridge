@@ -11,7 +11,9 @@ export type LoadedMailPreview =
   | {
       ok: true;
       meta: MailMeta;
-      /** 已经做完 CID 内联 + 图片代理改写的 HTML，渲染层直接 raw() 即可 */
+      /** CID 内联完成、未走图片代理的原始 HTML —— 关闭代理时直接渲染 */
+      rawHtml: string;
+      /** 在 rawHtml 基础上再做外链图片代理改写 —— 默认渲染这个 */
       proxiedHtml: string;
       fetchFolder: Folder;
       inJunk: boolean;
@@ -49,6 +51,7 @@ export async function loadMailForPreview(
     return {
       ok: true,
       meta: cached.meta ?? {},
+      rawHtml: cached.html,
       proxiedHtml: await proxyImages(cached.html, env.ADMIN_SECRET),
       fetchFolder,
       inJunk,
@@ -77,6 +80,7 @@ export async function loadMailForPreview(
   return {
     ok: true,
     meta: result.meta ?? {},
+    rawHtml: html,
     proxiedHtml: await proxyImages(html, env.ADMIN_SECRET),
     fetchFolder,
     inJunk,

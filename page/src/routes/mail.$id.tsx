@@ -27,6 +27,9 @@ function WebMailPage() {
   const { id: emailMessageId } = Route.useParams();
   const search = Route.useSearch();
   const qc = useQueryClient();
+  // CORS 代理 toggle —— 默认开启，由 toolbar 里的按钮切换；MailBodyFrame
+  // 根据这个值决定渲染 proxiedHtml 还是 rawHtml。
+  const [useProxy, setUseProxy] = useState(true);
 
   // Cache key 和 Mini App `/telegram-app/mail/$id` 共用 —— 同一个 API
   // (`ROUTE_MAIL_API`)，shape 相同，本来就该共享缓存。
@@ -120,6 +123,8 @@ function WebMailPage() {
           inJunk={d.inJunk}
           inArchive={d.inArchive}
           canArchive={d.canArchive}
+          useProxy={useProxy}
+          onToggleProxy={() => setUseProxy((v) => !v)}
           onChanged={() => qc.invalidateQueries({ queryKey })}
         />
 
@@ -127,7 +132,11 @@ function WebMailPage() {
             被推出圆角之外。用 overflow-hidden + rounded-xl 把四角切齐。
             结构和 miniapp `telegram-app/mail.$id.tsx` 完全一致。 */}
         <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-          <MailBodyFrame bodyHtml={d.bodyHtml} />
+          <MailBodyFrame
+            bodyHtml={d.bodyHtml}
+            bodyHtmlRaw={d.bodyHtmlRaw}
+            useProxy={useProxy}
+          />
         </div>
       </article>
     </WebLayout>
@@ -142,6 +151,8 @@ interface ToolbarProps {
   inJunk: boolean;
   inArchive: boolean;
   canArchive: boolean;
+  useProxy: boolean;
+  onToggleProxy: () => void;
   onChanged: () => void;
 }
 
@@ -232,6 +243,14 @@ function WebMailToolbar(props: ToolbarProps) {
           />
         </>
       )}
+      {/* CORS 图片代理 toggle —— 不会发请求、不影响 pending；放在所有状态
+          按钮之后，inbox 默认会自然落在「标记为垃圾」旁边。 */}
+      <AccentButton
+        label={props.useProxy ? "🖼 图片代理 开" : "🖼 图片代理 关"}
+        tone={props.useProxy ? "success-soft" : "neutral"}
+        isDisabled={false}
+        onPress={props.onToggleProxy}
+      />
       {msg && !pending && (
         <Chip
           className={

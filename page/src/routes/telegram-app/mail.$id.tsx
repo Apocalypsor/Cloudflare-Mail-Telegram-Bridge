@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { ROUTE_MAIL_API } from "@worker/handlers/hono/routes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { api } from "@/api/client";
 import { mailPreviewResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
 import { useBackButton } from "@/hooks/use-back-button";
-import { getTelegram, isDesktopTgClient } from "@/providers/telegram";
+import { getTelegram } from "@/providers/telegram";
 
 // accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。
 // folder / back 可选。
@@ -30,22 +30,9 @@ function MailPreviewPage() {
   const { id: emailMessageId } = Route.useParams();
   const search = Route.useSearch();
   const qc = useQueryClient();
-
-  // 桌面 client (macos / tdesktop)：把 Mini App URL 抛给系统浏览器、关掉
-  // Mini App。state 初始化时同步判定，避免第一帧闪 Mini App 内容再切换。
-  // index.html 的 inline script 也会做同样判断，这里是 React 层兜底。
-  const [redirecting] = useState(isDesktopTgClient);
-  useEffect(() => {
-    if (!redirecting) return;
-    const tg = getTelegram();
-    if (!tg) return;
-    const webUrl = window.location.href.replace(
-      "/telegram-app/mail/",
-      "/mail/",
-    );
-    tg.openLink?.(webUrl);
-    tg.close?.();
-  }, [redirecting]);
+  // CORS 代理 toggle —— 默认开启，由 MailFab SecondaryButton 切换；
+  // MailBodyFrame 根据这个值决定渲染 proxiedHtml 还是 rawHtml。
+  const [useProxy, setUseProxy] = useState(true);
 
   const queryKey = [
     "mail-preview",
@@ -56,7 +43,6 @@ function MailPreviewPage() {
 
   const q = useQuery({
     queryKey,
-    enabled: !redirecting,
     queryFn: async () => {
       const url = ROUTE_MAIL_API.replace(
         ":id",
@@ -75,13 +61,6 @@ function MailPreviewPage() {
   // BackButton：URL 带 ?back= 时显示并跳回该 URL；没有就隐藏（从 bot 按钮直接进来）
   useBackButton(search.back);
 
-  if (redirecting) {
-    return (
-      <div className="p-6 text-center text-sm text-zinc-500">
-        正在浏览器中打开…
-      </div>
-    );
-  }
   if (q.isLoading) {
     return (
       <article className="max-w-3xl mx-auto px-4 py-6 animate-pulse space-y-4">
@@ -129,7 +108,11 @@ function MailPreviewPage() {
         )}
 
         <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-          <MailBodyFrame bodyHtml={d.bodyHtml} />
+          <MailBodyFrame
+            bodyHtml={d.bodyHtml}
+            bodyHtmlRaw={d.bodyHtmlRaw}
+            useProxy={useProxy}
+          />
         </div>
       </article>
 
@@ -144,6 +127,8 @@ function MailPreviewPage() {
         subject={d.meta.subject ?? null}
         webMailUrl={d.webMailUrl}
         tgMessageLink={d.tgMessageLink}
+        useProxy={useProxy}
+        onToggleProxy={() => setUseProxy((v) => !v)}
         onChanged={() => qc.invalidateQueries({ queryKey })}
       />
     </>

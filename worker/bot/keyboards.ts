@@ -81,11 +81,9 @@ export async function buildEmailKeyboard(
   const remindBtn = remindLabel(reminderCount);
   const viewLabel = t("keyboards:mail.viewOriginal");
 
-  // 👁 / ⏰ 都走 Mini App。⏰ 设提醒需要 TG context；👁 看似可以直接给浏览器
-  // url，但 Mini App 内能拿到 `WebApp.platform` 做平台分流 —— 桌面 client
-  // (macos / tdesktop) 自动 `WebApp.openLink` 抛给系统浏览器（Safari / Chrome）
-  // 并 `close()`；移动端正常渲染 Mini App。这条路由的 desktop 跳转逻辑在
-  // `page/src/routes/telegram-app/mail.$id.tsx`。
+  // 👁 / ⏰ 都走 Mini App ——`web_app` 按钮在所有平台 (macos / tdesktop /
+  // ios / android) 都直接在 Mini App 内打开；不再做桌面跳浏览器的分流。
+  // ⏰ 设提醒本来就需要 TG context，所以也只能是 Mini App。
   const miniAppMailUrl = buildMiniAppMailUrl(
     base,
     emailMessageId,

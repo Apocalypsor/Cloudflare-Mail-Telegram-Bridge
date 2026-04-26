@@ -55,7 +55,7 @@ Run `pnpm typegen:worker` after changing bindings in `worker/wrangler.jsonc`.
 - **Mini App 路由** (`page/src/routes/telegram-app/`): HeroUI + TG 原生控件（MainButton / SecondaryButton / BackButton），样式跟 web 页共用 zinc/emerald。iPad 上自动 `requestFullscreen()`（Bot API 8.0+），TG 顶栏收成浮动 pill。
   - `/telegram-app/` → `index.tsx` router entry, reads `window.Telegram.WebApp.initDataUnsafe.start_param` (`r_<chat>_<msg>` / `m_<chat>_<msg>`) and navigates.
   - `/telegram-app/reminders` → set/list/cancel reminders.
-  - `/telegram-app/mail/$id` → email preview (fetches JSON from `GET /api/mail/:id` —— token-only auth, shared with web `/mail/$id`; renders bodyHtml in sandbox iframe via `MailBodyFrame`, shows `MailFab` for star/archive/trash/junk/unarchive).
+  - `/telegram-app/mail/$id` → email preview (fetches JSON from `GET /api/mail/:id` —— token-only auth, shared with web `/mail/$id`; renders body in sandbox iframe via `MailBodyFrame`, shows `MailFab` for star/archive/trash/junk/unarchive). API 返回 `bodyHtml`（CORS 代理改写过，默认渲染）+ `bodyHtmlRaw`（未改写原始 HTML），父路由 hold `useProxy` state 传给 `MailBodyFrame`；切换入口：web 在 `WebMailToolbar` 里和「标记为垃圾」并排的「🖼 图片代理 开/关」按钮，miniapp 在 `MailFab` 的 SecondaryButton extras 里（单独 extra → 按钮直接 toggle，跟 share/跳 TG 共存 → 「🔗 更多」popup 选）。所有平台（含 macOS / Telegram Desktop）一律在 Mini App 内打开，不再做桌面 → 浏览器跳转。
   - `/telegram-app/list/$type` → unread/starred/junk/archived lists.
   - `/telegram-app/search` → cross-account 邮件搜索（关键词 / 发件人 / 主题；Gmail / Outlook 走原生搜索语法）。
 - **Web 页面** (`page/src/routes/`，不在 `telegram-app/` 子目录下): 浏览器里直接访问的页面，`WebLayout` 套 sticky emerald wordmark header，HeroUI Card / Button 做现代化外观。
