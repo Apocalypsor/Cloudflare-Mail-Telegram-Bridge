@@ -4,21 +4,25 @@
   "private": true,
   "license": "AGPL-3.0-or-later",
   "author": "Apocalypsor <chthon605@gmail.com>",
+  "workspaces": [
+    "worker",
+    "page"
+  ],
   "scripts": {
-    "dev:worker": "pnpm --filter telemail-worker dev",
-    "dev:cookie": "pnpm --filter telemail-worker dev:cookie",
-    "dev:seed": "pnpm --filter telemail-worker dev:seed",
-    "typegen:worker": "pnpm --filter telemail-worker typegen",
-    "migrate:worker:local": "pnpm --filter telemail-worker migrate:local",
-    "migrate:worker:remote": "pnpm --filter telemail-worker migrate:remote",
-    "deploy:worker": "pnpm --filter telemail-worker run deploy",
-    "dev:page": "pnpm --filter telemail-page dev",
-    "build:page": "pnpm --filter telemail-page build",
+    "dev:worker": "bun --filter telemail-worker dev",
+    "dev:cookie": "bun --filter telemail-worker dev:cookie",
+    "dev:seed": "bun --filter telemail-worker dev:seed",
+    "typegen:worker": "bun --filter telemail-worker typegen",
+    "migrate:worker:local": "bun --filter telemail-worker migrate:local",
+    "migrate:worker:remote": "bun --filter telemail-worker migrate:remote",
+    "deploy:worker": "bun --filter telemail-worker deploy",
+    "dev:page": "bun --filter telemail-page dev",
+    "build:page": "bun --filter telemail-page build",
     "check": "biome check --no-errors-on-unmatched --files-ignore-unknown=true",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "bun --filter '*' typecheck",
     "prepare": "husky",
-    "skills:install": "pnpm dlx skills experimental_install && ln -sf ../.agents/skills .claude/",
-    "skills:update": "pnpm dlx skills update"
+    "skills:install": "bunx skills experimental_install && ln -sf ../.agents/skills .claude/",
+    "skills:update": "bunx skills update"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.8",

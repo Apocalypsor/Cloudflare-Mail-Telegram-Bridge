@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm generate:routes && tsc -b && vite build",
+    "build": "bun generate:routes && tsc -b && vite build",
     "preview": "vite preview",
     "generate:routes": "tsr generate",
-    "typecheck": "pnpm generate:routes && tsc -b --noEmit"
+    "typecheck": "bun generate:routes && tsc -b --noEmit"
   },
   "dependencies": {
     "@heroui/react": "^3.0.3",

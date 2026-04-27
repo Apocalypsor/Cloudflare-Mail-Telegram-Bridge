@@ -5,7 +5,7 @@
  * 在 users 表里有 row（即使是 admin 也躲不过这个检查），所以这一步是
  * /preview 等需要登录的本地页面能跑起来的前提。
  *
- * 跑这个脚本前先跑 `pnpm migrate:worker:local` 把 schema 灌进本地 D1。
+ * 跑这个脚本前先跑 `bun migrate:worker:local` 把 schema 灌进本地 D1。
  */
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -19,17 +19,8 @@ const sql = `INSERT OR IGNORE INTO users (telegram_id, first_name, approved) VAL
 const workerDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const result = spawnSync(
-  "pnpm",
-  [
-    "exec",
-    "wrangler",
-    "d1",
-    "execute",
-    "gmail-tg-bridge",
-    "--local",
-    "--command",
-    sql,
-  ],
+  "bun",
+  ["wrangler", "d1", "execute", "gmail-tg-bridge", "--local", "--command", sql],
   { cwd: workerDir, stdio: "inherit" },
 );
 

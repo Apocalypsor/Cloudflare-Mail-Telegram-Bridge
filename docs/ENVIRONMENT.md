@@ -2,7 +2,7 @@
 
 ## Secrets
 
-通过 `pnpm wrangler secret put <KEY>` 配置，本地 `.dev.vars` 也可以。按用途分组：
+通过 `bun wrangler secret put <KEY>` 配置，本地 `.dev.vars` 也可以。按用途分组：
 
 ### 核心（必填）
 
@@ -60,7 +60,7 @@
 
 ## Cloudflare Bindings
 
-`worker/wrangler.jsonc` 里声明，`pnpm typegen:worker` 把类型同步到 `worker/worker-configuration.d.ts`。
+`worker/wrangler.jsonc` 里声明，`bun typegen:worker` 把类型同步到 `worker/worker-configuration.d.ts`。
 
 | Binding       | 类型    | 用途                                                                 |
 | ------------- | ------- | -------------------------------------------------------------------- |

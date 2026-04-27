@@ -18,9 +18,9 @@
   "preview_urls": true,
   /**
    * D1 Database — 多账号信息（email / chat_id / refresh_token / history_id）
-   * 先运行: pnpm wrangler d1 create gmail-tg-bridge
+   * 先运行: bun wrangler d1 create gmail-tg-bridge
    * 然后把返回的 database_id 填入下方
-   * 再运行: pnpm wrangler d1 migrations apply gmail-tg-bridge
+   * 再运行: bun wrangler d1 migrations apply gmail-tg-bridge
    */
   "d1_databases": [
     {
@@ -32,7 +32,7 @@
   ],
   /**
    * KV Namespace — access_token 缓存、消息去重、OAuth state
-   * 先运行: pnpm wrangler kv namespace create EMAIL_KV
+   * 先运行: bun wrangler kv namespace create EMAIL_KV
    * 然后把返回的 id 填入下方
    */
   "kv_namespaces": [
@@ -52,7 +52,7 @@
   ],
   /**
    * Queue — 邮件处理队列（sync + message），串行消费，内置重试
-   * 先运行: pnpm wrangler queues create gmail-tg-queue
+   * 先运行: bun wrangler queues create gmail-tg-queue
    */
   "queues": {
     "producers": [

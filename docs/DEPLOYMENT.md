@@ -14,7 +14,7 @@
 安装依赖：
 
 ```sh
-pnpm install
+bun install
 ```
 
 ## 2. Google Cloud（Gmail）
@@ -61,24 +61,24 @@ gcloud pubsub subscriptions create gmail-push-sub \
 
 ## 4. Cloudflare 资源
 
-> 下面所有 `pnpm wrangler …` 命令需要在 `worker/` 子包目录里执行（wrangler 只装在该子包），或者从仓库根用 `pnpm --filter telemail-worker exec wrangler …`。`wrangler.jsonc` 也在 `worker/` 下。
+> 下面所有 `bun wrangler …` 命令需要在 `worker/` 子包目录里执行（wrangler 只装在该子包），或者从仓库根用 `bun --filter telemail-worker exec wrangler …`。`wrangler.jsonc` 也在 `worker/` 下。
 
 ### 4.1 D1 数据库
 
 ```sh
-pnpm wrangler d1 create gmail-tg-bridge
+bun wrangler d1 create gmail-tg-bridge
 ```
 
 把返回的 `database_id` 填入 `wrangler.jsonc` 中 `d1_databases[0].database_id`。然后从仓库根跑：
 
 ```sh
-pnpm migrate:worker:remote
+bun migrate:worker:remote
 ```
 
 ### 4.2 KV 命名空间
 
 ```sh
-pnpm wrangler kv namespace create EMAIL_KV
+bun wrangler kv namespace create EMAIL_KV
 ```
 
 返回的 `id` 填入 `wrangler.jsonc` 中 `kv_namespaces[0].id`。用途：access_token 缓存、消息去重、OAuth state。
@@ -86,7 +86,7 @@ pnpm wrangler kv namespace create EMAIL_KV
 ### 4.3 Queue
 
 ```sh
-pnpm wrangler queues create gmail-tg-queue
+bun wrangler queues create gmail-tg-queue
 ```
 
 `wrangler.jsonc` 中已经配好 producer / consumer 绑定。Queue 用于串行处理邮件，内置重试。
@@ -96,21 +96,21 @@ pnpm wrangler queues create gmail-tg-queue
 所有 secret 的用途和"哪些必填 / 哪些可选"见 [ENVIRONMENT.md](./ENVIRONMENT.md)。最小集：
 
 ```sh
-pnpm wrangler secret put TELEGRAM_BOT_TOKEN
-pnpm wrangler secret put ADMIN_TELEGRAM_ID
-pnpm wrangler secret put ADMIN_SECRET
-pnpm wrangler secret put TELEGRAM_WEBHOOK_SECRET
+bun wrangler secret put TELEGRAM_BOT_TOKEN
+bun wrangler secret put ADMIN_TELEGRAM_ID
+bun wrangler secret put ADMIN_SECRET
+bun wrangler secret put TELEGRAM_WEBHOOK_SECRET
 # Gmail
-pnpm wrangler secret put GMAIL_CLIENT_ID
-pnpm wrangler secret put GMAIL_CLIENT_SECRET
-pnpm wrangler secret put GMAIL_PUBSUB_TOPIC
-pnpm wrangler secret put GMAIL_PUSH_SECRET
+bun wrangler secret put GMAIL_CLIENT_ID
+bun wrangler secret put GMAIL_CLIENT_SECRET
+bun wrangler secret put GMAIL_PUBSUB_TOPIC
+bun wrangler secret put GMAIL_PUSH_SECRET
 ```
 
 ## 5. Worker 部署
 
 ```sh
-pnpm deploy:worker
+bun deploy:worker
 ```
 
 ### 5.1 设置 Telegram Webhook
@@ -143,7 +143,7 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 ### 6.1 创建 Pages 项目
 
 1. Cloudflare Pages 创建项目，接入 Git 仓库
-2. **Build command**: `corepack enable && pnpm install --filter telemail-page && pnpm --filter telemail-page build`
+2. **Build command**: `bun install --filter telemail-page && bun --filter telemail-page build`
 3. **Build output directory**: `page/dist`
 4. 绑定自定义域名（和 Worker 同域）
 
@@ -168,8 +168,8 @@ BotFather：
 Worker 的 `WORKER_URL` 和 `TG_MINI_APP_SHORT_NAME` secret 分别填 `https://example.com` 和刚才的 short name：
 
 ```sh
-pnpm wrangler secret put WORKER_URL
-pnpm wrangler secret put TG_MINI_APP_SHORT_NAME
+bun wrangler secret put WORKER_URL
+bun wrangler secret put TG_MINI_APP_SHORT_NAME
 ```
 
 ## 7. 添加邮箱账号

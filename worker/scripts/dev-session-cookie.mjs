@@ -2,7 +2,7 @@
 /**
  * 本地开发签 session cookie。
  *
- * 用法：在 worker/ 下跑 `pnpm dev:cookie`。脚本读 worker/.dev.vars 里的
+ * 用法：在 worker/ 下跑 `bun dev:cookie`。脚本读 worker/.dev.vars 里的
  * ADMIN_SECRET / ADMIN_TELEGRAM_ID，签出和 worker/utils/session.ts 完全
  * 一致的 cookie，打印一段可直接粘到浏览器 DevTools Console 的代码。
  *

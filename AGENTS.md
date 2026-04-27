@@ -1,6 +1,6 @@
 # Cloudflare Workers
 
-> Before committing, run `pnpm check` (Biome) and `pnpm typecheck` (tsc). Fix ALL errors. Do NOT use `biome-ignore`. Update AGENTS.md / README.md / `docs/*` if needed.
+> Before committing, run `bun check` (Biome) and `bun typecheck` (tsc). Fix ALL errors. Do NOT use `biome-ignore`. Update AGENTS.md / README.md / `docs/*` if needed.
 
 User-facing docs are split:
 
@@ -17,24 +17,24 @@ Root is pure orchestration (workspaces: `worker/` + `page/`). All commands run f
 
 | Command                       | Purpose                                                  |
 | ----------------------------- | -------------------------------------------------------- |
-| `pnpm dev:worker`             | `wrangler dev` (Worker, port 8787)                       |
-| `pnpm dev:page`               | Vite dev server for `page/` (port 5173, proxies /api)    |
-| `pnpm dev:cookie`             | Sign a local `tg_session` cookie from `worker/.dev.vars` |
-| `pnpm dev:seed`               | Seed `ADMIN_TELEGRAM_ID` into local D1 `users` (admin row) |
-| `pnpm deploy:worker`          | `wrangler deploy` (deploy Worker to Cloudflare)          |
-| `pnpm build:page`             | Build React SPA (`page/` → `page/dist`, deploy to Pages) |
-| `pnpm migrate:worker:remote`  | Apply D1 migrations (remote)                             |
-| `pnpm migrate:worker:local`   | Apply D1 migrations (local miniflare)                    |
-| `pnpm typegen:worker`         | Generate `worker-configuration.d.ts` from wrangler.jsonc |
-| `pnpm check`                  | Biome lint + format (single config covers all packages)  |
-| `pnpm typecheck`              | tsc on worker + page (`pnpm -r typecheck`)               |
+| `bun dev:worker`             | `wrangler dev` (Worker, port 8787)                       |
+| `bun dev:page`               | Vite dev server for `page/` (port 5173, proxies /api)    |
+| `bun dev:cookie`             | Sign a local `tg_session` cookie from `worker/.dev.vars` |
+| `bun dev:seed`               | Seed `ADMIN_TELEGRAM_ID` into local D1 `users` (admin row) |
+| `bun deploy:worker`          | `wrangler deploy` (deploy Worker to Cloudflare)          |
+| `bun build:page`             | Build React SPA (`page/` → `page/dist`, deploy to Pages) |
+| `bun migrate:worker:remote`  | Apply D1 migrations (remote)                             |
+| `bun migrate:worker:local`   | Apply D1 migrations (local miniflare)                    |
+| `bun typegen:worker`         | Generate `worker-configuration.d.ts` from wrangler.jsonc |
+| `bun check`                  | Biome lint + format (single config covers all packages)  |
+| `bun typecheck`              | tsc on worker + page (`bun --filter '*' typecheck`)      |
 
-Run `pnpm typegen:worker` after changing bindings in `worker/wrangler.jsonc`.
+Run `bun typegen:worker` after changing bindings in `worker/wrangler.jsonc`.
 
 ## Project layout
 
-- **`worker/`** — Cloudflare Worker (Hono): bot webhook, queue consumer, cron, email providers, D1 access, `/api/*` + `/oauth/*` endpoints. pnpm workspace child package `telemail-worker`. Owns `wrangler.jsonc`, `worker-configuration.d.ts`, `migrations/`, `tsconfig.json`. (`/mail/:id`, `/preview`, `/junk-check`, `/login` HTML 页面在 Pages，不在 Worker。)
-- **`page/`** — Cloudflare Pages frontend (Vite + React 19 + TanStack Router + TanStack Query + ky + zod + HeroUI). pnpm workspace child package `telemail-page`. **Single entry**: `index.html` + `src/main.tsx` + `src/routes/` 供 web 页面（`/`、`/mail/:id`、`/preview`、`/junk-check`、`/login`）和 Mini App 路由（`/telegram-app/*`）共享。TG SDK 无条件加载，`TelegramProvider` 在非 TG 上下文下（`initData` 为空）跳过所有 TG 初始化调用。样式统一走 `src/styles/app.css` = `@import "@heroui/styles"` + `./theme.css`（固定深色 zinc/emerald palette，映射到 HeroUI 设计 token）。
+- **`worker/`** — Cloudflare Worker (Hono): bot webhook, queue consumer, cron, email providers, D1 access, `/api/*` + `/oauth/*` endpoints. bun workspace child package `telemail-worker`. Owns `wrangler.jsonc`, `worker-configuration.d.ts`, `migrations/`, `tsconfig.json`. (`/mail/:id`, `/preview`, `/junk-check`, `/login` HTML 页面在 Pages，不在 Worker。)
+- **`page/`** — Cloudflare Pages frontend (Vite + React 19 + TanStack Router + TanStack Query + ky + zod + HeroUI). bun workspace child package `telemail-page`. **Single entry**: `index.html` + `src/main.tsx` + `src/routes/` 供 web 页面（`/`、`/mail/:id`、`/preview`、`/junk-check`、`/login`）和 Mini App 路由（`/telegram-app/*`）共享。TG SDK 无条件加载，`TelegramProvider` 在非 TG 上下文下（`initData` 为空）跳过所有 TG 初始化调用。样式统一走 `src/styles/app.css` = `@import "@heroui/styles"` + `./theme.css`（固定深色 zinc/emerald palette，映射到 HeroUI 设计 token）。
 - **Deployment (方案 A)**: single custom domain, Workers Routes split by path. `example.com/api/*`, `example.com/oauth/*` → Worker; everything else (incl. `/mail/:id`, `/preview`, `/junk-check`, `/telegram-app/*`, `/login`, `/`) → Pages。Pages `_redirects` 把所有 SPA 路径 rewrite 到 `/index.html`。`WORKER_URL` and BotFather `/setdomain` point at the root domain.
 
 ## Conventions
