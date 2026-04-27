@@ -16,13 +16,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "grammy": "^1.41.1",
-    "hono": "^4.12.14",
-    "i18next": "^26.0.1",
+    "grammy": "^1.42.0",
+    "hono": "^4.12.15",
+    "i18next": "^26.0.8",
     "ky": "^1.14.3",
     "linkedom": "^0.18.12",
     "postal-mime": "^2.7.4",
-    "turndown": "^7.2.2",
+    "turndown": "^7.2.4",
     "workers-observability-hub": "^1.0.3"
   },
   "devDependencies": {
