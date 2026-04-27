@@ -6,6 +6,7 @@
       "name": "telemail",
       "devDependencies": {
         "@biomejs/biome": "2.4.8",
+        "@types/bun": "latest",
         "@types/node": "^25.5.0",
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
@@ -21,9 +22,6 @@
         "imapflow": "^1.2.16",
         "ky": "^1.14.3",
         "redis": "^5.11.0",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
       },
     },
     "page": {

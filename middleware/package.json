@@ -13,8 +13,5 @@
     "imapflow": "^1.2.16",
     "ky": "^1.14.3",
     "redis": "^5.11.0"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
   }
 }
