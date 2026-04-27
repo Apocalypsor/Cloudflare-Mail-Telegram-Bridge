@@ -79,13 +79,15 @@ jobs:
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-bun
       - uses: cloudflare/wrangler-action@v3
         id: deploy
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
           workingDirectory: worker
-          command: deploy --message=${{ github.sha }}
+          command: deploy
 
   preview-worker:
     name: Preview Worker (PR version)
@@ -101,11 +103,13 @@ jobs:
       url: ${{ steps.upload.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-bun
       - uses: cloudflare/wrangler-action@v3
         id: upload
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
           workingDirectory: worker
           command: versions upload --message=PR-${{ github.event.number }}-${{ github.event.pull_request.head.sha }}
 
@@ -129,6 +133,7 @@ jobs:
       alias_url: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v8
         with:
           name: page-dist
@@ -138,6 +143,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
           command: pages deploy page/dist --project-name=telemail-web --branch=main --commit-hash=${{ github.sha }}
 
   preview-page:
@@ -155,6 +161,7 @@ jobs:
       alias_url: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v8
         with:
           name: page-dist
@@ -164,6 +171,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
           command: pages deploy page/dist --project-name=telemail-web --branch=${{ github.head_ref }} --commit-hash=${{ github.event.pull_request.head.sha }}
 
   # ─── Middleware (Docker, GHCR) ─────────────────────────────────────────────
