@@ -38,11 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - name: Biome check
         run: bun check
       - name: Typecheck (worker + page)
@@ -71,11 +67,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - name: Wrangler deploy
         run: bun deploy:worker --message="$COMMIT_MSG"
         env:
@@ -95,11 +87,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - name: Wrangler versions upload
         run: |
           bun --filter telemail-worker deploy:version \
@@ -123,11 +111,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v8
         with:
           name: page-dist
@@ -156,11 +140,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v8
         with:
           name: page-dist
