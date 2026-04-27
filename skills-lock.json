@@ -4,7 +4,7 @@
     "agents-sdk": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "921f2a43c0f58851a8bf9faaeb3641fa3108f3a94e787ca8e948626342988658"
+      "computedHash": "cb669fba9289d500872584ea0daab1c5114f1c8f12a991f90871431d3fadbf3c"
     },
     "building-ai-agent-on-cloudflare": {
       "source": "cloudflare/skills",
@@ -19,22 +19,32 @@
     "cloudflare": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "02ef72b4906d295d03da15d52357babdef06a762f0374b85c89c73c9b22a7bad"
+      "computedHash": "c30b3df17961254af70f8f24799c04d37096503588416e39efd0bd3e83611fde"
+    },
+    "cloudflare-email-service": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "computedHash": "6274be056fe5211aa220833c97ff6a7d96a1cdfd8854a53ca839ca758d35f356"
     },
     "durable-objects": {
       "source": "cloudflare/skills",
       "sourceType": "github",
       "computedHash": "72efa2277fea08f43b393c74abaacc9fa575e20bc63bdc9d46829b8a39352852"
     },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
     "sandbox-sdk": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "5655f09026204f4b753c9e06dc6483e9f6ddeec18bb3daa8735195c4b2d1f752"
+      "computedHash": "e44cceebe7e47d815034027c303315139d35c1d92a3ee287dc6d3e9a02f0667b"
     },
     "web-perf": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "520d36ee93779146266dcdeec31d5e42341c3a40cc35007c1b5e02d6824ff86b"
+      "computedHash": "7ae53856c320574f7440f50aef7892f96837eec9fd49d329d049d432fb4b299a"
     },
     "workers-best-practices": {
       "source": "cloudflare/skills",
@@ -44,7 +54,7 @@
     "wrangler": {
       "source": "cloudflare/skills",
       "sourceType": "github",
-      "computedHash": "cd0ac8f97a2f54d19166acfd380fca8236db5e9f37d3b2066f713967e2673d36"
+      "computedHash": "11edeb37eedb91deedde694b2bb1cc4ff4e8b5a8f1836c217a8c871fe39abcb5"
     }
   }
 }
