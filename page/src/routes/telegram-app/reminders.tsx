@@ -253,6 +253,19 @@ function RemindersPage() {
         loading={remindersQuery.isLoading}
         deletingId={deleteMut.isPending ? (deleteMut.variables ?? null) : null}
         onDelete={(id) => deleteMut.mutate(id)}
+        onOpenMail={(r) => {
+          if (!r.account_id || !r.email_message_id || !r.mail_token) return;
+          const back = window.location.pathname + window.location.search;
+          navigate({
+            to: "/telegram-app/mail/$id",
+            params: { id: r.email_message_id },
+            search: {
+              accountId: r.account_id,
+              t: r.mail_token,
+              back,
+            },
+          });
+        }}
       />
     </div>
   );
@@ -416,18 +429,49 @@ function AddSection({
   );
 }
 
+function ReminderRowBody({
+  it,
+  listOnly,
+  canOpen,
+}: {
+  it: Reminder;
+  listOnly: boolean;
+  canOpen: boolean;
+}) {
+  return (
+    <>
+      <div className="text-xs text-zinc-500 mb-1">{fmtWhen(it.remind_at)}</div>
+      {listOnly && (it.email_summary || it.email_subject) && (
+        <div className="text-[13px] text-zinc-400 break-words">
+          📧 {it.email_summary || it.email_subject}
+        </div>
+      )}
+      {it.text && (
+        <div className="text-sm break-words text-zinc-100 mt-0.5">
+          {it.text}
+        </div>
+      )}
+      {canOpen && (
+        <div className="text-[11px] text-emerald-400 mt-1">点击查看邮件 →</div>
+      )}
+    </>
+  );
+}
+
 function ListSection({
   listOnly,
   reminders,
   loading,
   deletingId,
   onDelete,
+  onOpenMail,
 }: {
   listOnly: boolean;
   reminders: Reminder[];
   loading: boolean;
   deletingId: number | null;
   onDelete: (id: number) => void;
+  onOpenMail: (r: Reminder) => void;
 }) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
@@ -455,37 +499,44 @@ function ListSection({
         </div>
       ) : (
         <ul className="divide-y divide-zinc-800/80">
-          {reminders.map((it) => (
-            <li
-              key={it.id}
-              className="flex items-start justify-between gap-3 py-3 first:pt-1 last:pb-1"
-            >
-              <div className="flex flex-col min-w-0 flex-1">
-                <div className="text-xs text-zinc-500 mb-1">
-                  {fmtWhen(it.remind_at)}
-                </div>
-                {listOnly && it.email_subject && (
-                  <div className="text-[13px] text-zinc-400 break-words">
-                    📧 {it.email_subject}
-                  </div>
-                )}
-                {it.text && (
-                  <div className="text-sm break-words text-zinc-100 mt-0.5">
-                    {it.text}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => onDelete(it.id)}
-                disabled={deletingId === it.id}
-                aria-label="删除提醒"
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-800 hover:text-red-400 active:bg-zinc-700 transition-colors disabled:opacity-40"
+          {reminders.map((it) => {
+            const canOpen = Boolean(
+              listOnly && it.account_id && it.email_message_id && it.mail_token,
+            );
+            return (
+              <li
+                key={it.id}
+                className="flex items-start justify-between gap-3 py-3 first:pt-1 last:pb-1"
               >
-                {deletingId === it.id ? <Spinner size="sm" /> : "🗑"}
-              </button>
-            </li>
-          ))}
+                {canOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenMail(it)}
+                    className="flex flex-col min-w-0 flex-1 text-left rounded-md -mx-2 px-2 py-1 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <ReminderRowBody it={it} listOnly={listOnly} canOpen />
+                  </button>
+                ) : (
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <ReminderRowBody
+                      it={it}
+                      listOnly={listOnly}
+                      canOpen={false}
+                    />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onDelete(it.id)}
+                  disabled={deletingId === it.id}
+                  aria-label="删除提醒"
+                  className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-800 hover:text-red-400 active:bg-zinc-700 transition-colors disabled:opacity-40"
+                >
+                  {deletingId === it.id ? <Spinner size="sm" /> : "🗑"}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

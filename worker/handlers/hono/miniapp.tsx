@@ -13,6 +13,7 @@ import {
   getReminderById,
   listPendingReminders,
   listPendingRemindersForEmail,
+  type Reminder,
 } from "@db/reminders";
 import { requireMiniAppAuth } from "@handlers/hono/middleware";
 import {
@@ -147,6 +148,75 @@ async function lookupEmailContext(
     tgMessageId: m?.tg_message_id ?? null,
     subject,
   };
+}
+
+type EnrichedReminder = Reminder & {
+  mail_token: string | null;
+  email_summary: string | null;
+};
+
+/** 给 listOnly 模式（主菜单"我的提醒"）的 reminder 列表附加：
+ *   - `mail_token`: 基于 (emailMessageId, accountId) 的 HMAC，与键盘里 web 链接用的同一份。
+ *     前端点击提醒跳邮件预览页要用，不扩大用户已有的访问权。
+ *   - `email_summary`: message_map 里 LLM 一句话摘要的最新值，前端 fallback 到 email_subject。
+ *  按 (accountId, emailMessageId) 去重 —— 同一封邮件的多条提醒共享同一份 HMAC + mapping，
+ *  避免重复计算。mapping 批量查 + HMAC 计算两路并发。 */
+async function enrichReminders(
+  c: Context<AppEnv>,
+  items: Reminder[],
+): Promise<EnrichedReminder[]> {
+  const uniq = new Map<string, { accountId: number; emailMessageId: string }>();
+  for (const r of items) {
+    if (r.account_id && r.email_message_id)
+      uniq.set(`${r.account_id}:${r.email_message_id}`, {
+        accountId: r.account_id,
+        emailMessageId: r.email_message_id,
+      });
+  }
+
+  const idsByAccount = new Map<number, string[]>();
+  for (const { accountId, emailMessageId } of uniq.values()) {
+    const arr = idsByAccount.get(accountId);
+    if (arr) arr.push(emailMessageId);
+    else idsByAccount.set(accountId, [emailMessageId]);
+  }
+
+  const tokenByKey = new Map<string, string>();
+  const summaryByKey = new Map<string, string>();
+  await Promise.all([
+    ...Array.from(idsByAccount.entries()).map(async ([accountId, ids]) => {
+      const mappings = await getMappingsByEmailIds(c.env.DB, accountId, ids);
+      for (const m of mappings) {
+        if (m.short_summary)
+          summaryByKey.set(
+            `${accountId}:${m.email_message_id}`,
+            m.short_summary,
+          );
+      }
+    }),
+    ...Array.from(uniq.entries()).map(async ([key, v]) => {
+      tokenByKey.set(
+        key,
+        await generateMailTokenById(
+          c.env.ADMIN_SECRET,
+          v.emailMessageId,
+          v.accountId,
+        ),
+      );
+    }),
+  ]);
+
+  return items.map((r) => {
+    const key =
+      r.account_id && r.email_message_id
+        ? `${r.account_id}:${r.email_message_id}`
+        : null;
+    return {
+      ...r,
+      mail_token: key ? (tokenByKey.get(key) ?? null) : null,
+      email_summary: key ? (summaryByKey.get(key) ?? null) : null,
+    };
+  });
 }
 
 // ─── Mini App API ──────────────────────────────────────────────────────────
@@ -312,11 +382,12 @@ miniapp.get(ROUTE_REMINDERS_API, async (c) => {
       ctx.accountId,
       ctx.emailMessageId,
     );
+    // 邮件模式：前端已有 token + subject，summary/mail_token 用不到，跳过 enrich。
     return c.json({ reminders: items });
   }
 
   const items = await listPendingReminders(c.env.DB, userId);
-  return c.json({ reminders: items });
+  return c.json({ reminders: await enrichReminders(c, items) });
 });
 
 // ─── API: 创建（必须带邮件上下文） ───────────────────────────────────────────

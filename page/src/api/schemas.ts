@@ -14,6 +14,10 @@ export const reminderSchema = z.object({
   tg_message_id: z.number().nullable(),
   sent_at: z.string().nullable(),
   created_at: z.string(),
+  /** 列表 API 附加：可用于跳到邮件预览页。通用提醒（无邮件上下文）为 null。 */
+  mail_token: z.string().nullable().optional(),
+  /** 列表 API 附加：message_map 里的 LLM 一句话摘要（最新值，比创建时快照新）。 */
+  email_summary: z.string().nullable().optional(),
 });
 export type Reminder = z.infer<typeof reminderSchema>;
 
