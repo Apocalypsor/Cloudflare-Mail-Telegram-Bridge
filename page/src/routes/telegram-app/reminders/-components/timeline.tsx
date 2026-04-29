@@ -125,8 +125,8 @@ export function ReminderTimeline({
     return (
       <div className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="flex gap-3 items-start">
-            <Skeleton className="w-24 h-4 rounded mt-3.5 shrink-0" />
+          <div key={i} className="flex gap-2 sm:gap-3 items-start">
+            <Skeleton className="w-16 h-4 rounded mt-3.5 shrink-0" />
             <div className="w-4 shrink-0 flex justify-center pt-5">
               <Skeleton className="w-3 h-3 rounded-full" />
             </div>
@@ -233,7 +233,7 @@ function DateRow({
   // the rail dot and right-side divider to that y so chip + dot + divider
   // line up across the row, with the secondary date hanging below the chip.
   return (
-    <div className={`flex gap-3 items-start ${className}`}>
+    <div className={`flex gap-2 sm:gap-3 items-start ${className}`}>
       <div className="w-16 shrink-0 flex flex-col items-end gap-1">
         <Chip size="sm" className={chipClass}>
           {label.primary}
@@ -312,7 +312,7 @@ function ItemRow({
   const bottomStyle: CSSProperties = { top: "26px", bottom: `-${nextGap}px` };
 
   return (
-    <article className={`flex gap-3 items-start ${className}`}>
+    <article className={`flex gap-2 sm:gap-3 items-start ${className}`}>
       <div className="w-16 shrink-0 pt-3.5 text-right">
         <div
           className={`text-[15px] font-semibold tabular-nums leading-tight ${
@@ -397,9 +397,6 @@ function Card({
         </div>
       ) : (
         <div className="text-sm text-zinc-500 italic">无备注</div>
-      )}
-      {canOpen && (
-        <div className="text-[11px] text-emerald-400 mt-2">查看邮件 →</div>
       )}
     </>
   );

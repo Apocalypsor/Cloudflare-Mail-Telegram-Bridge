@@ -202,7 +202,7 @@ function RemindersPage() {
   const reminders = remindersQuery.data?.reminders ?? [];
 
   return (
-    <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-5">
+    <div className="max-w-xl mx-auto px-3 py-4 sm:p-6 space-y-5">
       <header className="space-y-1">
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">
