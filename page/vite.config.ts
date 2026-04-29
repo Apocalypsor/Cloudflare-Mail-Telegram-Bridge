@@ -1,11 +1,8 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-
-const root = path.dirname(fileURLToPath(import.meta.url));
+import tsconfigPaths from "vite-tsconfig-paths";
 
 /**
  * 单 entry bundle —— web 页面和 Mini App 共用 `index.html` / `main.tsx`。
@@ -14,25 +11,13 @@ const root = path.dirname(fileURLToPath(import.meta.url));
  */
 export default defineConfig({
   // router 插件必须排在 react 插件之前，才能把 routeTree 的生成和 Fast Refresh 串起来
+  // tsconfigPaths 把 tsconfig.json 的 paths 直接喂给 Vite，避免 alias 双份维护
   plugins: [
+    tsconfigPaths(),
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
   ],
-  resolve: {
-    alias: {
-      "@": path.resolve(root, "src"),
-      "@api": path.resolve(root, "src/api"),
-      "@components": path.resolve(root, "src/components"),
-      "@hooks": path.resolve(root, "src/hooks"),
-      "@providers": path.resolve(root, "src/providers"),
-      "@routes": path.resolve(root, "src/routes"),
-      "@styles": path.resolve(root, "src/styles"),
-      "@utils": path.resolve(root, "src/utils"),
-      "@page": path.resolve(root, "src"),
-      "@worker": path.resolve(root, "../worker"),
-    },
-  },
   build: {
     outDir: "dist",
     sourcemap: true,
