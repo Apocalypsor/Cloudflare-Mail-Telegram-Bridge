@@ -44,9 +44,9 @@ function isMobilePlatform(): boolean {
 }
 
 /**
- * 挂根部一次。`isTMA()` 同步嗅探当前环境是不是 TG WebApp（看 launch params /
- * window.Telegram）—— 浏览器里直接打开 web 路由（`/mail/:id` 等）会走这里但不
- * 在 TG，跳过所有 SDK 操作。
+ * 挂根部一次。`isTMA()` 同步嗅探当前环境是不是 TG WebApp（试着从 URL hash /
+ * sessionStorage 解 launch params）—— 浏览器里直接打开 web 路由（`/mail/:id` 等）
+ * 会走这里但不在 TG，跳过所有 SDK 操作。
  *
  * Bot API 版本和功能可用性由各自 `xxx.isAvailable()` 在 SDK 内部判断；调用前不
  * 必再手写 `isVersionAtLeast`。
@@ -55,8 +55,9 @@ function isMobilePlatform(): boolean {
  * light/dark，所以直接 `setMiniAppHeaderColor(THEME_COLORS.bg)` 等覆盖。
  *
  * 移动端（iOS / Android）请求 Bot API 8.0 的 `requestFullscreen()`：手机屏幕小，
- * 多挤出 ~50px 给内容用。`app.css` 通过 `--tg-safe-area-inset-*` +
- * `--tg-content-safe-area-inset-*` 双 inset 给 body 加 padding 避开浮动 chrome。
+ * 多挤出 ~50px 给内容用。`bindViewportCssVars()` 把 viewport state 镜像到
+ * `--tg-viewport-*` CSS 变量，`app.css` 里 body padding sum 两套 inset
+ * （safe-area + content-safe-area）避开刘海 / 浮动 chrome。
  */
 export function TelegramProvider({ children }: { children: ReactNode }) {
   useEffect(() => {

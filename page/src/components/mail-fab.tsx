@@ -75,7 +75,7 @@ interface ExtraDef {
  * 成功后：HapticFeedback + onChanged() refetch 数据；terminal 动作（归档/删除/
  * 标垃圾/移出归档/移回）成功后 MainButton 自隐藏，SecondaryButton 保持（分享
  * 一封已归档的邮件仍有意义）。
- * 失败：showAlert(error)。
+ * 失败：alertPopup(error) 弹原生 popup。
  */
 export function MailFab({
   emailMessageId,
