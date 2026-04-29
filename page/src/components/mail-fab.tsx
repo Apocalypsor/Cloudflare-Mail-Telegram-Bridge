@@ -1,5 +1,9 @@
 import { useCallback, useMemo } from "react";
-import { useMainButton, useSecondaryButton } from "@/hooks/use-bottom-button";
+import {
+  useMainButton,
+  useSecondaryButton,
+  useSettingsButton,
+} from "@/hooks/use-bottom-button";
 import { type MailAction, useMailActions } from "@/hooks/use-mail-actions";
 import { getTelegram, type PopupButton } from "@/providers/telegram";
 import { THEME_COLORS } from "@/styles/theme";
@@ -18,10 +22,12 @@ export interface MailFabProps {
   webMailUrl?: string | null;
   /** 跳到 TG 原消息的 deep link。缺失 → 不显示跳转入口 */
   tgMessageLink?: string | null;
-  /** 当前 CORS 图片代理是否开启 —— 决定 SecondaryButton 里 toggle 文案 */
+  /** 当前 CORS 图片代理是否开启 —— 决定 SettingsButton/extras 里 toggle 文案 */
   useProxy: boolean;
-  /** 切换 CORS 图片代理；点击 SecondaryButton 时调用，纯前端状态切换 */
+  /** 切换 CORS 图片代理；点 TG SettingsButton（或老版本退化的 extras 项）调用 */
   onToggleProxy: () => void;
+  /** 跳到提醒页（带 back URL）；undefined → 隐藏 ⏰ 入口 */
+  onSetReminder?: () => void;
   /** FAB 动作成功后通知父组件 refetch 预览数据；交给 caller 处理 */
   onChanged?: () => void;
 }
@@ -34,7 +40,7 @@ interface ActionDef {
   terminal: boolean;
 }
 
-type ExtraId = "share" | "tg-link" | "toggle-proxy";
+type ExtraId = "reminder" | "share" | "tg-link" | "toggle-proxy";
 
 interface ExtraDef {
   id: ExtraId;
@@ -44,15 +50,17 @@ interface ExtraDef {
 
 /**
  * 邮件预览页的操作入口 —— 用 TG 原生 MainButton + SecondaryButton +
- * showPopup 做，**不渲染任何 DOM**。
+ * SettingsButton + showPopup 做，**不渲染任何 DOM**。
  *
- *   MainButton "⚡ 操作" → popup: 星标 / 归档 / 标垃圾（按邮件状态）
- *   SecondaryButton     → 分享 + 跳 TG 原消息
- *     两者都有 → "🔗 更多" → popup 选
- *     只有一个 → 按钮直接做那个事
- *     都没有   → 隐藏
+ *   MainButton "⚡ 操作"     → popup: 星标 / 归档 / 标垃圾（按邮件状态）
+ *   SecondaryButton          → 设置提醒 + 分享 + 跳 TG 原消息
+ *     多项 → "🔗 更多" popup
+ *     单项 → 按钮直接做
+ *     无   → 隐藏
+ *   SettingsButton (右上角 ⋮) → 切 CORS 图片代理；老客户端无此按钮 → 退化到
+ *                              SecondaryButton extras 末位
  *
- * popup 有 3 按钮硬上限，所以邮件状态动作和分享/跳转拆到两个原生按钮里。
+ * popup 有 3 按钮硬上限，所以邮件状态动作和工具操作拆到两个原生按钮里。
  *
  * 成功后：HapticFeedback + onChanged() refetch 数据；terminal 动作（归档/删除/
  * 标垃圾/移出归档/移回）成功后 MainButton 自隐藏，SecondaryButton 保持（分享
@@ -72,8 +80,46 @@ export function MailFab({
   tgMessageLink,
   useProxy,
   onToggleProxy,
+  onSetReminder,
   onChanged,
 }: MailFabProps) {
+  // 图片代理走 TG SettingsButton（右上角 ⋮）。SettingsButton 方法是 Bot API 7.0+，
+  // 老客户端 / 浏览器没有，回落到 SecondaryButton extras 末位 —— 用方法存在性
+  // 检测（不光对象存在），覆盖 6.1-6.9 那段只有事件没方法的过渡期。
+  // 注：还需 @BotFather 把 bot menu button 配为 "settings"，否则 show() 是 no-op；
+  // 这种情况 hasSettingsButton 会误判为 true，UI 入口缺失 —— 部署时检查。
+  const hasSettingsButton =
+    typeof getTelegram()?.SettingsButton?.show === "function";
+  // 点 SettingsButton 弹 popup 让用户明确开/关，避免误触盲翻 —— popup 比直接
+  // toggle 多一步确认，但能看到当前状态和说明。无 showPopup（极老客户端）→
+  // 退化到直接 toggle。
+  const onSettingsClick = useCallback(() => {
+    const tg = getTelegram();
+    if (!tg?.showPopup) {
+      onToggleProxy();
+      return;
+    }
+    tg.showPopup(
+      {
+        title: "🖼 图片代理",
+        message: useProxy
+          ? "当前：🟢 开启\n\n✨ 外部图片走代理加载，绕过防盗链"
+          : "当前：⚪️ 关闭\n\n⚠️ 直接加载外部图片，部分可能显示破损",
+        buttons: [
+          {
+            id: "toggle",
+            type: "default",
+            text: useProxy ? "🚫 关闭代理" : "✅ 开启代理",
+          },
+          { id: "cancel", type: "cancel" },
+        ],
+      },
+      (buttonId) => {
+        if (buttonId === "toggle") onToggleProxy();
+      },
+    );
+  }, [useProxy, onToggleProxy]);
+  useSettingsButton(hasSettingsButton ? onSettingsClick : undefined);
   const { starred, done, pending, run } = useMailActions({
     emailMessageId,
     accountId,
@@ -240,20 +286,32 @@ export function MailFab({
 
   const extras = useMemo<ExtraDef[]>(() => {
     const list: ExtraDef[] = [];
+    // 提醒在最前 —— 用户最常用；toggle-proxy 走 SettingsButton（右上角 ⋮），
+    // 不挤 popup 三槽位。老 TG 客户端无 SettingsButton → 回落到 extras 末位。
+    // label 尽量短（≤ 6 字符）—— TG Desktop popup 按总文本宽度决定排列，
+    // 长 label 会让 3 项强制换成竖排 + 右对齐，跟 Main 的横排不一致。
+    if (onSetReminder)
+      list.push({ id: "reminder", label: "⏰ 设置提醒", run: onSetReminder });
     if (webMailUrl) list.push({ id: "share", label: "📤 分享", run: doShare });
     if (tgMessageLink)
       list.push({ id: "tg-link", label: "💬 原消息", run: doOpenTg });
-    // CORS 图片代理 toggle 总是出现在 SecondaryButton 里 —— 单独 extra 时
-    // SecondaryButton 直接做 toggle；和分享/跳转共存时在「更多」popup 里选。
-    // label 尽量短（≤ 6 字符）—— TG Desktop popup 按总文本宽度决定排列，
-    // 长 label 会让 3 项强制换成竖排 + 右对齐，跟 Main 的横排不一致。
-    list.push({
-      id: "toggle-proxy",
-      label: useProxy ? "🖼 图片代理 关" : "🖼 图片代理 开",
-      run: onToggleProxy,
-    });
+    if (!hasSettingsButton)
+      list.push({
+        id: "toggle-proxy",
+        label: useProxy ? "🖼 关图片代理" : "🖼 开图片代理",
+        run: onToggleProxy,
+      });
     return list;
-  }, [webMailUrl, tgMessageLink, useProxy, doShare, doOpenTg, onToggleProxy]);
+  }, [
+    onSetReminder,
+    webMailUrl,
+    tgMessageLink,
+    hasSettingsButton,
+    useProxy,
+    doShare,
+    doOpenTg,
+    onToggleProxy,
+  ]);
 
   const handleSecondaryButtonClick = useCallback(() => {
     if (extras.length === 0) return;

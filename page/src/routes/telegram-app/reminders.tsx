@@ -21,10 +21,12 @@ import { getTelegram } from "@/providers/telegram";
 
 // 三件套任缺其一 → 退化为"所有待提醒"列表模式。用 fallback 吞掉格式错误，
 // 避免脏 URL 让整页崩在 errorComponent。
+// `back` 由从邮件预览页跳进来时带上，存在则渲染 TG BackButton 跳回。
 const searchSchema = z.object({
   accountId: fallback(z.coerce.number().optional(), undefined),
   emailMessageId: fallback(z.string().optional(), undefined),
   token: fallback(z.string().optional(), undefined),
+  back: fallback(z.string().optional(), undefined),
 });
 
 type Search = z.infer<typeof searchSchema>;
@@ -261,8 +263,8 @@ function RemindersPage() {
 
   const minDate = ymd(new Date());
 
-  // 提醒页是根页面（主菜单 / deep link 直达），永远不显示 BackButton
-  useBackButton(undefined);
+  // 主菜单 / deep link 直达 → 不显示 BackButton；从邮件页带 ?back= 进来 → 显示并跳回
+  useBackButton(search.back);
 
   const reminders = remindersQuery.data?.reminders ?? [];
 

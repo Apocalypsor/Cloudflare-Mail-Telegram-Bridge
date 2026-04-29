@@ -125,6 +125,17 @@ export interface TelegramWebApp {
     onClick: (cb: () => void) => void;
     offClick: (cb: () => void) => void;
   };
+  /** Mini App 右上角 ⋮ 菜单里的 "Settings" 入口；无文本、无样式 —— 纯 onClick 回调。
+   *  对象存在性：Bot API 6.1+（仅 `settingsButtonClicked` 事件）。
+   *  下面这些方法：Bot API **7.0+**。
+   *  另外 @BotFather 必须把 bot 的 menu button 配为 "settings"，否则 show() 是 no-op。 */
+  SettingsButton?: {
+    isVisible?: boolean;
+    show: () => void;
+    hide: () => void;
+    onClick: (cb: () => void) => void;
+    offClick: (cb: () => void) => void;
+  };
   HapticFeedback?: {
     notificationOccurred: (kind: "success" | "warning" | "error") => void;
     impactOccurred: (kind: "light" | "medium" | "heavy") => void;

@@ -1,9 +1,9 @@
 import { Skeleton } from "@heroui/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { ROUTE_MAIL_API } from "@worker/handlers/hono/routes";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { z } from "zod";
 import { api } from "@/api/client";
 import { mailPreviewResponseSchema } from "@/api/schemas";
@@ -29,7 +29,20 @@ export const Route = createFileRoute("/telegram-app/mail/$id")({
 function MailPreviewPage() {
   const { id: emailMessageId } = Route.useParams();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const qc = useQueryClient();
+  const onSetReminder = useCallback(() => {
+    const back = window.location.pathname + window.location.search;
+    navigate({
+      to: "/telegram-app/reminders",
+      search: {
+        accountId: search.accountId,
+        emailMessageId,
+        token: search.t,
+        back,
+      },
+    });
+  }, [navigate, search.accountId, search.t, emailMessageId]);
   // CORS 代理 toggle —— 默认开启，由 MailFab SecondaryButton 切换；
   // MailBodyFrame 根据这个值决定渲染 proxiedHtml 还是 rawHtml。
   const [useProxy, setUseProxy] = useState(true);
@@ -129,6 +142,7 @@ function MailPreviewPage() {
         tgMessageLink={d.tgMessageLink}
         useProxy={useProxy}
         onToggleProxy={() => setUseProxy((v) => !v)}
+        onSetReminder={onSetReminder}
         onChanged={() => qc.invalidateQueries({ queryKey })}
       />
     </>

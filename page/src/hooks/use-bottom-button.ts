@@ -87,3 +87,25 @@ export function useMainButton(config: MainButtonConfig): void {
 export function useSecondaryButton(config: SecondaryButtonConfig): void {
   useBottomButton(getSecondaryButton, config);
 }
+
+/** TG SettingsButton（右上角 ⋮ 里的 "Settings" 入口）。`onClick` 缺失 → 隐藏；
+ *  方法不存在（Bot API < 7.0 / 浏览器 / @BotFather 未配 menu button = settings）
+ *  → 静默无操作，由 caller 自行 fallback 渲染入口。
+ *  检测用 `typeof show === "function"`：仅靠对象存在不够，6.1-6.9 可能暴露事件
+ *  但没方法。 */
+export function useSettingsButton(onClick: (() => void) | undefined): void {
+  useEffect(() => {
+    const btn = getTelegram()?.SettingsButton;
+    if (!btn || typeof btn.show !== "function") return;
+    if (!onClick) {
+      btn.hide();
+      return;
+    }
+    btn.onClick(onClick);
+    btn.show();
+    return () => {
+      btn.offClick(onClick);
+      btn.hide();
+    };
+  }, [onClick]);
+}
