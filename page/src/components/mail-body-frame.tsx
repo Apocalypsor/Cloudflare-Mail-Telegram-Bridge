@@ -23,12 +23,14 @@ export function MailBodyFrame({
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
-  // 注入两行 CSS：
-  // - `html,body{overflow:hidden}` —— iframe 高度由外层 resize() 管，内层不需要
-  //   也不应该有自己的 scrollbar；亚像素四舍五入或 body 默认 margin 经常造成
-  //   1-2px 偏差让 iframe 显示自己的 scrollbar。
+  // 注入 CSS：
+  // - `html,body{overflow-y:hidden}` —— iframe 高度由外层 resize() 管，内层不该有
+  //   自己的 vertical scrollbar；亚像素四舍五入 / body 默认 margin 经常造成 1-2px
+  //   偏差触发不需要的 scrollbar。
+  // - `body{overflow-x:auto;-webkit-overflow-scrolling:touch}` —— 邮件常带写死宽
+  //   度的表格 / 大图 / 多列 layout，让用户能横向滑动看完。iOS 上加 touch 平滑。
   // - `body{margin:0}` —— 去掉默认 8px margin，让 scrollHeight 测量更准。
-  const srcDoc = `<base target="_blank"><style>html,body{overflow:hidden!important;}body{margin:0;}</style>${
+  const srcDoc = `<base target="_blank"><style>html,body{overflow-y:hidden!important;}body{margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}</style>${
     useProxy ? bodyHtml : bodyHtmlRaw
   }`;
 
