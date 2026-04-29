@@ -143,3 +143,110 @@ export async function analyzeEmail(
     throw new Error(`LLM returned invalid JSON: ${raw.slice(0, 200)}`);
   }
 }
+
+// ─── Reminder metadata extraction ───────────────────────────────────────────
+
+/** LLM 提取的提醒元数据 —— 用于预填提醒表单（机票/酒店/订单等场景） */
+export interface ReminderMetadata {
+  /** 建议的提醒日期 YYYY-MM-DD（按 timezone 下 wall-clock 解释；null 表示无可提取） */
+  remindDate: string | null;
+  /** 建议的提醒时间 HH:MM（24h；null 表示无可提取） */
+  remindTime: string | null;
+  /** IANA 时区名（例如 Asia/Shanghai）；无明确信号时为 null（前端回落到设备时区） */
+  timezone: string | null;
+  /** 建议的备注文案（含 emoji + 关键标识）；可为空字符串 */
+  text: string | null;
+  /** 置信度 0–1，前端 < 0.5 时不自动预填 */
+  confidence: number;
+}
+
+/** 一次 LLM 调用：从邮件里抽取"提醒应该在何时响"的元数据。
+ *  目标场景：机票（起飞前 3h）/ 酒店（入住当天上午）/ 火车票 / 餐厅订位 / 快递取件 / 会议等。
+ *  非可操作邮件（营销、验证码、对账单……）→ confidence < 0.3，前端忽略。
+ *
+ *  注意：返回的是"建议提醒时间"，不是"事件时间"——LLM 内部判断合理 offset。 */
+export async function extractReminderMetadata(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  subject: string,
+  rawBody: string,
+  nowIso: string,
+): Promise<ReminderMetadata> {
+  const body = prepareBody(rawBody);
+
+  const prompt =
+    `You are extracting "when should the reminder fire" from an email so a UI can prefill its date/time inputs.\n\n` +
+    `Current time: ${nowIso} (use this to resolve relative dates like "tomorrow"; only return future times).\n\n` +
+    `Detect if the email contains a concrete future event the user will want to be reminded about, e.g.:\n` +
+    `- Flight (remind ~3 hours before departure)\n` +
+    `- Hotel reservation (remind morning of check-in, ~10:00 local)\n` +
+    `- Train / bus ticket (remind ~1 hour before departure)\n` +
+    `- Restaurant / appointment / meeting (remind ~30 minutes before)\n` +
+    `- Package pickup / delivery window (remind near the start of the window)\n` +
+    `- Bill due date / deadline (remind ~1 day before, at 09:00 local)\n` +
+    `- Event ticket (concert, movie, sports — remind ~2 hours before)\n\n` +
+    `Pick the SINGLE most actionable event. If multiple legs (e.g., round-trip), pick the next upcoming one.\n` +
+    `If the email is not actionable (newsletter, marketing, verification code, receipt with no future event), set confidence < 0.3 and remind_date/remind_time/timezone/text to null.\n\n` +
+    `Return JSON with these fields:\n` +
+    `1. "remind_date": "YYYY-MM-DD" wall-clock date in the timezone below, or null.\n` +
+    `2. "remind_time": "HH:MM" 24h wall-clock time in the timezone below, or null.\n` +
+    `3. "timezone": IANA name (e.g. "Asia/Shanghai", "America/Los_Angeles", "Europe/London"). Use the event location's timezone if mentioned; null if unknown.\n` +
+    `4. "text": A short note (≤ 40 chars, with one leading emoji, in 简体中文 unless the email is purely English) capturing the key identifier. Examples:\n` +
+    `   - "✈️ CA1234 起飞 (PVG→LAX)"\n` +
+    `   - "🏨 入住 Hilton 上海"\n` +
+    `   - "🚄 G123 北京南→上海虹桥"\n` +
+    `   - "🍽️ Le Bernardin 8pm reservation"\n` +
+    `   - "📦 顺丰待取件 SF1234"\n` +
+    `   Set to null if no clear identifier.\n` +
+    `5. "confidence": float 0.0–1.0. Use ≥ 0.7 only when date AND time AND a clear category are all extracted.\n\n` +
+    `Output ONLY valid JSON, no other text. Examples:\n` +
+    `{"remind_date": "2026-05-20", "remind_time": "07:00", "timezone": "Asia/Shanghai", "text": "✈️ CA1234 起飞", "confidence": 0.9}\n` +
+    `{"remind_date": null, "remind_time": null, "timezone": null, "text": null, "confidence": 0.1}\n\n` +
+    `Subject: ${subject}\n\nBody:\n${body}`;
+
+  const raw = await callLLM(baseUrl, apiKey, model, prompt, true);
+
+  const jsonStr = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+  let parsed: {
+    remind_date?: string | null;
+    remind_time?: string | null;
+    timezone?: string | null;
+    text?: string | null;
+    confidence?: number;
+  };
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(
+      `LLM returned invalid JSON for reminder metadata: ${raw.slice(0, 200)}`,
+    );
+  }
+
+  const date =
+    typeof parsed.remind_date === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(parsed.remind_date)
+      ? parsed.remind_date
+      : null;
+  const time =
+    typeof parsed.remind_time === "string" &&
+    /^\d{2}:\d{2}$/.test(parsed.remind_time)
+      ? parsed.remind_time
+      : null;
+  const tz =
+    typeof parsed.timezone === "string" &&
+    /^[A-Za-z]+\/[A-Za-z_+\-/0-9]+$/.test(parsed.timezone)
+      ? parsed.timezone
+      : null;
+  const text =
+    typeof parsed.text === "string" ? parsed.text.trim().slice(0, 60) : null;
+  const confidence = Math.min(1, Math.max(0, parsed.confidence ?? 0));
+
+  return {
+    remindDate: date,
+    remindTime: time,
+    timezone: tz,
+    text: text || null,
+    confidence,
+  };
+}

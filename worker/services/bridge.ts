@@ -10,12 +10,17 @@ import {
   getMessageMapping,
   type MessageMapping,
   putMessageMapping,
+  updateReminderMetadata,
   updateShortSummary,
 } from "@db/message-map";
 import { t } from "@i18n";
 import { accountCanArchive, getEmailProvider } from "@providers";
 import type { MessageLocation } from "@providers/types";
-import { analyzeEmail, type EmailAnalysis } from "@services/llm";
+import {
+  analyzeEmail,
+  type EmailAnalysis,
+  extractReminderMetadata,
+} from "@services/llm";
 import {
   reconcileMessageState,
   syncStarPinState,
@@ -167,6 +172,43 @@ async function editMessageWithAnalysis(
   return result;
 }
 
+/** 第二次 LLM 调用：抽取邮件里的事件元数据（机票/酒店/订单等），存到 message_map.reminder_metadata。
+ *  非关键路径——任何失败（LLM 抛错、DB 写失败）都吞掉，仅上报观测，不阻塞投递、不进 failed_emails。
+ *  confidence < 0.5 时不写 DB，留 NULL（前端按"无可操作事件"处理）。 */
+async function extractAndStoreReminderMetadata(
+  env: Env,
+  accountId: number,
+  emailMessageId: string,
+  subject: string,
+  plainBody: string,
+): Promise<void> {
+  try {
+    const meta = await extractReminderMetadata(
+      env.LLM_API_URL as string,
+      env.LLM_API_KEY as string,
+      env.LLM_MODEL as string,
+      subject,
+      plainBody,
+      new Date().toISOString(),
+    );
+    if (meta.confidence < 0.5) return; // 无可操作事件，留 NULL
+    const json = JSON.stringify({
+      remind_date: meta.remindDate,
+      remind_time: meta.remindTime,
+      timezone: meta.timezone,
+      text: meta.text,
+      confidence: meta.confidence,
+    });
+    await updateReminderMetadata(env.DB, accountId, emailMessageId, json);
+  } catch (err) {
+    await reportErrorToObservability(
+      env,
+      "bridge.reminder_metadata_error",
+      err,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 核心投递（Gmail + IMAP + Outlook 共用）
 // ---------------------------------------------------------------------------
@@ -287,18 +329,30 @@ export async function deliverEmailToTelegram(
           chatId,
           sentMessageId,
         );
-        const analysis = await editMessageWithAnalysis(
-          env,
-          tgToken,
-          chatId,
-          sentMessageId,
-          hasSingleAttachment,
-          header,
-          subject,
-          plainBody,
-          formattedBody,
-          fullKeyboard,
-        );
+        // 关键路径（LLM 摘要 → 编辑 TG 消息）和非关键路径（LLM 抽取提醒元数据 → 写 DB）
+        // 并行跑——两个独立 LLM call，不互相依赖。元数据失败已在 helper 里吞掉，
+        // 不会让 Promise.all reject、不会触发外层 failed_emails 保存。
+        const [analysis] = await Promise.all([
+          editMessageWithAnalysis(
+            env,
+            tgToken,
+            chatId,
+            sentMessageId,
+            hasSingleAttachment,
+            header,
+            subject,
+            plainBody,
+            formattedBody,
+            fullKeyboard,
+          ),
+          extractAndStoreReminderMetadata(
+            env,
+            account.id,
+            emailMessageId,
+            subject,
+            plainBody,
+          ),
+        ]);
         if (analysis.shortSummary) {
           await updateShortSummary(
             env.DB,
@@ -421,18 +475,28 @@ async function reanalyzeEmail(
     tg_message_id,
   );
 
-  const analysis = await editMessageWithAnalysis(
-    env,
-    env.TELEGRAM_BOT_TOKEN,
-    tg_chat_id,
-    tg_message_id,
-    isCaption,
-    header,
-    subject,
-    plainBody,
-    formattedBody,
-    keyboard,
-  );
+  // 同 deliverEmailToTelegram：关键路径（编辑 TG）和元数据抽取并行；元数据失败吞掉。
+  const [analysis] = await Promise.all([
+    editMessageWithAnalysis(
+      env,
+      env.TELEGRAM_BOT_TOKEN,
+      tg_chat_id,
+      tg_message_id,
+      isCaption,
+      header,
+      subject,
+      plainBody,
+      formattedBody,
+      keyboard,
+    ),
+    extractAndStoreReminderMetadata(
+      env,
+      account.id,
+      email_message_id,
+      subject,
+      plainBody,
+    ),
+  ]);
   if (analysis.shortSummary) {
     await updateShortSummary(
       env.DB,

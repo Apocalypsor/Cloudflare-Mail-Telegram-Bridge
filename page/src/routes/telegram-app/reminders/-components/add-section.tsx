@@ -14,6 +14,7 @@ export function ReminderAddSection({
   tzLabel,
   activePreset,
   saving,
+  prefilledHint,
   onDateChange,
   onTimeChange,
   onTextChange,
@@ -31,6 +32,8 @@ export function ReminderAddSection({
   tzLabel: string;
   activePreset: number | null;
   saving: boolean;
+  /** 投递时 LLM 已抽取的事件元数据预填后显示的提示；用户改动后由 caller 清空 */
+  prefilledHint?: string | null;
   onDateChange: (v: string) => void;
   onTimeChange: (v: string) => void;
   onTextChange: (v: string) => void;
@@ -42,6 +45,11 @@ export function ReminderAddSection({
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
+      {prefilledHint && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+          {prefilledHint}
+        </div>
+      )}
       <div>
         <label
           htmlFor="when-date"

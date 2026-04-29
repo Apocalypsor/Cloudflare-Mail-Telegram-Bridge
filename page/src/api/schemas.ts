@@ -29,10 +29,22 @@ export const reminderResponseSchema = z.object({
   reminder: reminderSchema,
 });
 
+// LLM 投递时第二次调用抽取的事件元数据（机票/酒店/订单等场景）。
+// 字段与 worker 存到 message_map.reminder_metadata 的 JSON 形状一致。
+// reminderMetadata: null → 未分析 / 无可操作事件 / LLM 未配置，前端静默不预填。
+export const reminderMetadataSchema = z.object({
+  remind_date: z.string().nullable(),
+  remind_time: z.string().nullable(),
+  timezone: z.string().nullable(),
+  text: z.string().nullable(),
+  confidence: z.number(),
+});
+
 export const emailContextResponseSchema = z.object({
   subject: z.string().nullable(),
   accountEmail: z.string().nullable(),
   deliveredToChat: z.string().nullable(),
+  reminderMetadata: reminderMetadataSchema.nullable(),
 });
 
 export const resolveContextResponseSchema = z.object({

@@ -84,9 +84,42 @@ async function resolveEmailContext(
   return { ok: true, account, accountId, emailMessageId };
 }
 
-/** 找投递时存的 mapping 和邮件展示文本。
+/** LLM 投递时抽取并存到 message_map.reminder_metadata 的 JSON 形状（与前端共享）。
+ *  和 worker/services/llm.ts 的 ReminderMetadata 同义但用 snake_case，因为这就是
+ *  存盘格式 + API 返回格式。 */
+type StoredReminderMetadata = {
+  remind_date: string | null;
+  remind_time: string | null;
+  timezone: string | null;
+  text: string | null;
+  confidence: number;
+};
+
+/** 安全地把 message_map.reminder_metadata 的 JSON 字符串还原成对象；解析失败 → null。
+ *  老邮件 / LLM 抽取失败 / 低置信度 → 字段本身就是 NULL，这里 short-circuit 返回 null。 */
+function parseReminderMetadata(
+  raw: string | null,
+): StoredReminderMetadata | null {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw) as Partial<StoredReminderMetadata>;
+    if (typeof obj.confidence !== "number") return null;
+    return {
+      remind_date: typeof obj.remind_date === "string" ? obj.remind_date : null,
+      remind_time: typeof obj.remind_time === "string" ? obj.remind_time : null,
+      timezone: typeof obj.timezone === "string" ? obj.timezone : null,
+      text: typeof obj.text === "string" ? obj.text : null,
+      confidence: obj.confidence,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 找投递时存的 mapping 和邮件展示文本 + LLM 抽取的提醒元数据。
  *  优先级：mapping.short_summary（LLM 一句话摘要，已在 mapping 查询里返回，零 I/O）
- *  → KV 缓存 subject（preview 打开过才有）→ provider 现拉 subject（兜底）。 */
+ *  → KV 缓存 subject（preview 打开过才有）→ provider 现拉 subject（兜底）。
+ *  reminder_metadata 直接从 mapping 行解析，永远零 I/O。 */
 async function lookupEmailContext(
   c: Context<AppEnv>,
   account: NonNullable<Awaited<ReturnType<typeof getAccountById>>>,
@@ -95,11 +128,13 @@ async function lookupEmailContext(
   tgChatId: string | null;
   tgMessageId: number | null;
   subject: string | null;
+  reminderMetadata: StoredReminderMetadata | null;
 }> {
   const mappings = await getMappingsByEmailIds(c.env.DB, account.id, [
     emailMessageId,
   ]);
   const m = mappings[0];
+  const reminderMetadata = parseReminderMetadata(m?.reminder_metadata ?? null);
 
   // 1) LLM 摘要（已经在 mapping 行里）
   let subject: string | null = m?.short_summary ?? null;
@@ -148,6 +183,7 @@ async function lookupEmailContext(
     tgChatId: m?.tg_chat_id ?? null,
     tgMessageId: m?.tg_message_id ?? null,
     subject,
+    reminderMetadata,
   };
 }
 
@@ -346,7 +382,7 @@ miniapp.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
   );
   if (!ctx.ok) return c.json({ error: ctx.error }, ctx.status);
 
-  const { subject, tgChatId } = await lookupEmailContext(
+  const { subject, tgChatId, reminderMetadata } = await lookupEmailContext(
     c,
     ctx.account,
     ctx.emailMessageId,
@@ -355,6 +391,9 @@ miniapp.get(ROUTE_REMINDERS_API_EMAIL_CONTEXT, async (c) => {
     subject,
     accountEmail: ctx.account.email,
     deliveredToChat: tgChatId,
+    // 投递时第二次 LLM 调用的产物，前端用来预填提醒表单（机票/酒店/订单等）。
+    // null = 未分析 / 无可操作事件 / LLM 未配置；前端静默不预填。
+    reminderMetadata,
   });
 });
 

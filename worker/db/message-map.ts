@@ -11,6 +11,12 @@ export interface MessageMapping {
   account_id: number;
   /** LLM 生成的一句话摘要，用于邮件列表显示（NULL = 未分析，列表回退到 subject） */
   short_summary: string | null;
+  /**
+   * LLM 第二次调用抽取的提醒元数据 JSON 字符串。
+   * 形如 {"remind_date":"2026-05-20","remind_time":"07:00","timezone":"Asia/Shanghai","text":"✈️ CA1234 起飞","confidence":0.9}。
+   * NULL = 尚未分析 / 无可操作事件（confidence < 0.5）。前端打开提醒页时读这个预填表单。
+   */
+  reminder_metadata: string | null;
 }
 
 /** 保存 Telegram → 邮件消息映射，返回是否实际插入（false = 重复，被 IGNORE） */
@@ -89,6 +95,21 @@ export async function updateShortSummary(
       "UPDATE message_map SET short_summary = ? WHERE account_id = ? AND email_message_id = ?",
     )
     .bind(shortSummary, accountId, emailMessageId)
+    .run();
+}
+
+/** 写入邮件提醒元数据 JSON（LLM 投递时抽取后调用；可传 null 显式清空） */
+export async function updateReminderMetadata(
+  db: D1Database,
+  accountId: number,
+  emailMessageId: string,
+  json: string | null,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE message_map SET reminder_metadata = ? WHERE account_id = ? AND email_message_id = ?",
+    )
+    .bind(json, accountId, emailMessageId)
     .run();
 }
 

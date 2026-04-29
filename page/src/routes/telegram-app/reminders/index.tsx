@@ -5,7 +5,7 @@ import {
   ROUTE_REMINDERS_API,
   ROUTE_REMINDERS_API_EMAIL_CONTEXT,
 } from "@worker/handlers/hono/routes";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "@/api/client";
 import {
@@ -91,6 +91,43 @@ function RemindersPage() {
       return emailContextResponseSchema.parse(data);
     },
   });
+
+  // 预填只发生一次：用户一旦改过 date/time/text/tz/preset，就再也不覆盖
+  const userInteractedRef = useRef(false);
+  const [prefilledHint, setPrefilledHint] = useState<string | null>(null);
+
+  // emailCtx 到达后 → 在 confidence ≥ 0.5 且用户未交互时预填表单。
+  // 元数据是邮件投递时第二次 LLM 调用抽取后存到 message_map.reminder_metadata 的，
+  // 这里零额外 LLM 成本。把 LLM 给的（date, time, tz）转成 UTC instant 再用当前选定
+  // 的 tz 重新格式化 wall-clock —— 跨时区也不会错位。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tz 故意排除——只在 metadata 到达时跑一次
+  useEffect(() => {
+    if (userInteractedRef.current) return;
+    const extracted = emailCtx.data?.reminderMetadata;
+    if (!extracted || extracted.confidence < 0.5) return;
+    if (!extracted.remind_date || !extracted.remind_time) return;
+
+    const sourceTz = extracted.timezone || tz;
+    const instant = parseWallClockInTz(
+      extracted.remind_date,
+      extracted.remind_time,
+      sourceTz,
+    );
+    if (Number.isNaN(instant.getTime())) return;
+    if (instant.getTime() <= Date.now()) return; // 过去时间跳过
+
+    const wall = formatInTz(instant, tz);
+    setDate(wall.ymd);
+    setTime(wall.hm);
+    if (extracted.text) setText(extracted.text);
+    setPrefilledHint(
+      `✨ 已根据邮件内容自动填写${
+        extracted.timezone && extracted.timezone !== tz
+          ? `（事件时区 ${extracted.timezone}，已转换）`
+          : ""
+      }`,
+    );
+  }, [emailCtx.data]);
 
   const remindersKey = useMemo(
     () =>
@@ -181,11 +218,20 @@ function RemindersPage() {
   }
 
   function applyPreset(idx: number) {
+    userInteractedRef.current = true;
+    setPrefilledHint(null);
     const target = presetToDate(PRESETS[idx].mins, tz);
     const { ymd: y, hm: h } = formatInTz(target, tz);
     setDate(y);
     setTime(h);
     setActivePreset(idx);
+  }
+
+  // 包一层 setter，让用户对四个字段（date/time/text/timezone）的任一手动修改都
+  // 标记为"已交互" —— 后续 LLM 抽取再到达时不会覆盖用户输入；同时清掉预填提示。
+  function markInteracted() {
+    userInteractedRef.current = true;
+    setPrefilledHint(null);
   }
 
   const minDate = useMemo(() => formatInTz(new Date(), tz).ymd, [tz]);
@@ -257,10 +303,23 @@ function RemindersPage() {
           tzLabel={tz}
           activePreset={activePreset}
           saving={createMut.isPending}
-          onDateChange={setDate}
-          onTimeChange={setTime}
-          onTextChange={setText}
-          onTimezoneChange={setTimezone}
+          prefilledHint={prefilledHint}
+          onDateChange={(v) => {
+            markInteracted();
+            setDate(v);
+          }}
+          onTimeChange={(v) => {
+            markInteracted();
+            setTime(v);
+          }}
+          onTextChange={(v) => {
+            markInteracted();
+            setText(v);
+          }}
+          onTimezoneChange={(v) => {
+            markInteracted();
+            setTimezone(v);
+          }}
           onPreset={applyPreset}
           onSave={() => {
             setStatus(null);
