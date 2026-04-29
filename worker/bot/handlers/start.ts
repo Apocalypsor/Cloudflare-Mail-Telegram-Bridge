@@ -60,7 +60,7 @@ function mainMenuKeyboard(admin: boolean, env: Env): InlineKeyboard {
 }
 
 export function registerStartHandlers(bot: Bot, env: Env) {
-  // ─── /start: 主入口，自动注册用户 ────────────────────────────────────────
+  // ─── /start: 主入口，自动注册用户（私聊由全局守卫保证） ──────────────────
   bot.command("start", async (ctx) => {
     const telegramId = String(ctx.from?.id);
     const admin = isAdmin(telegramId, env);

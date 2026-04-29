@@ -35,7 +35,6 @@ export default {
   htmlPreview: "🔍 HTML 预览工具",
   junkCheck: "🚫 垃圾邮件检测",
   secrets: {
-    privateOnly: "/secrets 仅限私聊使用（避免在群里泄漏）",
     title: "🔑 Secrets",
     webhookUrlLabel: "Webhook URL（直接 setWebhook 用）",
     autoDeleteHint: "_本消息将在 {{seconds}} 秒后自动删除_",

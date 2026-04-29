@@ -10,6 +10,7 @@ import { registerRefreshHandler } from "@bot/handlers/refresh";
 import { registerStarHandler } from "@bot/handlers/star";
 import { registerStartHandlers } from "@bot/handlers/start";
 import { registerSyncHandler } from "@bot/handlers/sync";
+import { registerPrivateOnlyCommandGuard } from "@bot/utils/auth";
 import { getCachedBotInfo, putCachedBotInfo } from "@db/kv";
 import { t } from "@i18n";
 import { memoizeAsync } from "@utils/memoize";
@@ -57,6 +58,9 @@ export function createBot(env: Env, botInfo: UserFromGetMe) {
   });
 
   // ─── 注册各模块 handler ────────────────────────────────────────────────
+  // 全局守卫：所有 / 命令一律只允许私聊（防群里注册 / 信息泄漏）。
+  // 必须在 register*Handlers 之前注册，否则 use() 顺序错过。
+  registerPrivateOnlyCommandGuard(bot);
   registerStartHandlers(bot, env);
   registerAccountHandlers(bot, env);
   registerAdminHandlers(bot, env);

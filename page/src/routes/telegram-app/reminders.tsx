@@ -55,6 +55,165 @@ function hm(d: Date): string {
   return `${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;
 }
 
+// ─── 时区相关 ─────────────────────────────────────────────────────────────────
+// 时区下拉每次进页面默认 "device"（不持久化）—— 切换是临时的，下次进来又是设备
+// 本地。本身就是为某封邮件做这一次提醒，跨页面记住反而违和。
+//
+// 不上 IANA 全集（~440 条对手机选择器太长）；列了一份覆盖各大洲主要业务中心 +
+// 中文用户高频出差地的精简清单，按 continent 分组渲染。每条带 shortOffset 标签
+// （DST 期间会自动反映为夏令时偏移）。
+
+const DEVICE_TZ_VALUE = "device";
+
+const COMMON_TZS_BY_REGION: { region: string; values: string[] }[] = [
+  {
+    region: "Asia",
+    values: [
+      "Asia/Shanghai",
+      "Asia/Hong_Kong",
+      "Asia/Taipei",
+      "Asia/Tokyo",
+      "Asia/Seoul",
+      "Asia/Singapore",
+      "Asia/Bangkok",
+      "Asia/Kuala_Lumpur",
+      "Asia/Jakarta",
+      "Asia/Manila",
+      "Asia/Kolkata",
+      "Asia/Karachi",
+      "Asia/Dubai",
+      "Asia/Tehran",
+    ],
+  },
+  {
+    region: "Europe",
+    values: [
+      "Europe/London",
+      "Europe/Paris",
+      "Europe/Berlin",
+      "Europe/Madrid",
+      "Europe/Rome",
+      "Europe/Amsterdam",
+      "Europe/Athens",
+      "Europe/Istanbul",
+      "Europe/Moscow",
+    ],
+  },
+  {
+    region: "America",
+    values: [
+      "America/New_York",
+      "America/Chicago",
+      "America/Denver",
+      "America/Phoenix",
+      "America/Los_Angeles",
+      "America/Anchorage",
+      "America/Toronto",
+      "America/Vancouver",
+      "America/Mexico_City",
+      "America/Sao_Paulo",
+      "America/Buenos_Aires",
+    ],
+  },
+  {
+    region: "Africa",
+    values: ["Africa/Cairo", "Africa/Lagos", "Africa/Johannesburg"],
+  },
+  {
+    region: "Oceania",
+    values: [
+      "Australia/Perth",
+      "Australia/Sydney",
+      "Pacific/Auckland",
+      "Pacific/Honolulu",
+    ],
+  },
+  { region: "UTC", values: ["UTC"] },
+];
+
+function tzShortOffset(tz: string): string {
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "shortOffset",
+    });
+    return (
+      dtf.formatToParts(new Date()).find((p) => p.type === "timeZoneName")
+        ?.value ?? ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+type TzGroup = { region: string; items: { value: string; label: string }[] };
+
+const TZ_GROUPS: TzGroup[] = COMMON_TZS_BY_REGION.map(({ region, values }) => ({
+  region,
+  items: values.map((value) => {
+    const off = tzShortOffset(value);
+    return { value, label: off ? `${value} (${off})` : value };
+  }),
+}));
+
+function getDeviceTz(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+function resolveTz(value: string): string {
+  return value === DEVICE_TZ_VALUE ? getDeviceTz() : value;
+}
+
+/** 把 UTC instant 在 tz 里渲染成 wall-clock {ymd, hm} —— 默认输入和 minDate 用 */
+function formatInTz(d: Date, tz: string): { ymd: string; hm: string } {
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const parts = dtf.formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  // en-CA 的 hour: "2-digit" 在 hour12:false 下偶尔会输出 "24" 表示 00 —— 折一下
+  const h = get("hour") === "24" ? "00" : get("hour");
+  return {
+    ymd: `${get("year")}-${get("month")}-${get("day")}`,
+    hm: `${h}:${get("minute")}`,
+  };
+}
+
+/** 把 tz 里的 wall-clock {date, time} 解析成 UTC Date instant —— 提交前用 */
+function parseWallClockInTz(date: string, time: string, tz: string): Date {
+  // 先按 UTC 探测一遍，再问 Intl 当时该时区的偏移，最后用 ISO 字符串带 offset 解析
+  const probe = new Date(`${date}T${time}:00Z`);
+  if (Number.isNaN(probe.getTime())) return new Date(Number.NaN);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "longOffset",
+  });
+  const offRaw = dtf
+    .formatToParts(probe)
+    .find((p) => p.type === "timeZoneName")?.value;
+  // longOffset 大多输出 "GMT+08:00" / "GMT-05:00"；UTC 时输出 "GMT"
+  const offset =
+    offRaw && offRaw !== "GMT" ? offRaw.replace(/^GMT/, "") : "+00:00";
+  return new Date(`${date}T${time}:00${offset}`);
+}
+
+function addDayToYmd(s: string): string {
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return s;
+  const next = new Date(Date.UTC(y, m - 1, d) + 86_400_000);
+  return `${next.getUTCFullYear()}-${fmt2(next.getUTCMonth() + 1)}-${fmt2(next.getUTCDate())}`;
+}
+
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 type DateLabel = {
@@ -113,20 +272,23 @@ function groupRemindersByDate(reminders: Reminder[]): ReminderGroup[] {
   );
 }
 
-function presetToDate(kind: (typeof PRESETS)[number]["mins"]): Date {
+function presetToDate(
+  kind: (typeof PRESETS)[number]["mins"],
+  tz: string,
+): Date {
+  if (typeof kind === "number") return new Date(Date.now() + kind * 60_000);
+  // tonight20 / tomorrow9 都要按 *选中时区* 的 wall clock 算 —— 只有这样
+  // "今晚 20:00" 才符合用户在该时区的直觉
+  const todayYmd = formatInTz(new Date(), tz).ymd;
   if (kind === "tomorrow9") {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return d;
+    return parseWallClockInTz(addDayToYmd(todayYmd), "09:00", tz);
   }
-  if (kind === "tonight20") {
-    const d = new Date();
-    d.setHours(20, 0, 0, 0);
-    if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
-    return d;
+  // tonight20: 已过 20:00 → 顺延到明天
+  let target = parseWallClockInTz(todayYmd, "20:00", tz);
+  if (target.getTime() <= Date.now()) {
+    target = parseWallClockInTz(addDayToYmd(todayYmd), "20:00", tz);
   }
-  return new Date(Date.now() + kind * 60_000);
+  return target;
 }
 
 function RemindersPage() {
@@ -139,11 +301,14 @@ function RemindersPage() {
     msg: string;
     kind: "ok" | "error";
   } | null>(null);
-  const [date, setDate] = useState<string>(() =>
-    ymd(new Date(Date.now() + 60_000)),
+  const [timezone, setTimezone] = useState<string>(DEVICE_TZ_VALUE);
+  const tz = useMemo(() => resolveTz(timezone), [timezone]);
+
+  const [date, setDate] = useState<string>(
+    () => formatInTz(new Date(Date.now() + 60_000), getDeviceTz()).ymd,
   );
-  const [time, setTime] = useState<string>(() =>
-    hm(new Date(Date.now() + 60_000)),
+  const [time, setTime] = useState<string>(
+    () => formatInTz(new Date(Date.now() + 60_000), getDeviceTz()).hm,
   );
   const [text, setText] = useState("");
   const [activePreset, setActivePreset] = useState<number | null>(null);
@@ -196,14 +361,14 @@ function RemindersPage() {
 
   const createMut = useMutation({
     mutationFn: async () => {
-      const localDt = new Date(`${date}T${time}`);
-      if (Number.isNaN(localDt.getTime())) throw new Error("时间格式错误");
-      if (localDt.getTime() <= Date.now()) throw new Error("提醒时间需在未来");
+      const dt = parseWallClockInTz(date, time, tz);
+      if (Number.isNaN(dt.getTime())) throw new Error("时间格式错误");
+      if (dt.getTime() <= Date.now()) throw new Error("提醒时间需在未来");
       const data = await api
         .post(ROUTE_REMINDERS_API.replace(/^\//, ""), {
           json: {
             text: text.trim(),
-            remind_at: localDt.toISOString(),
+            remind_at: dt.toISOString(),
             accountId: search.accountId,
             emailMessageId: search.emailMessageId,
             token: search.token,
@@ -217,9 +382,9 @@ function RemindersPage() {
     onSuccess: () => {
       setStatus({ msg: "✅ 已设定提醒", kind: "ok" });
       setText("");
-      const d = new Date(Date.now() + 60_000);
-      setDate(ymd(d));
-      setTime(hm(d));
+      const next = formatInTz(new Date(Date.now() + 60_000), tz);
+      setDate(next.ymd);
+      setTime(next.hm);
       setActivePreset(null);
       getTelegram()?.HapticFeedback?.notificationOccurred("success");
       qc.invalidateQueries({ queryKey: remindersKey });
@@ -241,9 +406,10 @@ function RemindersPage() {
   });
 
   function applyPreset(idx: number) {
-    const d = presetToDate(PRESETS[idx].mins);
-    setDate(ymd(d));
-    setTime(hm(d));
+    const target = presetToDate(PRESETS[idx].mins, tz);
+    const { ymd: y, hm: h } = formatInTz(target, tz);
+    setDate(y);
+    setTime(h);
     setActivePreset(idx);
   }
 
@@ -261,7 +427,7 @@ function RemindersPage() {
     });
   }
 
-  const minDate = ymd(new Date());
+  const minDate = formatInTz(new Date(), tz).ymd;
 
   // 主菜单 / deep link 直达 → 不显示 BackButton；从邮件页带 ?back= 进来 → 显示并跳回
   useBackButton(search.back);
@@ -306,12 +472,15 @@ function RemindersPage() {
           time={time}
           text={text}
           minDate={minDate}
+          timezone={timezone}
+          tzLabel={tz}
           activePreset={activePreset}
           saving={createMut.isPending}
           status={status}
           onDateChange={setDate}
           onTimeChange={setTime}
           onTextChange={setText}
+          onTimezoneChange={setTimezone}
           onPreset={applyPreset}
           onSave={() => {
             setStatus(null);
@@ -392,12 +561,15 @@ function AddSection({
   time,
   text,
   minDate,
+  timezone,
+  tzLabel,
   activePreset,
   saving,
   status,
   onDateChange,
   onTimeChange,
   onTextChange,
+  onTimezoneChange,
   onPreset,
   onSave,
 }: {
@@ -405,12 +577,17 @@ function AddSection({
   time: string;
   text: string;
   minDate: string;
+  /** 下拉框当前 value（"device" 或 IANA 名） */
+  timezone: string;
+  /** 实际生效的 IANA 名 —— 提示文案显示用 */
+  tzLabel: string;
   activePreset: number | null;
   saving: boolean;
   status: { msg: string; kind: "ok" | "error" } | null;
   onDateChange: (v: string) => void;
   onTimeChange: (v: string) => void;
   onTextChange: (v: string) => void;
+  onTimezoneChange: (v: string) => void;
   onPreset: (idx: number) => void;
   onSave: () => void;
 }) {
@@ -442,6 +619,32 @@ function AddSection({
             className={`flex-[0_0_38%] min-w-0 ${inputClass}`}
           />
         </div>
+      </div>
+
+      <div>
+        <label
+          htmlFor="when-tz"
+          className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2"
+        >
+          时区
+        </label>
+        <select
+          id="when-tz"
+          value={timezone}
+          onChange={(e) => onTimezoneChange(e.target.value)}
+          className={`w-full ${inputClass} appearance-none cursor-pointer`}
+        >
+          <option value={DEVICE_TZ_VALUE}>设备本地（{tzLabel}）</option>
+          {TZ_GROUPS.map((g) => (
+            <optgroup key={g.region} label={g.region}>
+              {g.items.map((it) => (
+                <option key={it.value} value={it.value}>
+                  {it.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -497,7 +700,9 @@ function AddSection({
         </div>
       )}
 
-      <div className="text-xs text-zinc-500">时间按你设备的本地时区</div>
+      <div className="text-xs text-zinc-500">
+        时间按 <span className="text-zinc-300">{tzLabel}</span> 解释
+      </div>
     </div>
   );
 }

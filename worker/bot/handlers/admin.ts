@@ -138,9 +138,6 @@ export function registerAdminHandlers(bot: Bot, env: Env) {
     if (!isAdmin(userId, env)) {
       return ctx.reply(t("common:admin.only"));
     }
-    if (ctx.chat?.type !== "private") {
-      return ctx.reply(t("admin:secrets.privateOnly"));
-    }
 
     const secrets: Array<{ label: string; value: string }> = [
       { label: "TELEGRAM_WEBHOOK_SECRET", value: env.TELEGRAM_WEBHOOK_SECRET },

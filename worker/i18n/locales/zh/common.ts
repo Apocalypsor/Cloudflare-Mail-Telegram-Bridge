@@ -42,5 +42,6 @@ export default {
     awaitingApproval: "您的账号正在等待管理员审批。",
     awaitingApprovalFull: "您的账号正在等待管理员审批，审批通过后会收到通知。",
   },
+  privateOnly: "⚠️ 该命令仅限私聊使用，请直接私聊机器人。",
   deleted: "✅ 已删除",
 };
