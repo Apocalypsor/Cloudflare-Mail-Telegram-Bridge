@@ -21,6 +21,6 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(handleScheduled(event, env));
+    ctx.waitUntil(handleScheduled(event, env, ctx));
   },
 };

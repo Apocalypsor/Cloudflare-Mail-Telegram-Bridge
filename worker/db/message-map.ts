@@ -77,6 +77,22 @@ export async function deleteMappingsByAccountId(
     .run();
 }
 
+/** 删除单封邮件的映射 —— TG 消息被用户从聊天里删了（或失效），需要让
+ *  `deliverEmailToTelegram` 重新投递时不要被 `(chat_id, email_message_id,
+ *  account_id)` 唯一索引挡住。 */
+export async function deleteMessageMapping(
+  db: D1Database,
+  accountId: number,
+  emailMessageId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "DELETE FROM message_map WHERE account_id = ? AND email_message_id = ?",
+    )
+    .bind(accountId, emailMessageId)
+    .run();
+}
+
 /** 更新邮件 short_summary（LLM 分析成功后调用） */
 export async function updateShortSummary(
   db: D1Database,

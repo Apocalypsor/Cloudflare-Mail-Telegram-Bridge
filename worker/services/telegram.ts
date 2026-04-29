@@ -231,7 +231,7 @@ export async function pinChatMessage(
   token: string,
   chatId: string,
   messageId: number,
-): Promise<void> {
+): Promise<PinResult> {
   const url = `${TG_API_BASE}${token}/pinChatMessage`;
   try {
     await tgPost(
@@ -239,14 +239,25 @@ export async function pinChatMessage(
       { chat_id: chatId, message_id: messageId, disable_notification: true },
       "pinChatMessage",
     );
+    return "ok";
   } catch (err) {
-    if (err instanceof Error && /already pinned|not found/i.test(err.message))
-      return;
+    if (err instanceof Error) {
+      if (/already pinned/i.test(err.message)) return "ok";
+      // 消息不存在（被用户删了）→ 上层可能想重发。
+      if (/not found|MESSAGE_ID_INVALID|message to pin/i.test(err.message))
+        return "not_found";
+      // 限流 / 群权限不够 / 其它 TG 临时错误 —— 不算失败，下次同步再试。
+      // 之前 429 会冒到 syncStarPinState 里 reportErrorToObservability，刷屏告警。
+      if (/too many requests|429/i.test(err.message)) return "rate_limited";
+    }
     throw err;
   }
 }
 
-/** 取消置顶指定消息。幂等：未置顶或消息不存在时静默返回。 */
+/** pinChatMessage 的精细返回值 —— 上层（reminder dispatch）需要分支。 */
+export type PinResult = "ok" | "not_found" | "rate_limited";
+
+/** 取消置顶指定消息。幂等：未置顶 / 消息不存在 / 被限流，全部静默返回。 */
 export async function unpinChatMessage(
   token: string,
   chatId: string,
@@ -260,7 +271,12 @@ export async function unpinChatMessage(
       "unpinChatMessage",
     );
   } catch (err) {
-    if (err instanceof Error && /not found|not pinned/i.test(err.message))
+    if (
+      err instanceof Error &&
+      /not found|not pinned|too many requests|429|MESSAGE_ID_INVALID/i.test(
+        err.message,
+      )
+    )
       return;
     throw err;
   }

@@ -1,16 +1,19 @@
 import { getAccountById } from "@db/accounts";
+import { deleteMessageMapping } from "@db/message-map";
 import {
   listDueReminders,
   markReminderSent,
   type Reminder,
 } from "@db/reminders";
 import { t } from "@i18n";
+import { getEmailProvider } from "@providers";
+import { deliverEmailToTelegram } from "@services/bridge";
 import { refreshEmailKeyboardAfterReminderChange } from "@services/message-actions";
-import { sendTextMessage } from "@services/telegram";
+import { pinChatMessage, sendTextMessage } from "@services/telegram";
 import { buildMiniAppMailUrl, generateMailTokenById } from "@utils/mail-token";
 import { escapeMdV2 } from "@utils/markdown-v2";
 import { reportErrorToObservability } from "@utils/observability";
-import type { Env } from "@/types";
+import type { Account, Env } from "@/types";
 
 /** 备注最大长度（Telegram 单条消息上限是 4096） */
 export const REMINDER_TEXT_MAX = 1000;
@@ -61,8 +64,14 @@ async function markSentAndRefresh(env: Env, r: Reminder): Promise<void> {
  *
  * 永久性失败（bot 被屏蔽、用户停用）也标记 sent_at，避免无限重试；瞬态错误
  * 留在 pending，下分钟重试。
+ *
+ * `waitUntil` 来自 cron 的 `ctx.waitUntil` —— 邮件 reminder 触发时的副作用
+ * （pin / star / 必要时重投递）走 background fire-and-forget，不阻塞 cron tick。
  */
-export async function dispatchDueReminders(env: Env): Promise<void> {
+export async function dispatchDueReminders(
+  env: Env,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<void> {
   const due = await listDueReminders(env.DB, new Date().toISOString());
   if (due.length === 0) return;
 
@@ -70,7 +79,7 @@ export async function dispatchDueReminders(env: Env): Promise<void> {
     due.map(async (r) => {
       try {
         if (r.account_id != null && r.email_message_id != null) {
-          await sendEmailReminder(env, r);
+          await sendEmailReminder(env, r, waitUntil);
         } else {
           await sendGenericReminder(env, r);
         }
@@ -90,7 +99,11 @@ export async function dispatchDueReminders(env: Env): Promise<void> {
   );
 }
 
-async function sendEmailReminder(env: Env, r: Reminder): Promise<void> {
+async function sendEmailReminder(
+  env: Env,
+  r: Reminder,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<void> {
   // r.account_id 和 r.email_message_id 在调用前已确认非 null
   const accountId = r.account_id as number;
   const emailMessageId = r.email_message_id as string;
@@ -133,6 +146,88 @@ async function sendEmailReminder(env: Env, r: Reminder): Promise<void> {
     text,
     replyMarkup,
     { link_preview_options: { is_disabled: true } },
+  );
+
+  // 副作用：星标邮件 + 置顶原 TG 消息；TG 消息已被删 → 重投递。
+  // 走 waitUntil 后台跑，不阻塞 cron tick。每步独立 catch + observability，
+  // 一步失败不影响其它步。
+  waitUntil(applyReminderSideEffects(env, r, waitUntil));
+}
+
+/** Reminder 触发时的副作用：星标邮件 + 置顶原 TG 消息。
+ *  TG 消息已不在历史里（被删）→ 删旧 mapping，调 deliverEmailToTelegram 重投。 */
+async function applyReminderSideEffects(
+  env: Env,
+  r: Reminder,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<void> {
+  const accountId = r.account_id as number;
+  const emailMessageId = r.email_message_id as string;
+
+  const account = await getAccountById(env.DB, accountId);
+  if (!account) return;
+  const provider = getEmailProvider(account, env);
+
+  // 1) 星标 —— 不依赖 TG 状态，跟 pin 并行
+  const starP = provider.addStar(emailMessageId).catch((err) =>
+    reportErrorToObservability(env, "reminders.star_failed", err, {
+      reminderId: r.id,
+      accountId,
+      emailMessageId,
+    }),
+  );
+
+  // 2) 置顶 —— 拿到 status 决定下一步
+  const pinP = (async () => {
+    if (r.tg_chat_id == null || r.tg_message_id == null) return;
+    let status: Awaited<ReturnType<typeof pinChatMessage>>;
+    try {
+      status = await pinChatMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        r.tg_chat_id,
+        r.tg_message_id,
+      );
+    } catch (err) {
+      // 非 not-found / 非限流的真错（403 群权限不够等）—— 上观测，不抛
+      await reportErrorToObservability(env, "reminders.pin_failed", err, {
+        reminderId: r.id,
+        chatId: r.tg_chat_id,
+        tgMessageId: r.tg_message_id,
+      });
+      return;
+    }
+    if (status !== "not_found") return;
+    // TG 消息被用户删了 → 重投递一份
+    await redeliverEmail(env, account, emailMessageId, waitUntil).catch((err) =>
+      reportErrorToObservability(env, "reminders.redeliver_failed", err, {
+        reminderId: r.id,
+        accountId,
+        emailMessageId,
+      }),
+    );
+  })();
+
+  await Promise.allSettled([starP, pinP]);
+}
+
+/** 把邮件重新投递到 TG 聊天。先删旧 mapping 防止 `(chat_id, email_message_id,
+ *  account_id)` 唯一索引挡住。`deliverEmailToTelegram` 内部会 reconcile 远端状态，
+ *  邮件已经不在 inbox（被归档/删了）就跳过。 */
+async function redeliverEmail(
+  env: Env,
+  account: Account,
+  emailMessageId: string,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<void> {
+  const provider = getEmailProvider(account, env);
+  const rawEmail = await provider.fetchRawEmail(emailMessageId);
+  await deleteMessageMapping(env.DB, account.id, emailMessageId);
+  await deliverEmailToTelegram(
+    rawEmail,
+    emailMessageId,
+    account,
+    env,
+    waitUntil,
   );
 }
 
