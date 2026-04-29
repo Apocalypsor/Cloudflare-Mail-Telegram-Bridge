@@ -123,6 +123,8 @@ export function ReminderAddSection({
           placeholder="可留空 —— 不填只发送邮件主题和链接"
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
+          autoCorrect="off"
+          autoCapitalize="off"
           className={`w-full min-h-[80px] resize-y ${inputClass}`}
         />
       </div>

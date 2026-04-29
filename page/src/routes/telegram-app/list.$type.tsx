@@ -21,7 +21,7 @@ import { MailListByAccount } from "@/components/mail-list-by-account";
 import { MAIL_LIST_TITLES, MAIL_LIST_TYPES } from "@/constants";
 import { useBackButton } from "@/hooks/use-back-button";
 import { useNavigateToMail } from "@/hooks/use-navigate-to-mail";
-import { getTelegram } from "@/providers/telegram";
+import { confirmPopup, notifyHaptic } from "@/utils/tg";
 
 interface BulkAction {
   label: string;
@@ -100,29 +100,18 @@ function MailListPage() {
         `✅ 成功 ${data.success} 封` +
         (data.failed > 0 ? `，❌ ${data.failed} 封失败` : "");
       setMeta({ msg, kind: "ok" });
-      getTelegram()?.HapticFeedback?.notificationOccurred(
-        data.failed > 0 ? "warning" : "success",
-      );
+      notifyHaptic(data.failed > 0 ? "warning" : "success");
       qc.invalidateQueries({ queryKey: ["mail-list", type] });
     },
     onError: async (err) =>
       setMeta({ msg: await extractErrorMessage(err), kind: "error" }),
   });
 
-  function handleBulk() {
+  async function handleBulk() {
     if (!bulk) return;
-    const tg = getTelegram();
-    const run = () => {
-      setMeta(null);
-      bulkMut.mutate();
-    };
-    if (tg?.showConfirm) {
-      tg.showConfirm(bulk.confirmText, (ok) => {
-        if (ok) run();
-      });
-    } else if (window.confirm(bulk.confirmText)) {
-      run();
-    }
+    if (!(await confirmPopup(bulk.confirmText))) return;
+    setMeta(null);
+    bulkMut.mutate();
   }
 
   const data = listQuery.data;

@@ -10,8 +10,8 @@ import { okResponseSchema, reminderResponseSchema } from "@/api/schemas";
 import { extractErrorMessage } from "@/api/utils";
 import { useBackButton } from "@/hooks/use-back-button";
 import { useNavigateToMail } from "@/hooks/use-navigate-to-mail";
-import { getTelegram } from "@/providers/telegram";
 import { INPUT_CLASS } from "@/styles/inputs";
+import { notifyHaptic } from "@/utils/tg";
 import { ReminderEmailCard } from "./-components/email-card";
 import {
   DEVICE_TZ_VALUE,
@@ -96,7 +96,7 @@ function EditReminderPage() {
       if (!parsed.ok) throw new Error(parsed.error || "保存失败");
     },
     onSuccess: () => {
-      getTelegram()?.HapticFeedback?.notificationOccurred("success");
+      notifyHaptic("success");
       // 失效列表缓存，让返回主页时拿到最新值
       qc.invalidateQueries({ queryKey: ["reminders"] });
       qc.invalidateQueries({ queryKey: ["reminder", id] });
@@ -219,6 +219,8 @@ function EditReminderPage() {
             placeholder="可留空 —— 不填只发送邮件主题和链接"
             value={text}
             onChange={(e) => setText(e.target.value)}
+            autoCorrect="off"
+            autoCapitalize="off"
             className={`w-full min-h-[80px] resize-y ${fieldClass}`}
           />
         </div>

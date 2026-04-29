@@ -11,7 +11,7 @@ import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
 import { MailMeta } from "@/components/mail-meta";
 import { useBackButton } from "@/hooks/use-back-button";
-import { getTelegram } from "@/providers/telegram";
+import { openExternalLink } from "@/utils/tg";
 
 // accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。
 // folder / back 可选。
@@ -158,9 +158,7 @@ function Subject({
 
   function openInBrowser(e: React.MouseEvent) {
     e.preventDefault();
-    const tg = getTelegram();
-    if (tg?.openLink) tg.openLink(webMailUrl);
-    else window.open(webMailUrl, "_blank", "noopener");
+    openExternalLink(webMailUrl);
   }
 
   return (

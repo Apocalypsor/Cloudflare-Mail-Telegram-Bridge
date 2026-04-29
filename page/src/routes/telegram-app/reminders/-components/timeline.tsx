@@ -403,7 +403,7 @@ function Card({
 
   return (
     <div
-      className={`relative rounded-xl border transition-colors ${
+      className={`relative rounded-xl border transition-colors min-h-20 ${
         isOverdue
           ? "border-zinc-800/70 bg-zinc-900/60"
           : "border-zinc-800 bg-zinc-900"

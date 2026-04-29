@@ -16,7 +16,7 @@ import {
 import { extractErrorMessage } from "@/api/utils";
 import { useBackButton } from "@/hooks/use-back-button";
 import { useNavigateToMail } from "@/hooks/use-navigate-to-mail";
-import { getTelegram } from "@/providers/telegram";
+import { confirmPopup, notifyHaptic } from "@/utils/tg";
 import { ReminderAddSection } from "./-components/add-section";
 import { ReminderEmailCard } from "./-components/email-card";
 import { ReminderTimeline } from "./-components/timeline";
@@ -147,7 +147,7 @@ function RemindersPage() {
       setDate(next.ymd);
       setTime(next.hm);
       setActivePreset(null);
-      getTelegram()?.HapticFeedback?.notificationOccurred("success");
+      notifyHaptic("success");
       qc.invalidateQueries({ queryKey: remindersKey });
     },
     onError: async (err) => {
@@ -173,17 +173,11 @@ function RemindersPage() {
       setStatus({ msg: await extractErrorMessage(err), kind: "error" }),
   });
 
-  // 删除前要求确认 —— TG `showConfirm` 走原生 modal；老客户端 / 浏览器
-  // fallback 到 window.confirm。
-  function confirmDelete(id: number) {
-    const tg = getTelegram();
-    const msg = "确定删除这条提醒？";
-    const run = () => {
-      setStatus(null);
-      deleteMut.mutate(id);
-    };
-    if (tg?.showConfirm) tg.showConfirm(msg, (ok) => ok && run());
-    else if (window.confirm(msg)) run();
+  // 删除前要求确认 —— TG popup / 浏览器 window.confirm 由 confirmPopup 统一
+  async function confirmDelete(id: number) {
+    if (!(await confirmPopup("确定删除这条提醒？"))) return;
+    setStatus(null);
+    deleteMut.mutate(id);
   }
 
   function applyPreset(idx: number) {

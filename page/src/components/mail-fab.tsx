@@ -1,3 +1,8 @@
+import {
+  type ShowPopupOptionsButton,
+  showPopup,
+  showSettingsButton,
+} from "@telegram-apps/sdk-react";
 import { useCallback, useMemo } from "react";
 import {
   useMainButton,
@@ -5,8 +10,13 @@ import {
   useSettingsButton,
 } from "@/hooks/use-bottom-button";
 import { type MailAction, useMailActions } from "@/hooks/use-mail-actions";
-import { getTelegram, type PopupButton } from "@/providers/telegram";
 import { THEME_COLORS } from "@/styles/theme";
+import {
+  alertPopup,
+  closeMiniAppSafe,
+  notifyHaptic,
+  openTgLink,
+} from "@/utils/tg";
 
 export interface MailFabProps {
   emailMessageId: string;
@@ -35,7 +45,7 @@ export interface MailFabProps {
 interface ActionDef {
   id: MailAction;
   label: string;
-  type: PopupButton["type"];
+  type: "default" | "destructive";
   /** 执行后邮件就离开当前视图了（归档 / 垃圾 / 删除等），之后 MainButton 隐藏 */
   terminal: boolean;
 }
@@ -65,7 +75,7 @@ interface ExtraDef {
  * 成功后：HapticFeedback + onChanged() refetch 数据；terminal 动作（归档/删除/
  * 标垃圾/移出归档/移回）成功后 MainButton 自隐藏，SecondaryButton 保持（分享
  * 一封已归档的邮件仍有意义）。
- * 失败：showAlert(error)。
+ * 失败：alertPopup(error) 弹原生 popup。
  */
 export function MailFab({
   emailMessageId,
@@ -83,41 +93,32 @@ export function MailFab({
   onSetReminder,
   onChanged,
 }: MailFabProps) {
-  // 图片代理走 TG SettingsButton（右上角 ⋮）。SettingsButton 方法是 Bot API 7.0+，
-  // 老客户端 / 浏览器没有，回落到 SecondaryButton extras 末位 —— 用方法存在性
-  // 检测（不光对象存在），覆盖 6.1-6.9 那段只有事件没方法的过渡期。
-  // 注：还需 @BotFather 把 bot menu button 配为 "settings"，否则 show() 是 no-op；
-  // 这种情况 hasSettingsButton 会误判为 true，UI 入口缺失 —— 部署时检查。
-  const hasSettingsButton =
-    typeof getTelegram()?.SettingsButton?.show === "function";
-  // 点 SettingsButton 弹 popup 让用户明确开/关，避免误触盲翻 —— popup 比直接
-  // toggle 多一步确认，但能看到当前状态和说明。无 showPopup（极老客户端）→
+  // 图片代理走 TG SettingsButton（右上角 ⋮）。Bot API 7.0+；不可用 → 回落到
+  // SecondaryButton extras 末位。注：还需 @BotFather 把 bot menu button 配为
+  // "settings" 才会显示 —— 部署时检查。
+  const hasSettingsButton = showSettingsButton.isAvailable();
+  // 点 SettingsButton 弹 popup 让用户明确开/关，避免误触盲翻。popup 不可用 →
   // 退化到直接 toggle。
-  const onSettingsClick = useCallback(() => {
-    const tg = getTelegram();
-    if (!tg?.showPopup) {
+  const onSettingsClick = useCallback(async () => {
+    if (!showPopup.isAvailable()) {
       onToggleProxy();
       return;
     }
-    tg.showPopup(
-      {
-        title: "🖼 图片代理",
-        message: useProxy
-          ? "当前：🟢 开启\n\n✨ 外部图片走代理加载，绕过防盗链"
-          : "当前：⚪️ 关闭\n\n⚠️ 直接加载外部图片，部分可能显示破损",
-        buttons: [
-          {
-            id: "toggle",
-            type: "default",
-            text: useProxy ? "🚫 关闭代理" : "✅ 开启代理",
-          },
-          { id: "cancel", type: "cancel" },
-        ],
-      },
-      (buttonId) => {
-        if (buttonId === "toggle") onToggleProxy();
-      },
-    );
+    const id = await showPopup({
+      title: "🖼 图片代理",
+      message: useProxy
+        ? "当前：🟢 开启\n\n✨ 外部图片走代理加载，绕过防盗链"
+        : "当前：⚪️ 关闭\n\n⚠️ 直接加载外部图片，部分可能显示破损",
+      buttons: [
+        {
+          id: "toggle",
+          type: "default",
+          text: useProxy ? "🚫 关闭代理" : "✅ 开启代理",
+        },
+        { id: "cancel", type: "cancel" },
+      ],
+    });
+    if (id === "toggle") onToggleProxy();
   }, [useProxy, onToggleProxy]);
   useSettingsButton(hasSettingsButton ? onSettingsClick : undefined);
   const { starred, done, pending, run } = useMailActions({
@@ -196,50 +197,44 @@ export function MailFab({
    */
   const runWithFeedback = useCallback(
     async (action: MailAction) => {
-      const tg = getTelegram();
       const starredNext = action === "toggle-star" ? !starred : undefined;
       const r = await run(action, starredNext);
       if (r.ok) {
-        tg?.HapticFeedback?.notificationOccurred("success");
+        notifyHaptic("success");
       } else {
-        tg?.HapticFeedback?.notificationOccurred("error");
-        tg?.showAlert?.(r.error ?? "操作失败");
+        notifyHaptic("error");
+        await alertPopup(r.error ?? "操作失败");
       }
     },
     [run, starred],
   );
 
-  const handleMainButtonClick = useCallback(() => {
+  const handleMainButtonClick = useCallback(async () => {
     if (actions.length === 0) return;
     if (actions.length === 1) {
       // 单动作：MainButton 直接执行，不走 popup
       runWithFeedback(actions[0].id);
       return;
     }
-    const tg = getTelegram();
-    if (!tg?.showPopup) {
+    if (!showPopup.isAvailable()) {
       // 兜底（极老的 TG 客户端没 showPopup）：直接跑第一个动作
       runWithFeedback(actions[0].id);
       return;
     }
-    tg.showPopup(
-      {
-        // title + message 都不能为空：TG 客户端对 message 校验严格，
-        // 空串会让 popup 静默不弹
-        title: "邮件操作",
-        message: "选择要执行的操作",
-        buttons: actions.map<PopupButton>((a) => ({
-          id: a.id,
-          type: a.type,
-          text: a.label,
-        })),
-      },
-      (buttonId) => {
-        if (!buttonId) return;
-        const a = actions.find((x) => x.id === buttonId);
-        if (a) runWithFeedback(a.id);
-      },
-    );
+    // title + message 都不能为空：TG 客户端对 message 校验严格，
+    // 空串会让 popup 静默不弹
+    const id = await showPopup({
+      title: "邮件操作",
+      message: "选择要执行的操作",
+      buttons: actions.map<ShowPopupOptionsButton>((a) => ({
+        id: a.id,
+        type: a.type,
+        text: a.label,
+      })),
+    });
+    if (!id) return;
+    const a = actions.find((x) => x.id === id);
+    if (a) runWithFeedback(a.id);
   }, [actions, runWithFeedback]);
 
   const mainButtonText = done
@@ -262,26 +257,19 @@ export function MailFab({
   // ─── 分享 / 跳 TG 原消息（SecondaryButton） ──────────────────────────────
 
   const doShare = useCallback(() => {
-    const tg = getTelegram();
     if (!webMailUrl) return;
     const shareText = subject ? `📧 ${subject}` : "";
     const shareLink =
       `https://t.me/share/url?url=${encodeURIComponent(webMailUrl)}` +
       `&text=${encodeURIComponent(shareText)}`;
-    if (tg?.openTelegramLink) tg.openTelegramLink(shareLink);
-    else window.open(shareLink, "_blank", "noopener");
+    openTgLink(shareLink);
   }, [webMailUrl, subject]);
 
   const doOpenTg = useCallback(() => {
-    const tg = getTelegram();
     if (!tgMessageLink) return;
-    if (tg?.openTelegramLink) {
-      tg.openTelegramLink(tgMessageLink);
-      // 某些 TG 客户端跳转后不会自动关 Mini App —— 兜底显式 close
-      setTimeout(() => tg.close?.(), 50);
-    } else {
-      window.open(tgMessageLink, "_blank", "noopener");
-    }
+    openTgLink(tgMessageLink);
+    // 某些 TG 客户端 openTelegramLink 跳转后不自动关 Mini App —— 兜底显式 close
+    setTimeout(closeMiniAppSafe, 50);
   }, [tgMessageLink]);
 
   const extras = useMemo<ExtraDef[]>(() => {
@@ -313,33 +301,28 @@ export function MailFab({
     onToggleProxy,
   ]);
 
-  const handleSecondaryButtonClick = useCallback(() => {
+  const handleSecondaryButtonClick = useCallback(async () => {
     if (extras.length === 0) return;
     if (extras.length === 1) {
       extras[0].run();
       return;
     }
-    const tg = getTelegram();
-    if (!tg?.showPopup) {
+    if (!showPopup.isAvailable()) {
       extras[0].run();
       return;
     }
-    tg.showPopup(
-      {
-        title: "更多",
-        message: "选择要执行的操作",
-        buttons: extras.map<PopupButton>((e) => ({
-          id: e.id,
-          type: "default",
-          text: e.label,
-        })),
-      },
-      (buttonId) => {
-        if (!buttonId) return;
-        const e = extras.find((x) => x.id === buttonId);
-        if (e) e.run();
-      },
-    );
+    const id = await showPopup({
+      title: "更多",
+      message: "选择要执行的操作",
+      buttons: extras.map<ShowPopupOptionsButton>((e) => ({
+        id: e.id,
+        type: "default",
+        text: e.label,
+      })),
+    });
+    if (!id) return;
+    const e = extras.find((x) => x.id === id);
+    if (e) e.run();
   }, [extras]);
 
   const secondaryButtonText =

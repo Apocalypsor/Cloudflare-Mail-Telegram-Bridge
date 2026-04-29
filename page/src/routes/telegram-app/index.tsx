@@ -1,12 +1,12 @@
 import { Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { retrieveLaunchParams } from "@telegram-apps/sdk-react";
 import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@worker/handlers/hono/routes";
 import { useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { resolveContextResponseSchema } from "@/api/schemas";
 import { extractErrorMessage } from "@/api/utils";
 import { useBackButton } from "@/hooks/use-back-button";
-import { getTelegram } from "@/providers/telegram";
 
 /**
  * 入口路由（`/telegram-app/`，对应 BotFather `/newapp` 注册的 Web App URL）。
@@ -27,8 +27,12 @@ function RouterPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const tg = getTelegram();
-      const startParam = tg?.initDataUnsafe?.start_param ?? "";
+      let startParam = "";
+      try {
+        startParam = retrieveLaunchParams().tgWebAppData?.start_param ?? "";
+      } catch {
+        // 非 TG 环境（直接打开 /telegram-app/）→ 当作无 start_param 走默认路径
+      }
 
       if (!startParam) {
         navigate({ to: "/telegram-app/reminders", search: {}, replace: true });

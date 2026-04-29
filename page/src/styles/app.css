@@ -42,26 +42,27 @@ body {
 
 /**
  * Mini App 在移动端（iOS / Android）会 `requestFullscreen()`。两套 inset 都要：
- *   `--tg-safe-area-inset-*`         系统安全区（刘海 / 状态栏 / 底部 home bar）
- *   `--tg-content-safe-area-inset-*` TG 自己绘的浮动 chrome（顶部 pill + ⋮ 菜单）
+ *   `--tg-viewport-safe-area-inset-*`         系统安全区（刘海 / 状态栏 / 底部 home bar）
+ *   `--tg-viewport-content-safe-area-inset-*` TG 自己绘的浮动 chrome（顶部 pill + ⋮ 菜单）
  * 全屏时 Mini App 占满全屏，两个区域会同时盖到内容上，要 sum 起来。
- * 非全屏 / 非 Mini App 场景两个变量都不存在，全部 fallback 0，无影响。
+ * 变量由 `bindViewportCssVars()` 在 `providers/telegram.tsx` 里写入 —— 非 Mini App
+ * / viewport 没 mount 时变量不存在，全部 fallback 0，无影响。
  */
 body {
   padding-top: calc(
-    var(--tg-safe-area-inset-top, 0px) +
-    var(--tg-content-safe-area-inset-top, 0px)
+    var(--tg-viewport-safe-area-inset-top, 0px) +
+    var(--tg-viewport-content-safe-area-inset-top, 0px)
   );
   padding-bottom: calc(
-    var(--tg-safe-area-inset-bottom, 0px) +
-    var(--tg-content-safe-area-inset-bottom, 0px)
+    var(--tg-viewport-safe-area-inset-bottom, 0px) +
+    var(--tg-viewport-content-safe-area-inset-bottom, 0px)
   );
   padding-left: calc(
-    var(--tg-safe-area-inset-left, 0px) +
-    var(--tg-content-safe-area-inset-left, 0px)
+    var(--tg-viewport-safe-area-inset-left, 0px) +
+    var(--tg-viewport-content-safe-area-inset-left, 0px)
   );
   padding-right: calc(
-    var(--tg-safe-area-inset-right, 0px) +
-    var(--tg-content-safe-area-inset-right, 0px)
+    var(--tg-viewport-safe-area-inset-right, 0px) +
+    var(--tg-viewport-content-safe-area-inset-right, 0px)
   );
 }
