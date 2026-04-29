@@ -1,6 +1,6 @@
 import { Skeleton, Spinner } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import {
   ROUTE_MINI_APP_API_LIST,
@@ -17,9 +17,10 @@ import {
   mailListTypeSchema,
 } from "@/api/schemas";
 import { extractErrorMessage } from "@/api/utils";
-import { AccountBox } from "@/components/account-box";
+import { MailListByAccount } from "@/components/mail-list-by-account";
 import { MAIL_LIST_TITLES, MAIL_LIST_TYPES } from "@/constants";
 import { useBackButton } from "@/hooks/use-back-button";
+import { useNavigateToMail } from "@/hooks/use-navigate-to-mail";
 import { getTelegram } from "@/providers/telegram";
 
 interface BulkAction {
@@ -61,7 +62,7 @@ function MailListPage() {
   const { type: typeParam } = Route.useParams();
   const type = mailListTypeSchema.parse(typeParam);
   const bulk = BULK_ACTIONS[type];
-  const navigate = useNavigate();
+  const navigateToMail = useNavigateToMail();
 
   // 列表页从 bot 按钮直接进来，没有上一级，不显示 BackButton
   useBackButton(undefined);
@@ -122,20 +123,6 @@ function MailListPage() {
     } else if (window.confirm(bulk.confirmText)) {
       run();
     }
-  }
-
-  function openMail(id: string, accountId: number, token: string) {
-    const back = window.location.pathname + window.location.search;
-    navigate({
-      to: "/telegram-app/mail/$id",
-      params: { id },
-      search: {
-        accountId,
-        t: token,
-        ...(folderHint ? { folder: folderHint } : {}),
-        back,
-      },
-    });
   }
 
   const data = listQuery.data;
@@ -212,41 +199,21 @@ function MailListPage() {
           暂无邮件
         </div>
       ) : (
-        data.results.map((r) => {
-          if (r.error) {
-            return (
-              <AccountBox
-                key={r.accountId}
-                errored
-                label={r.accountEmail || `Account #${r.accountId}`}
-              >
-                <div className="px-4 py-3 text-sm text-red-400">查询失败</div>
-              </AccountBox>
-            );
-          }
-          if (!r.total) return null;
-          return (
-            <AccountBox
-              key={r.accountId}
-              label={r.accountEmail || `Account #${r.accountId}`}
-              count={r.total}
+        <MailListByAccount results={data.results} errorLabel={() => "查询失败"}>
+          {(it, accountId) => (
+            <button
+              type="button"
+              onClick={() =>
+                navigateToMail(accountId, it.id, it.token, {
+                  folder: folderHint || undefined,
+                })
+              }
+              className="block w-full text-left px-4 py-3 text-sm text-zinc-100 break-words hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
             >
-              <ul className="divide-y divide-zinc-800">
-                {r.items.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      type="button"
-                      onClick={() => openMail(it.id, r.accountId, it.token)}
-                      className="block w-full text-left px-4 py-3 text-sm text-zinc-100 break-words hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
-                    >
-                      {it.title || "(无主题)"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </AccountBox>
-          );
-        })
+              {it.title || "(无主题)"}
+            </button>
+          )}
+        </MailListByAccount>
       )}
     </div>
   );

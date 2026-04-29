@@ -9,6 +9,7 @@ import { api } from "@/api/client";
 import { mailPreviewResponseSchema } from "@/api/schemas";
 import { MailBodyFrame } from "@/components/mail-body-frame";
 import { MailFab } from "@/components/mail-fab";
+import { MailMeta } from "@/components/mail-meta";
 import { useBackButton } from "@/hooks/use-back-button";
 import { getTelegram } from "@/providers/telegram";
 
@@ -94,11 +95,6 @@ function MailPreviewPage() {
   }
 
   const d = q.data;
-  const metaRows: [string, string][] = [];
-  if (d.meta.from) metaRows.push(["From", d.meta.from]);
-  if (d.meta.to) metaRows.push(["To", d.meta.to]);
-  if (d.accountEmail) metaRows.push(["Account", d.accountEmail]);
-  if (d.meta.date) metaRows.push(["Date", d.meta.date]);
 
   return (
     <>
@@ -109,16 +105,7 @@ function MailPreviewPage() {
           <Subject subject={d.meta.subject} webMailUrl={d.webMailUrl} />
         )}
 
-        {metaRows.length > 0 && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-6">
-            {metaRows.map(([label, value]) => (
-              <div key={label} className="contents">
-                <dt className="text-zinc-500">{label}</dt>
-                <dd className="text-zinc-300 break-words">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <MailMeta meta={d.meta} accountEmail={d.accountEmail} />
 
         <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <MailBodyFrame

@@ -9,16 +9,13 @@ import {
   extractErrorMessage,
   redirectToLoginOnUnauthorized,
 } from "@/api/utils";
-import { SessionGatePlaceholder } from "@/components/session-gate-placeholder";
-import { WebLayout } from "@/components/web-layout";
-import { useRequireTelegramLogin } from "@/hooks/use-require-telegram-login";
+import { SessionGatedWebLayout } from "@/components/session-gated-web-layout";
 
 export const Route = createFileRoute("/preview")({
   component: PreviewPage,
 });
 
 function PreviewPage() {
-  const session = useRequireTelegramLogin();
   const [html, setHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -38,16 +35,8 @@ function PreviewPage() {
 
   const data = mut.data;
 
-  if (session.isLoading || session.isRedirecting || !session.data) {
-    return (
-      <WebLayout subtitle="HTML → MarkdownV2">
-        <SessionGatePlaceholder redirecting={session.isRedirecting} />
-      </WebLayout>
-    );
-  }
-
   return (
-    <WebLayout subtitle="HTML → MarkdownV2">
+    <SessionGatedWebLayout subtitle="HTML → MarkdownV2">
       <section>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
@@ -110,7 +99,7 @@ function PreviewPage() {
           </Pane>
         </div>
       </section>
-    </WebLayout>
+    </SessionGatedWebLayout>
   );
 }
 

@@ -48,6 +48,7 @@ export const mailListItemSchema = z.object({
   /** 仅 search API 填充：subject 缺失时也能看出是谁发的 */
   from: z.string().optional(),
 });
+export type MailListItem = z.infer<typeof mailListItemSchema>;
 
 export const mailListAccountResultSchema = z.object({
   accountId: z.number(),
@@ -56,6 +57,7 @@ export const mailListAccountResultSchema = z.object({
   total: z.number(),
   error: z.string().optional(),
 });
+export type MailListAccountResult = z.infer<typeof mailListAccountResultSchema>;
 
 export const mailListTypeSchema = z.enum([
   "unread",

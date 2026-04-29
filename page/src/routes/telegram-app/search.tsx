@@ -8,8 +8,10 @@ import { z } from "zod";
 import { api } from "@/api/client";
 import { mailSearchResponseSchema } from "@/api/schemas";
 import { extractErrorMessage } from "@/api/utils";
-import { AccountBox } from "@/components/account-box";
+import { MailListByAccount } from "@/components/mail-list-by-account";
 import { useBackButton } from "@/hooks/use-back-button";
+import { useNavigateToMail } from "@/hooks/use-navigate-to-mail";
+import { INPUT_CLASS } from "@/styles/inputs";
 
 // 查询字串放 URL，目的有二：
 // 1) 搜索状态可被浏览器 / TG WebView 历史保留 —— 点击邮件后回退能回到带结果的搜索页
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/telegram-app/search")({
 function SearchPage() {
   const { q: urlQ } = Route.useSearch();
   const navigate = useNavigate();
+  const navigateToMail = useNavigateToMail();
 
   // 搜索页是从主菜单进入的根页 —— 不显示 BackButton
   useBackButton(undefined);
@@ -61,15 +64,6 @@ function SearchPage() {
     navigate({ to: "/telegram-app/search", search: { q: next } });
   }
 
-  function openMail(id: string, accountId: number, token: string) {
-    const back = window.location.pathname + window.location.search;
-    navigate({
-      to: "/telegram-app/mail/$id",
-      params: { id },
-      search: { accountId, t: token, back },
-    });
-  }
-
   const data = searchQuery.data;
   // 用 async extractErrorMessage 拉响应 body 里的 `error` 字段（比裸 message
   // 信息量大得多）。结果存 state 里，error 变化时刷新。
@@ -100,7 +94,7 @@ function SearchPage() {
           maxLength={200}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-100 text-[15px] outline-none focus:border-emerald-500 placeholder:text-zinc-600 transition-colors"
+          className={`flex-1 min-w-0 text-[15px] ${INPUT_CLASS}`}
         />
         <button
           type="submit"
@@ -140,50 +134,27 @@ function SearchPage() {
           无匹配邮件
         </div>
       ) : (
-        data.results.map((r) => {
-          if (r.error) {
-            return (
-              <AccountBox
-                key={r.accountId}
-                errored
-                label={r.accountEmail || `Account #${r.accountId}`}
-              >
-                <div className="px-4 py-3 text-sm text-red-400">
-                  搜索失败：{r.error}
-                </div>
-              </AccountBox>
-            );
-          }
-          if (!r.total) return null;
-          return (
-            <AccountBox
-              key={r.accountId}
-              label={r.accountEmail || `Account #${r.accountId}`}
-              count={r.total}
+        <MailListByAccount
+          results={data.results}
+          errorLabel={(r) => `搜索失败：${r.error}`}
+        >
+          {(it, accountId) => (
+            <button
+              type="button"
+              onClick={() => navigateToMail(accountId, it.id, it.token)}
+              className="block w-full text-left px-4 py-3 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
             >
-              <ul className="divide-y divide-zinc-800">
-                {r.items.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      type="button"
-                      onClick={() => openMail(it.id, r.accountId, it.token)}
-                      className="block w-full text-left px-4 py-3 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
-                    >
-                      <div className="text-sm text-zinc-100 break-words">
-                        {it.title || "(无主题)"}
-                      </div>
-                      {it.from && (
-                        <div className="text-xs text-zinc-500 break-words mt-1">
-                          {it.from}
-                        </div>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </AccountBox>
-          );
-        })
+              <div className="text-sm text-zinc-100 break-words">
+                {it.title || "(无主题)"}
+              </div>
+              {it.from && (
+                <div className="text-xs text-zinc-500 break-words mt-1">
+                  {it.from}
+                </div>
+              )}
+            </button>
+          )}
+        </MailListByAccount>
       )}
     </div>
   );
