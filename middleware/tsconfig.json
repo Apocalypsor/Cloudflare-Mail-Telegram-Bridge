@@ -4,8 +4,6 @@
     "module": "Preserve",
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noFallthroughCasesInSwitch": true,
     "types": ["bun"],
     "baseUrl": ".",
     "paths": {

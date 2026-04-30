@@ -1,12 +1,10 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "verbatimModuleSyntax": true,
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -19,8 +17,7 @@
       "@utils/*": ["./src/utils/*"],
       "@page/*": ["./src/*"],
       "@worker/*": ["../worker/*"]
-    },
-    "types": ["vite/client"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
