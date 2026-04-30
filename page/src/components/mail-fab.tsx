@@ -2,20 +2,20 @@ import {
   useMainButton,
   useSecondaryButton,
   useSettingsButton,
-} from "@hooks/use-bottom-button";
-import { type MailAction, useMailActions } from "@hooks/use-mail-actions";
-import { THEME_COLORS } from "@styles/theme";
-import {
-  type ShowPopupOptionsButton,
-  showPopup,
-  showSettingsButton,
-} from "@telegram-apps/sdk-react";
+} from "@page/hooks/use-bottom-button";
+import { type MailAction, useMailActions } from "@page/hooks/use-mail-actions";
+import { THEME_COLORS } from "@page/styles/theme";
 import {
   alertPopup,
   closeMiniAppSafe,
   notifyHaptic,
   openTgLink,
-} from "@utils/tg";
+} from "@page/utils/tg";
+import {
+  type ShowPopupOptionsButton,
+  showPopup,
+  showSettingsButton,
+} from "@telegram-apps/sdk-react";
 import { useCallback, useMemo } from "react";
 
 export interface MailFabProps {

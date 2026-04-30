@@ -1,5 +1,5 @@
 import { createClient } from "redis";
-import { config } from "@/config";
+import { config } from "../config";
 
 const KEY_PREFIX = "telemail:lastUid:";
 

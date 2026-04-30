@@ -1,4 +1,4 @@
-import type { ActiveConnection } from "@imap/types";
+import type { ActiveConnection } from "@middleware/imap/types";
 import type { FolderHint } from "../types";
 
 export const findSpecialFolder = async (

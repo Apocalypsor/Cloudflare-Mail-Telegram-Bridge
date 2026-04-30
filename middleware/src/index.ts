@@ -4,14 +4,19 @@ const ts = () => new Date().toISOString();
 console.log = (...args: unknown[]) => _log(ts(), ...args);
 console.error = (...args: unknown[]) => _err(ts(), ...args);
 
-import { connectionManager } from "@imap";
-import { junkController } from "@modules/junk/index";
-import { mailController } from "@modules/mail/index";
-import { syncController } from "@modules/sync/index";
+import { connectionManager } from "@middleware/imap";
+import { junkController } from "@middleware/modules/junk/index";
+import { mailController } from "@middleware/modules/mail/index";
+import { syncController } from "@middleware/modules/sync/index";
 import { Elysia } from "elysia";
-import { config } from "@/config";
+import { config } from "./config";
 
-const app = new Elysia({ prefix: "/api" })
+/**
+ * IMAP bridge HTTP app。Worker 端 Eden treaty 通过 `import type { App } from
+ * "@middleware/index"` 拿这份类型，所有 `/api/...` 路由 / body / response
+ * 都从这棵 `.use(...)` 链里推出来。
+ */
+export const app = new Elysia({ prefix: "/api" })
   .onError(({ error }) => {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(msg);
@@ -20,6 +25,8 @@ const app = new Elysia({ prefix: "/api" })
   .use(syncController)
   .use(mailController)
   .use(junkController);
+
+export type App = typeof app;
 
 const main = async (): Promise<void> => {
   console.log("[Telemail Middleware] Starting...");

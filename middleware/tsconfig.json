@@ -4,18 +4,7 @@
     "module": "Preserve",
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["bun"],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@imap": ["./src/imap"],
-      "@imap/*": ["./src/imap/*"],
-      "@modules/*": ["./src/modules/*"],
-      "@plugins/*": ["./src/plugins/*"],
-      "@utils/*": ["./src/utils/*"]
-    }
+    "types": ["bun"]
   },
   "include": ["src"]
 }

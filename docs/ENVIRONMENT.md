@@ -71,7 +71,7 @@
 
 ## Cron Triggers
 
-`"triggers": { "crons": ["* * * * *"] }` —— 每分钟一次，`worker/handlers/scheduled.ts` 内部按 `getUTCMinutes() === 0` 区分轻 / 重任务：
+`"triggers": { "crons": ["* * * * *"] }` —— 每分钟一次，`worker/src/handlers/scheduled/index.ts` 内部按 `getUTCMinutes() === 0` 区分轻 / 重任务：
 
 - **每分钟**：分发到期的 Mini App 提醒
 - **每小时**（`minute === 0`）：检查 IMAP Bridge 健康、重试失败的 LLM 摘要、digest 等

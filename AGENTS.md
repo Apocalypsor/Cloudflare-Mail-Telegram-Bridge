@@ -11,8 +11,8 @@ Cloudflare API knowledge may be stale — fetch <https://developers.cloudflare.c
 
 ## Workspaces (bun monorepo)
 
-- **`worker/`** Cloudflare Worker (Hono) — bot webhook, queue, cron, providers, D1. Owns `wrangler.example.jsonc` + `migrations/`. CI generates real `wrangler.jsonc` via `envsubst` from `CF_D1_DATABASE_ID` + `CF_KV_NAMESPACE_ID`.
-- **`page/`** Cloudflare Pages SPA (Vite + React + TanStack Router/Query + HeroUI) — single bundle serves both web pages and Mini App routes (`/telegram-app/*`).
+- **`worker/`** Cloudflare Worker (Elysia + grammY) — bot webhook, queue, cron, providers, D1. Owns `wrangler.example.jsonc` + `migrations/`. CI generates real `wrangler.jsonc` via `envsubst` from `CF_D1_DATABASE_ID` + `CF_KV_NAMESPACE_ID`.
+- **`page/`** Cloudflare Pages SPA (Vite + React + TanStack Router/Query + HeroUI + Eden treaty) — single bundle serves both web pages and Mini App routes (`/telegram-app/*`).
 - **`middleware/`** IMAP bridge (Bun + Elysia + ImapFlow) — **not on Cloudflare**. Built to single binary, packaged as multi-arch docker image. User runs it on their server; Worker calls it via `IMAP_BRIDGE_URL` + `IMAP_BRIDGE_SECRET`.
 
 Single custom domain. `*.com/api/*` + `/oauth/*` → Worker; everything else → Pages. Same origin, zero CORS.
@@ -26,5 +26,5 @@ All scripts run from repo root. Read root + per-workspace `package.json` for the
 - **Helpers**: file-private if used in ONE file; lift to nearest `utils/` (or `components/` / `hooks/` on page side) when used in multiple. Same applies to dedup — extract instead of copy-pasting.
 - **Shared types**: `worker/types.ts` for cross-cutting; module-scoped `types.ts` (e.g. `providers/types.ts`) otherwise. Never inline reusable types into handlers / services / route components.
 - **Error reporting** (worker): `reportErrorToObservability(env, "tag", err)`, never `console.error`. Page side: surface via `extractErrorMessage()`, no silent swallowing.
-- **Cross-package imports**: `page/` aliases `@worker/*` → `../worker/*`; `worker/` aliases `@page/*` → `../page/src/*`. **Types and string constants only — never runtime code.** Page reads API path constants from `@worker/handlers/hono/routes`; Worker reads Mini App URL paths from `@page/paths`.
-- **Auth**: every page-side API call goes through `page/src/api/client.ts` (ky), which injects `X-Telegram-Init-Data` in TG context. Worker `requireMiniAppAuth` verifies. Web pages use a session cookie. Mail preview API also accepts an HMAC token.
+- **Cross-package imports**: only three TS path aliases exist repo-wide — `@page/*` `@worker/*` `@middleware/*`, declared in `tsconfig.base.json`. Page imports `@worker/*` are **type-only** (no runtime — keeps the page bundle slim). Worker imports `@page/paths` (Mini App URL constants) and `@middleware/index` (Eden `App` type for the IMAP bridge client).
+- **Auth + API contract**: page calls worker through Eden treaty (`page/src/api/client.ts` exports `treaty<App>(...)` where `App` comes from `import type { App } from "@worker/api"`). Eden auto-injects `X-Telegram-Init-Data` in TG context; worker plugin `authMiniApp` verifies. Web pages use a session cookie (`authSession`). Mail preview GET also accepts an HMAC token. Worker calls middleware the same way (`treaty<App>` against `@middleware/index`, with `throwHttpError: true`).

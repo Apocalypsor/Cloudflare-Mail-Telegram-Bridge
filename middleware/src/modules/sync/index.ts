@@ -1,5 +1,5 @@
-import { connectionManager } from "@imap";
-import { auth } from "@plugins/auth";
+import { connectionManager } from "@middleware/imap";
+import { auth } from "@middleware/plugins/auth";
 import { Elysia } from "elysia";
 
 export const syncController = new Elysia({ name: "controller.sync" })

@@ -1,12 +1,12 @@
-import type { ActiveConnection, Connection } from "@imap/types";
-import { getLastUid, setLastUid } from "@utils/redis";
+import type { ActiveConnection, Connection } from "@middleware/imap/types";
+import { getLastUid, setLastUid } from "@middleware/utils/redis";
 import {
   fetchImapAccounts,
   type ImapAccount,
   notifyNewEmail,
-} from "@utils/telemail-client";
+} from "@middleware/utils/telemail-client";
 import { type ExistsEvent, ImapFlow } from "imapflow";
-import { RECONNECT_DELAY_MS, REFRESH_INTERVAL_MS } from "@/constants";
+import { RECONNECT_DELAY_MS, REFRESH_INTERVAL_MS } from "../constants";
 
 class ImapConnectionManager {
   private connections = new Map<number, Connection>();

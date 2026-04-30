@@ -1,5 +1,5 @@
-import type { Reminder } from "@api/schemas";
 import { Spinner } from "@heroui/react";
+import type { Reminder } from "@worker/api/modules/reminders/model";
 
 export function Card({
   it,

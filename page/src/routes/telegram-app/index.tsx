@@ -1,11 +1,9 @@
-import { api } from "@api/client";
-import { resolveContextResponseSchema } from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
 import { Spinner } from "@heroui/react";
-import { useBackButton } from "@hooks/use-back-button";
+import { api } from "@page/api/client";
+import { extractErrorMessage } from "@page/api/utils";
+import { useBackButton } from "@page/hooks/use-back-button";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { retrieveLaunchParams } from "@telegram-apps/sdk-react";
-import { ROUTE_REMINDERS_API_RESOLVE_CONTEXT } from "@worker/handlers/hono/routes";
 import { useEffect, useState } from "react";
 
 /**
@@ -49,13 +47,12 @@ function RouterPage() {
       const tgMsgId = m[3];
 
       try {
-        const data = await api
-          .get(ROUTE_REMINDERS_API_RESOLVE_CONTEXT.replace(/^\//, ""), {
-            searchParams: { start: `${chatId}_${tgMsgId}` },
-          })
-          .json();
+        const { data, error } = await api.api.reminders["resolve-context"].get({
+          query: { start: `${chatId}_${tgMsgId}` },
+        });
         if (cancelled) return;
-        const ctx = resolveContextResponseSchema.parse(data);
+        if (error) throw error;
+        const ctx = data;
         if (feature === "m") {
           navigate({
             to: "/telegram-app/mail/$id",

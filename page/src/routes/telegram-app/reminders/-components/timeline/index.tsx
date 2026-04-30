@@ -1,5 +1,5 @@
-import type { Reminder } from "@api/schemas";
 import { Skeleton } from "@heroui/react";
+import type { Reminder } from "@worker/api/modules/reminders/model";
 import { useMemo } from "react";
 import {
   GAP_DEFAULT,

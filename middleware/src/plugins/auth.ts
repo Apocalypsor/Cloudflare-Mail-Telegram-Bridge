@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { config } from "@/config";
+import { config } from "../config";
 
 export const auth = new Elysia({ name: "auth" }).derive(
   { as: "scoped" },

@@ -8,6 +8,16 @@
     "noEmit": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "verbatimModuleSyntax": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@page/*": ["./page/src/*"],
+      "@worker/*": ["./worker/src/*"],
+      "@middleware/*": ["./middleware/src/*"]
+    }
   }
 }

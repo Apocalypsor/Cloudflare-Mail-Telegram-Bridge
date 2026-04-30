@@ -1,22 +1,12 @@
-import { api } from "@api/client";
-import {
-  emailContextResponseSchema,
-  okResponseSchema,
-  remindersListResponseSchema,
-} from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
-import { useBackButton } from "@hooks/use-back-button";
-import { useNavigateToMail } from "@hooks/use-navigate-to-mail";
+import { api } from "@page/api/client";
+import { extractErrorMessage, validateSearch } from "@page/api/utils";
+import { useBackButton } from "@page/hooks/use-back-button";
+import { useNavigateToMail } from "@page/hooks/use-navigate-to-mail";
+import { confirmPopup, notifyHaptic } from "@page/utils/tg";
+import { Type as t } from "@sinclair/typebox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { confirmPopup, notifyHaptic } from "@utils/tg";
-import {
-  ROUTE_REMINDERS_API,
-  ROUTE_REMINDERS_API_EMAIL_CONTEXT,
-} from "@worker/handlers/hono/routes";
 import { useEffect, useMemo, useState } from "react";
-import { z } from "zod";
 import { ReminderAddSection } from "./-components/add-section";
 import { ReminderEmailCard } from "./-components/email-card";
 import { ReminderTimeline } from "./-components/timeline";
@@ -28,25 +18,22 @@ import {
   resolveTz,
 } from "./-utils/tz";
 
-// 三件套任缺其一 → 退化为"所有待提醒"列表模式。用 fallback 吞掉格式错误，
-// 避免脏 URL 让整页崩在 errorComponent。
+// 三件套任缺其一 → 退化为"所有待提醒"列表模式。
 // `back` 由从邮件预览页跳进来时带上，存在则渲染 TG BackButton 跳回。
-const searchSchema = z.object({
-  accountId: fallback(z.coerce.number().optional(), undefined),
-  emailMessageId: fallback(z.string().optional(), undefined),
-  token: fallback(z.string().optional(), undefined),
-  back: fallback(z.string().optional(), undefined),
+const Search = t.Object({
+  accountId: t.Optional(t.Number()),
+  emailMessageId: t.Optional(t.String()),
+  token: t.Optional(t.String()),
+  back: t.Optional(t.String()),
 });
-
-type Search = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/telegram-app/reminders/")({
   component: RemindersPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function RemindersPage() {
-  const search: Search = Route.useSearch();
+  const search = Route.useSearch();
   const navigate = useNavigate();
   const navigateToMail = useNavigateToMail();
   const listOnly = !search.accountId || !search.emailMessageId || !search.token;
@@ -79,16 +66,15 @@ function RemindersPage() {
     ],
     enabled: !listOnly,
     queryFn: async () => {
-      const data = await api
-        .get(ROUTE_REMINDERS_API_EMAIL_CONTEXT.replace(/^\//, ""), {
-          searchParams: {
-            accountId: String(search.accountId),
-            emailMessageId: search.emailMessageId ?? "",
-            token: search.token ?? "",
-          },
-        })
-        .json();
-      return emailContextResponseSchema.parse(data);
+      const { data, error } = await api.api.reminders["email-context"].get({
+        query: {
+          accountId: String(search.accountId),
+          emailMessageId: search.emailMessageId ?? "",
+          token: search.token ?? "",
+        },
+      });
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -103,16 +89,16 @@ function RemindersPage() {
   const remindersQuery = useQuery({
     queryKey: remindersKey,
     queryFn: async () => {
-      const searchParams: Record<string, string> = {};
-      if (!listOnly) {
-        searchParams.accountId = String(search.accountId);
-        searchParams.emailMessageId = search.emailMessageId ?? "";
-        searchParams.token = search.token ?? "";
-      }
-      const data = await api
-        .get(ROUTE_REMINDERS_API.replace(/^\//, ""), { searchParams })
-        .json();
-      return remindersListResponseSchema.parse(data);
+      const query = listOnly
+        ? {}
+        : {
+            accountId: String(search.accountId),
+            emailMessageId: search.emailMessageId ?? "",
+            token: search.token ?? "",
+          };
+      const { data, error } = await api.api.reminders.get({ query });
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -121,20 +107,15 @@ function RemindersPage() {
       const dt = parseWallClockInTz(date, time, tz);
       if (Number.isNaN(dt.getTime())) throw new Error("时间格式错误");
       if (dt.getTime() <= Date.now()) throw new Error("提醒时间需在未来");
-      const data = await api
-        .post(ROUTE_REMINDERS_API.replace(/^\//, ""), {
-          json: {
-            text: text.trim(),
-            remind_at: dt.toISOString(),
-            accountId: search.accountId,
-            emailMessageId: search.emailMessageId,
-            token: search.token,
-          },
-        })
-        .json();
-      const parsed = okResponseSchema.parse(data);
-      if (!parsed.ok) throw new Error(parsed.error || "保存失败");
-      return { ...parsed, savedAt: dt };
+      const { data, error } = await api.api.reminders.post({
+        text: text.trim(),
+        remind_at: dt.toISOString(),
+        accountId: search.accountId,
+        emailMessageId: search.emailMessageId,
+        token: search.token,
+      });
+      if (error) throw error;
+      return { ...data, savedAt: dt };
     },
     onSuccess: ({ savedAt }) => {
       const wall = formatInTz(savedAt, tz);
@@ -164,9 +145,8 @@ function RemindersPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
-      await api
-        .delete(`${ROUTE_REMINDERS_API.replace(/^\//, "")}/${id}`)
-        .json();
+      const { error } = await api.api.reminders({ id: String(id) }).delete();
+      if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: remindersKey }),
     onError: async (err) =>

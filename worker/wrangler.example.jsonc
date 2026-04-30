@@ -19,7 +19,7 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "telemail",
-  "main": "index.ts",
+  "main": "src/index.ts",
   "compatibility_date": "2026-04-21",
   "observability": {
     "logs": {

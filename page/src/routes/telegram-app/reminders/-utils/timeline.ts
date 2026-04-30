@@ -1,4 +1,4 @@
-import type { Reminder } from "@api/schemas";
+import type { Reminder } from "@worker/api/modules/reminders/model";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 

@@ -22,6 +22,17 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          tanstack: ["@tanstack/react-router", "@tanstack/react-query"],
+          heroui: ["@heroui/react", "@heroui/styles"],
+          typebox: ["@sinclair/typebox"],
+          telegram: ["@telegram-apps/sdk-react"],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

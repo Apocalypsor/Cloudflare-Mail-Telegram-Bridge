@@ -1,4 +1,4 @@
-import { useRequireTelegramLogin } from "@hooks/use-require-telegram-login";
+import { useRequireTelegramLogin } from "@page/hooks/use-require-telegram-login";
 import type { ReactNode } from "react";
 import { SessionGatePlaceholder } from "./session-gate-placeholder";
 import { WebLayout } from "./web-layout";

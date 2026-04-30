@@ -11,7 +11,7 @@ export function useNavigateToMail() {
       accountId: number,
       emailMessageId: string,
       token: string,
-      opts?: { folder?: string },
+      opts?: { folder?: "inbox" | "junk" | "archive" },
     ) => {
       const back = window.location.pathname + window.location.search;
       navigate({

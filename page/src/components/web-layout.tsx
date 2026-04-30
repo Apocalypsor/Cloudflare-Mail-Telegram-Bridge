@@ -1,9 +1,8 @@
-import { api } from "@api/client";
 import { Dropdown } from "@heroui/react";
-import { loginUrlForCurrentPath, useSession } from "@hooks/use-session";
+import { api } from "@page/api/client";
+import { loginUrlForCurrentPath, useSession } from "@page/hooks/use-session";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ROUTE_SESSION_LOGOUT } from "@worker/handlers/hono/routes";
 import type { ReactNode } from "react";
 
 /**
@@ -58,7 +57,7 @@ function AuthStatus() {
 
   const logoutMut = useMutation({
     mutationFn: async () => {
-      await api.post(ROUTE_SESSION_LOGOUT.replace(/^\//, "")).json();
+      await api.api.session.logout.post();
     },
     onSettled: () => {
       // session cookie 已被 Worker 清掉，reload 让所有使用 session 的组件

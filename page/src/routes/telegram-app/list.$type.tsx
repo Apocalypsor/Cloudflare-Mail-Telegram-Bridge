@@ -1,31 +1,20 @@
-import { api } from "@api/client";
-import {
-  bulkActionResponseSchema,
-  type MailListType,
-  mailListResponseSchema,
-  mailListTypeSchema,
-} from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
-import { MailListByAccount } from "@components/mail-list-by-account";
 import { Skeleton, Spinner } from "@heroui/react";
-import { useBackButton } from "@hooks/use-back-button";
-import { useNavigateToMail } from "@hooks/use-navigate-to-mail";
+import { api } from "@page/api/client";
+import { extractErrorMessage, validateSearch } from "@page/api/utils";
+import { MailListByAccount } from "@page/components/mail-list-by-account";
+import { MAIL_LIST_TITLES, MAIL_LIST_TYPES } from "@page/constants";
+import { useBackButton } from "@page/hooks/use-back-button";
+import { useNavigateToMail } from "@page/hooks/use-navigate-to-mail";
+import { confirmPopup, notifyHaptic } from "@page/utils/tg";
+import { Type as t } from "@sinclair/typebox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { confirmPopup, notifyHaptic } from "@utils/tg";
-import {
-  ROUTE_MINI_APP_API_LIST,
-  ROUTE_MINI_APP_API_MARK_ALL_READ,
-  ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
-} from "@worker/handlers/hono/routes";
+import type { MailListType } from "@worker/api/modules/miniapp/model";
 import { useMemo, useState } from "react";
-import { z } from "zod";
-import { MAIL_LIST_TITLES, MAIL_LIST_TYPES } from "@/constants";
 
 interface BulkAction {
   label: string;
-  url: string;
+  run: () => Promise<{ success: number; failed: number }>;
   confirmText: string;
   danger?: boolean;
 }
@@ -33,35 +22,46 @@ interface BulkAction {
 const BULK_ACTIONS: Partial<Record<MailListType, BulkAction>> = {
   unread: {
     label: "✓ 全部已读",
-    url: ROUTE_MINI_APP_API_MARK_ALL_READ,
+    run: async () => {
+      const { data, error } =
+        await api.api["mini-app"]["mark-all-as-read"].post();
+      if (error) throw error;
+      return data;
+    },
     confirmText: "把所有未读邮件标记为已读？",
   },
   junk: {
     label: "🗑 清空垃圾",
-    url: ROUTE_MINI_APP_API_TRASH_ALL_JUNK,
+    run: async () => {
+      const { data, error } =
+        await api.api["mini-app"]["trash-all-junk"].post();
+      if (error) throw error;
+      return data;
+    },
     confirmText: "清空所有账号的垃圾邮件？此操作不可撤销。",
     danger: true,
   },
 };
 
-const searchSchema = z.object({
-  cache: fallback(z.coerce.boolean().optional(), undefined),
-});
+function isMailListType(s: string): s is MailListType {
+  return (MAIL_LIST_TYPES as readonly string[]).includes(s);
+}
+
+const Search = t.Object({ cache: t.Optional(t.Boolean()) });
 
 export const Route = createFileRoute("/telegram-app/list/$type")({
   component: MailListPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
   beforeLoad: ({ params }) => {
-    if (!MAIL_LIST_TYPES.includes(params.type as MailListType)) {
-      throw notFound();
-    }
+    if (!isMailListType(params.type)) throw notFound();
   },
 });
 
 function MailListPage() {
   const { type: typeParam } = Route.useParams();
-  const type = mailListTypeSchema.parse(typeParam);
-  const bulk = BULK_ACTIONS[type];
+  if (!isMailListType(typeParam)) throw notFound();
+  const listType: MailListType = typeParam;
+  const bulk = BULK_ACTIONS[listType];
   const navigateToMail = useNavigateToMail();
 
   // 列表页从 bot 按钮直接进来，没有上一级，不显示 BackButton
@@ -75,25 +75,26 @@ function MailListPage() {
 
   // junk/archived 列表：mail 页 fetch 需要 folder 提示给 IMAP 定位 UID
   const folderHint = useMemo(
-    () => (type === "junk" ? "junk" : type === "archived" ? "archive" : ""),
-    [type],
+    () =>
+      listType === "junk" ? "junk" : listType === "archived" ? "archive" : "",
+    [listType],
   );
 
   const listQuery = useQuery({
-    queryKey: ["mail-list", type],
+    queryKey: ["mail-list", listType],
     queryFn: async () => {
-      const data = await api
-        .get(ROUTE_MINI_APP_API_LIST.replace(":type", type).replace(/^\//, ""))
-        .json();
-      return mailListResponseSchema.parse(data);
+      const { data, error } = await api.api["mini-app"]
+        .list({ type: listType })
+        .get();
+      if (error) throw error;
+      return data;
     },
   });
 
   const bulkMut = useMutation({
     mutationFn: async () => {
       if (!bulk) throw new Error("no bulk action");
-      const data = await api.post(bulk.url.replace(/^\//, "")).json();
-      return bulkActionResponseSchema.parse(data);
+      return await bulk.run();
     },
     onSuccess: (data) => {
       const msg =
@@ -101,7 +102,7 @@ function MailListPage() {
         (data.failed > 0 ? `，❌ ${data.failed} 封失败` : "");
       setMeta({ msg, kind: "ok" });
       notifyHaptic(data.failed > 0 ? "warning" : "success");
-      qc.invalidateQueries({ queryKey: ["mail-list", type] });
+      qc.invalidateQueries({ queryKey: ["mail-list", listType] });
     },
     onError: async (err) =>
       setMeta({ msg: await extractErrorMessage(err), kind: "error" }),
@@ -122,7 +123,7 @@ function MailListPage() {
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
       <div className="flex justify-between items-center gap-2">
         <h1 className="text-xl font-semibold text-zinc-100">
-          {MAIL_LIST_TITLES[type]}
+          {MAIL_LIST_TITLES[listType]}
         </h1>
         <div className="flex items-center gap-2">
           {bulk && (
@@ -142,7 +143,7 @@ function MailListPage() {
           <button
             type="button"
             onClick={() =>
-              qc.invalidateQueries({ queryKey: ["mail-list", type] })
+              qc.invalidateQueries({ queryKey: ["mail-list", listType] })
             }
             aria-label="强制刷新"
             className={`w-8 h-8 rounded-full flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 transition-colors ${

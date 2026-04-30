@@ -1,5 +1,5 @@
-import type { Whoami } from "@api/schemas";
-import { loginUrlForCurrentPath, useSession } from "@hooks/use-session";
+import { loginUrlForCurrentPath, useSession } from "@page/hooks/use-session";
+import type { WhoamiResponse } from "@worker/api/modules/auth/model";
 import { useEffect } from "react";
 
 /**
@@ -16,7 +16,7 @@ import { useEffect } from "react";
 export function useRequireTelegramLogin(): {
   isLoading: boolean;
   isRedirecting: boolean;
-  data: Whoami | undefined;
+  data: WhoamiResponse | undefined;
 } {
   const session = useSession();
   const isRedirecting = !session.isLoading && !session.data;

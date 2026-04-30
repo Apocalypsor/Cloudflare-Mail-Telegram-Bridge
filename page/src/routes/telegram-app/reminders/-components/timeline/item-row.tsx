@@ -1,4 +1,4 @@
-import type { Reminder } from "@api/schemas";
+import type { Reminder } from "@worker/api/modules/reminders/model";
 import type { CSSProperties } from "react";
 import { hm } from "../../-utils/timeline";
 import { Card } from "./card";

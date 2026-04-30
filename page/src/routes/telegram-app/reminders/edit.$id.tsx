@@ -1,21 +1,18 @@
-import { api } from "@api/client";
-import { okResponseSchema, reminderResponseSchema } from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
 import { Spinner } from "@heroui/react";
-import { useBackButton } from "@hooks/use-back-button";
-import { useNavigateToMail } from "@hooks/use-navigate-to-mail";
-import { INPUT_CLASS } from "@styles/inputs";
+import { api } from "@page/api/client";
+import { extractErrorMessage, validateSearch } from "@page/api/utils";
+import { useBackButton } from "@page/hooks/use-back-button";
+import { useNavigateToMail } from "@page/hooks/use-navigate-to-mail";
+import { INPUT_CLASS } from "@page/styles/inputs";
+import { notifyHaptic } from "@page/utils/tg";
+import { Type as t } from "@sinclair/typebox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { notifyHaptic } from "@utils/tg";
-import { ROUTE_REMINDERS_API } from "@worker/handlers/hono/routes";
 import { useEffect, useMemo, useState } from "react";
-import { z } from "zod";
 import { ReminderEmailCard } from "./-components/email-card";
 import {
   DEVICE_TZ_VALUE,
@@ -25,13 +22,11 @@ import {
   TZ_GROUPS,
 } from "./-utils/tz";
 
-const searchSchema = z.object({
-  back: fallback(z.string().optional(), undefined),
-});
+const Search = t.Object({ back: t.Optional(t.String()) });
 
 export const Route = createFileRoute("/telegram-app/reminders/edit/$id")({
   component: EditReminderPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function EditReminderPage() {
@@ -60,10 +55,9 @@ function EditReminderPage() {
     queryKey: ["reminder", id],
     enabled: Number.isInteger(id) && id > 0,
     queryFn: async () => {
-      const data = await api
-        .get(`${ROUTE_REMINDERS_API.replace(/^\//, "")}/${id}`)
-        .json();
-      return reminderResponseSchema.parse(data);
+      const { data, error } = await api.api.reminders({ id: String(id) }).get();
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -95,13 +89,11 @@ function EditReminderPage() {
       const dt = parseWallClockInTz(date, time, tz);
       if (Number.isNaN(dt.getTime())) throw new Error("时间格式错误");
       if (dt.getTime() <= Date.now()) throw new Error("提醒时间需在未来");
-      const data = await api
-        .patch(`${ROUTE_REMINDERS_API.replace(/^\//, "")}/${id}`, {
-          json: { text: text.trim(), remind_at: dt.toISOString() },
-        })
-        .json();
-      const parsed = okResponseSchema.parse(data);
-      if (!parsed.ok) throw new Error(parsed.error || "保存失败");
+      const { error } = await api.api.reminders({ id: String(id) }).patch({
+        text: text.trim(),
+        remind_at: dt.toISOString(),
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       notifyHaptic("success");

@@ -1,29 +1,24 @@
-import { api } from "@api/client";
-import { botInfoResponseSchema } from "@api/schemas";
-import { WebLayout } from "@components/web-layout";
 import { Card } from "@heroui/react";
+import { api } from "@page/api/client";
+import { validateSearch } from "@page/api/utils";
+import { WebLayout } from "@page/components/web-layout";
+import { Type as t } from "@sinclair/typebox";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
-import {
-  ROUTE_LOGIN_CALLBACK,
-  ROUTE_PUBLIC_BOT_INFO,
-} from "@worker/handlers/hono/routes";
 import { useEffect, useRef } from "react";
-import { z } from "zod";
 
 // `return_to` 登陆成功后跳回的路径（默认 `/`）。
 // `denied=1` + `uid` 由 Worker callback 在用户未 approved 时带过来，页面展示
 // 拒绝态。其他情况都渲染登录表单。
-const searchSchema = z.object({
-  return_to: z.string().optional(),
-  denied: z.coerce.number().optional(),
-  uid: z.string().optional(),
+const Search = t.Object({
+  return_to: t.Optional(t.String()),
+  denied: t.Optional(t.Number()),
+  uid: t.Optional(t.String()),
 });
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function LoginPage() {
@@ -73,10 +68,9 @@ function LoginWidget({ returnTo }: { returnTo: string }) {
   const botInfo = useQuery({
     queryKey: ["public", "bot-info"],
     queryFn: async () => {
-      const raw = await api
-        .get(ROUTE_PUBLIC_BOT_INFO.replace(/^\//, ""))
-        .json();
-      return botInfoResponseSchema.parse(raw);
+      const { data, error } = await api.api.public["bot-info"].get();
+      if (error) throw error;
+      return data;
     },
     retry: false,
     staleTime: Infinity,
@@ -91,7 +85,7 @@ function LoginWidget({ returnTo }: { returnTo: string }) {
     if (!host || !botInfo.data) return;
     const { botUsername } = botInfo.data;
 
-    const callbackUrl = `${ROUTE_LOGIN_CALLBACK}?return_to=${encodeURIComponent(returnTo)}`;
+    const callbackUrl = `/api/login/callback?return_to=${encodeURIComponent(returnTo)}`;
     const script = document.createElement("script");
     script.async = true;
     script.src = "https://telegram.org/js/telegram-widget.js?22";

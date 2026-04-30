@@ -1,4 +1,4 @@
-import type { MailPreviewResponse } from "@api/schemas";
+import type { MailGetResponse } from "@worker/api/modules/mail/model";
 
 /** 邮件 meta 块（From / To / Account / Date）。web `/mail/$id` 和 miniapp
  *  `/telegram-app/mail/$id` 两边渲染一字不差，统一这一份。 */
@@ -6,8 +6,8 @@ export function MailMeta({
   meta,
   accountEmail,
 }: {
-  meta: MailPreviewResponse["meta"];
-  accountEmail: MailPreviewResponse["accountEmail"];
+  meta: MailGetResponse["meta"];
+  accountEmail: MailGetResponse["accountEmail"];
 }) {
   const rows: [string, string][] = [];
   if (meta.from) rows.push(["From", meta.from]);

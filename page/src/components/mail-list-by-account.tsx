@@ -1,4 +1,7 @@
-import type { MailListAccountResult, MailListItem } from "@api/schemas";
+import type {
+  MailListAccountResult,
+  MailListItem,
+} from "@worker/api/modules/miniapp/model";
 import type { ReactNode } from "react";
 import { AccountBox } from "./account-box";
 

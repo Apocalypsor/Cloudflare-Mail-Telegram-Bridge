@@ -1,4 +1,4 @@
-import { THEME_COLORS } from "@styles/theme";
+import { THEME_COLORS } from "@page/styles/theme";
 import {
   bindViewportCssVars,
   disableVerticalSwipes,

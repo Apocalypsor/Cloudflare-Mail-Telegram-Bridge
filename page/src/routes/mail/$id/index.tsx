@@ -1,26 +1,26 @@
-import { api } from "@api/client";
-import { mailPreviewResponseSchema } from "@api/schemas";
-import { MailBodyFrame } from "@components/mail-body-frame";
-import { MailMeta } from "@components/mail-meta";
-import { WebLayout } from "@components/web-layout";
 import { Card, Skeleton } from "@heroui/react";
+import { api } from "@page/api/client";
+import { validateSearch } from "@page/api/utils";
+import { MailBodyFrame } from "@page/components/mail-body-frame";
+import { MailMeta } from "@page/components/mail-meta";
+import { WebLayout } from "@page/components/web-layout";
+import { Type as t } from "@sinclair/typebox";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
-import { ROUTE_MAIL_API } from "@worker/handlers/hono/routes";
 import { useState } from "react";
-import { z } from "zod";
 import { WebMailToolbar } from "./-components/web-toolbar";
 
-const searchSchema = z.object({
-  accountId: z.coerce.number(),
-  t: z.string(),
-  folder: z.string().optional(),
+const Search = t.Object({
+  accountId: t.Number(),
+  t: t.String(),
+  folder: t.Optional(
+    t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
+  ),
 });
 
 export const Route = createFileRoute("/mail/$id/")({
   component: WebMailPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function WebMailPage() {
@@ -43,17 +43,15 @@ function WebMailPage() {
   const q = useQuery({
     queryKey,
     queryFn: async () => {
-      const url = ROUTE_MAIL_API.replace(
-        ":id",
-        encodeURIComponent(emailMessageId),
-      ).replace(/^\//, "");
-      const searchParams: Record<string, string> = {
-        accountId: String(search.accountId),
-        t: search.t,
-      };
-      if (search.folder) searchParams.folder = search.folder;
-      const data = await api.get(url, { searchParams }).json();
-      return mailPreviewResponseSchema.parse(data);
+      const { data, error } = await api.api.mail({ id: emailMessageId }).get({
+        query: {
+          accountId: String(search.accountId),
+          t: search.t,
+          folder: search.folder,
+        },
+      });
+      if (error) throw error;
+      return data;
     },
     retry: false,
   });

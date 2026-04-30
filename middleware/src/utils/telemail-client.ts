@@ -1,5 +1,5 @@
 import ky from "ky";
-import { config } from "@/config";
+import { config } from "../config";
 
 const api = ky.create({
   prefixUrl: config.workerUrl,

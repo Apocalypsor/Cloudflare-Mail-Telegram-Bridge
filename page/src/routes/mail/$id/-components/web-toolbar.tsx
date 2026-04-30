@@ -1,6 +1,6 @@
 import { Chip } from "@heroui/react";
-import { type MailAction, useMailActions } from "@hooks/use-mail-actions";
-import { useSession } from "@hooks/use-session";
+import { type MailAction, useMailActions } from "@page/hooks/use-mail-actions";
+import { useSession } from "@page/hooks/use-session";
 import { useState } from "react";
 import { AccentButton } from "./accent-button";
 

@@ -1,6 +1,6 @@
 {
   "name": "telemail-middleware",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "IMAP middleware bridge for Telemail",
   "scripts": {
     "start": "bun src/index.ts",

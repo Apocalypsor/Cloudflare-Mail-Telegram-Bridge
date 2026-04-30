@@ -1,5 +1,5 @@
-import { WebLayout } from "@components/web-layout";
 import { Button, Card } from "@heroui/react";
+import { WebLayout } from "@page/components/web-layout";
 import { createFileRoute } from "@tanstack/react-router";
 
 /**

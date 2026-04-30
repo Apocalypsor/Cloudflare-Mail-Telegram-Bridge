@@ -1,8 +1,6 @@
-import { api } from "@api/client";
-import { type Whoami, whoamiResponseSchema } from "@api/schemas";
+import { api } from "@page/api/client";
 import { useQuery } from "@tanstack/react-query";
-import { ROUTE_SESSION_WHOAMI } from "@worker/handlers/hono/routes";
-import { HTTPError, type KyResponse } from "ky";
+import type { WhoamiResponse } from "@worker/api/modules/auth/model";
 
 /**
  * 查一下当前浏览器有没有有效 session cookie（已登录 + approved）。
@@ -14,27 +12,18 @@ import { HTTPError, type KyResponse } from "ky";
  */
 export function useSession(): {
   isLoading: boolean;
-  data: Whoami | null;
+  data: WhoamiResponse | null;
 } {
-  const q = useQuery<Whoami | null>({
+  const q = useQuery<WhoamiResponse | null>({
     queryKey: ["session", "whoami"],
     queryFn: async () => {
-      try {
-        const raw = await api
-          .get(ROUTE_SESSION_WHOAMI.replace(/^\//, ""))
-          .json();
-        return whoamiResponseSchema.parse(raw);
-      } catch (err) {
-        // 401 是预期"未登录"信号，不是错误 —— 返回 null 避免 `isError`
-        // 让调用方判错态失败。其他 error 往上抛，由 queryFn 的 error 处理。
-        if (
-          err instanceof HTTPError &&
-          (err as HTTPError<KyResponse>).response.status === 401
-        ) {
-          return null;
-        }
-        throw err;
+      const { data, error } = await api.api.session.whoami.get();
+      if (error) {
+        // 401 是预期"未登录"信号 —— 返回 null 避免 isError
+        if (error.status === 401) return null;
+        throw error;
       }
+      return data;
     },
     retry: false,
     staleTime: Infinity,

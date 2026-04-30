@@ -1,5 +1,5 @@
 import { Spinner } from "@heroui/react";
-import { INPUT_CLASS } from "@styles/inputs";
+import { INPUT_CLASS } from "@page/styles/inputs";
 import { PRESETS } from "../-utils/presets";
 import { DEVICE_TZ_VALUE, TZ_GROUPS } from "../-utils/tz";
 

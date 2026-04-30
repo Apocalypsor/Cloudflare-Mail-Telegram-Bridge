@@ -12,15 +12,14 @@
     "typecheck": "bun generate:routes && tsc -b --noEmit"
   },
   "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "@sinclair/typebox": "^0.34.49",
     "@heroui/react": "^3.0.3",
     "@heroui/styles": "^3.0.3",
     "@tanstack/react-query": "^5.100.5",
     "@tanstack/react-router": "^1.168.24",
-    "@tanstack/zod-adapter": "^1.166.9",
-    "ky": "^1.14.3",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "zod": "^3.25.76"
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.4",

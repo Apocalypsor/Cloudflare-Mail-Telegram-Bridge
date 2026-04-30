@@ -1,12 +1,9 @@
-import { api } from "@api/client";
-import { okResponseSchema } from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
+import { api } from "@page/api/client";
+import { extractErrorMessage } from "@page/api/utils";
 import { useCallback, useRef, useState } from "react";
 
 /**
- * 邮件预览页能触发的服务端动作。和 worker `routes.ts` 里 ROUTE_MAIL_*
- * 一一对应：toggle-star / archive / unarchive / trash / mark-as-junk /
- * move-to-inbox。
+ * 邮件预览页能触发的服务端动作。和 worker `api/modules/mail` 的 mutation 路由一一对应。
  */
 export type MailAction =
   | "toggle-star"
@@ -66,9 +63,6 @@ export interface UseMailActionsReturn {
  * 邮件预览页操作的共享逻辑：发 POST /api/mail/:id/<action>，维护本地
  * starred / done / pending state，成功调 onChanged。UI 反馈（toast / Chip /
  * TG popup）交给 caller。
- *
- * web `routes/mail.$id.tsx` 的 WebMailToolbar 和 Mini App
- * `components/mail-fab.tsx` 共用这个 hook。
  */
 export function useMailActions(
   params: UseMailActionsParams,
@@ -77,8 +71,6 @@ export function useMailActions(
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
 
-  // 把每次新 props 塞进 ref：run 用最新的 emailMessageId/accountId/token，
-  // 不需要把它们放进 useCallback deps，避免每次 render 重建 run 引用。
   const propsRef = useRef(params);
   propsRef.current = params;
 
@@ -90,23 +82,38 @@ export function useMailActions(
       const { emailMessageId, accountId, token, onChanged } = propsRef.current;
       setPending(true);
       try {
-        const body: Record<string, unknown> = { accountId, token };
-        if (starredNext !== undefined) body.starred = starredNext;
-        const raw = await api
-          .post(`api/mail/${encodeURIComponent(emailMessageId)}/${action}`, {
-            json: body,
-          })
-          .json();
-        const res = okResponseSchema.parse(raw);
-        if (!res.ok) {
-          return { action, starredNext, ok: false, error: res.error };
+        const m = api.api.mail({ id: emailMessageId });
+        const body = { accountId, token };
+        const result = await (action === "toggle-star"
+          ? m["toggle-star"].post({ ...body, starred: starredNext ?? false })
+          : action === "archive"
+            ? m.archive.post(body)
+            : action === "unarchive"
+              ? m.unarchive.post(body)
+              : action === "trash"
+                ? m.trash.post(body)
+                : action === "mark-as-junk"
+                  ? m["mark-as-junk"].post(body)
+                  : m["move-to-inbox"].post(body));
+        if (result.error) {
+          const value = result.error.value as { error?: string } | string;
+          const msg =
+            typeof value === "string"
+              ? value
+              : (value?.error ?? String(result.error.status));
+          return { action, starredNext, ok: false, error: msg };
         }
         if (action === "toggle-star" && starredNext !== undefined) {
           setStarred(starredNext);
         }
         if (isTerminalMailAction(action)) setDone(true);
         onChanged?.();
-        return { action, starredNext, ok: true, message: res.message };
+        return {
+          action,
+          starredNext,
+          ok: true,
+          message: result.data.message,
+        };
       } catch (err) {
         return {
           action,

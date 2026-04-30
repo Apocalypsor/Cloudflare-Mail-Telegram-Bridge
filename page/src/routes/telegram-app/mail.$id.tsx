@@ -1,30 +1,30 @@
-import { api } from "@api/client";
-import { mailPreviewResponseSchema } from "@api/schemas";
-import { MailBodyFrame } from "@components/mail-body-frame";
-import { MailFab } from "@components/mail-fab";
-import { MailMeta } from "@components/mail-meta";
 import { Skeleton } from "@heroui/react";
-import { useBackButton } from "@hooks/use-back-button";
+import { api } from "@page/api/client";
+import { validateSearch } from "@page/api/utils";
+import { MailBodyFrame } from "@page/components/mail-body-frame";
+import { MailFab } from "@page/components/mail-fab";
+import { MailMeta } from "@page/components/mail-meta";
+import { useBackButton } from "@page/hooks/use-back-button";
+import { openExternalLink } from "@page/utils/tg";
+import { Type as t } from "@sinclair/typebox";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
-import { openExternalLink } from "@utils/tg";
-import { ROUTE_MAIL_API } from "@worker/handlers/hono/routes";
 import { useCallback, useState } from "react";
-import { z } from "zod";
 
 // accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。
 // folder / back 可选。
-const searchSchema = z.object({
-  accountId: z.coerce.number(),
-  t: z.string(),
-  folder: z.string().optional(),
-  back: z.string().optional(),
+const Search = t.Object({
+  accountId: t.Number(),
+  t: t.String(),
+  folder: t.Optional(
+    t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
+  ),
+  back: t.Optional(t.String()),
 });
 
 export const Route = createFileRoute("/telegram-app/mail/$id")({
   component: MailPreviewPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function MailPreviewPage() {
@@ -58,17 +58,15 @@ function MailPreviewPage() {
   const q = useQuery({
     queryKey,
     queryFn: async () => {
-      const url = ROUTE_MAIL_API.replace(
-        ":id",
-        encodeURIComponent(emailMessageId),
-      ).replace(/^\//, "");
-      const searchParams: Record<string, string> = {
-        accountId: String(search.accountId),
-        t: search.t,
-      };
-      if (search.folder) searchParams.folder = search.folder;
-      const data = await api.get(url, { searchParams }).json();
-      return mailPreviewResponseSchema.parse(data);
+      const { data, error } = await api.api.mail({ id: emailMessageId }).get({
+        query: {
+          accountId: String(search.accountId),
+          t: search.t,
+          folder: search.folder,
+        },
+      });
+      if (error) throw error;
+      return data;
     },
   });
 

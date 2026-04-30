@@ -1,11 +1,12 @@
-import { api } from "@api/client";
-import { previewResponseSchema } from "@api/schemas";
-import { extractErrorMessage, redirectToLoginOnUnauthorized } from "@api/utils";
-import { SessionGatedWebLayout } from "@components/session-gated-web-layout";
 import { Button, Spinner } from "@heroui/react";
+import { api } from "@page/api/client";
+import {
+  extractErrorMessage,
+  redirectToLoginOnUnauthorized,
+} from "@page/api/utils";
+import { SessionGatedWebLayout } from "@page/components/session-gated-web-layout";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ROUTE_PREVIEW_API } from "@worker/handlers/hono/routes";
 import { useState } from "react";
 
 export const Route = createFileRoute("/preview")({
@@ -18,10 +19,9 @@ function PreviewPage() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      const raw = await api
-        .post(ROUTE_PREVIEW_API.replace(/^\//, ""), { json: { html } })
-        .json();
-      return previewResponseSchema.parse(raw);
+      const { data, error } = await api.api.preview.post({ html });
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => setError(null),
     onError: async (err) => {

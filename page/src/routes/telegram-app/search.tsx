@@ -1,28 +1,23 @@
-import { api } from "@api/client";
-import { mailSearchResponseSchema } from "@api/schemas";
-import { extractErrorMessage } from "@api/utils";
-import { MailListByAccount } from "@components/mail-list-by-account";
 import { Skeleton, Spinner } from "@heroui/react";
-import { useBackButton } from "@hooks/use-back-button";
-import { useNavigateToMail } from "@hooks/use-navigate-to-mail";
-import { INPUT_CLASS } from "@styles/inputs";
+import { api } from "@page/api/client";
+import { extractErrorMessage, validateSearch } from "@page/api/utils";
+import { MailListByAccount } from "@page/components/mail-list-by-account";
+import { useBackButton } from "@page/hooks/use-back-button";
+import { useNavigateToMail } from "@page/hooks/use-navigate-to-mail";
+import { INPUT_CLASS } from "@page/styles/inputs";
+import { Type as t } from "@sinclair/typebox";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { ROUTE_MINI_APP_API_SEARCH } from "@worker/handlers/hono/routes";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 
 // 查询字串放 URL，目的有二：
 // 1) 搜索状态可被浏览器 / TG WebView 历史保留 —— 点击邮件后回退能回到带结果的搜索页
 // 2) useQuery 用 q 做 cacheKey，回退时直接 hit 缓存，不再发请求
-const searchSchema = z.object({
-  q: fallback(z.string().optional(), undefined),
-});
+const Search = t.Object({ q: t.Optional(t.String()) });
 
 export const Route = createFileRoute("/telegram-app/search")({
   component: SearchPage,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: validateSearch(Search),
 });
 
 function SearchPage() {
@@ -48,12 +43,11 @@ function SearchPage() {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     queryFn: async () => {
-      const data = await api
-        .get(ROUTE_MINI_APP_API_SEARCH.replace(/^\//, ""), {
-          searchParams: { q },
-        })
-        .json();
-      return mailSearchResponseSchema.parse(data);
+      const { data, error } = await api.api["mini-app"].search.get({
+        query: { q },
+      });
+      if (error) throw error;
+      return data;
     },
   });
 

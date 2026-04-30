@@ -1,5 +1,5 @@
-import { QueryProvider, queryClient } from "@providers/query";
-import { TelegramProvider } from "@providers/telegram";
+import { QueryProvider, queryClient } from "@page/providers/query";
+import { TelegramProvider } from "@page/providers/telegram";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

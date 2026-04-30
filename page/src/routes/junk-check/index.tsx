@@ -1,12 +1,13 @@
-import { api } from "@api/client";
-import { junkCheckResponseSchema } from "@api/schemas";
-import { extractErrorMessage, redirectToLoginOnUnauthorized } from "@api/utils";
-import { SessionGatedWebLayout } from "@components/session-gated-web-layout";
 import { Button, Card, Spinner } from "@heroui/react";
-import { INPUT_CLASS } from "@styles/inputs";
+import { api } from "@page/api/client";
+import {
+  extractErrorMessage,
+  redirectToLoginOnUnauthorized,
+} from "@page/api/utils";
+import { SessionGatedWebLayout } from "@page/components/session-gated-web-layout";
+import { INPUT_CLASS } from "@page/styles/inputs";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ROUTE_JUNK_CHECK_API } from "@worker/handlers/hono/routes";
 import { useState } from "react";
 import { ResultCard } from "./-components/result-card";
 
@@ -21,12 +22,12 @@ function JunkCheckPage() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      const raw = await api
-        .post(ROUTE_JUNK_CHECK_API.replace(/^\//, ""), {
-          json: { subject, body },
-        })
-        .json();
-      return junkCheckResponseSchema.parse(raw);
+      const { data, error } = await api.api["junk-check"].post({
+        subject,
+        body,
+      });
+      if (error) throw error;
+      return data;
     },
     onMutate: () => setError(null),
     onError: async (err) => {
@@ -36,7 +37,7 @@ function JunkCheckPage() {
   });
 
   const result = mut.data;
-  const hasValidResult = result && !result.error;
+  const hasValidResult = result != null;
 
   const inputClass = `w-full text-sm ${INPUT_CLASS}`;
 
@@ -104,11 +105,6 @@ function JunkCheckPage() {
         {error && (
           <Card className="bg-red-950/30 border border-red-900/50 p-4 text-sm text-red-400">
             {error}
-          </Card>
-        )}
-        {result?.error && (
-          <Card className="bg-red-950/30 border border-red-900/50 p-4 text-sm text-red-400">
-            错误：{result.error}
           </Card>
         )}
         {hasValidResult && <ResultCard result={result} />}

@@ -1,5 +1,5 @@
-import { auth } from "@plugins/auth";
-import { imap } from "@plugins/imap";
+import { auth } from "@middleware/plugins/auth";
+import { imap } from "@middleware/plugins/imap";
 import { Elysia } from "elysia";
 import {
   AccountBody,
