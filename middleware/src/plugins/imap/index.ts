@@ -9,14 +9,12 @@ import type {
 import {
   findJunkFolder,
   findTrashFolder,
-  resolveArchiveFolder,
-  resolveFetchCandidates,
-} from "./utils/folders";
-import {
   findUidByMessageId,
   locateMessage,
+  resolveArchiveFolder,
+  resolveFetchCandidates,
   searchAndFetch,
-} from "./utils/search";
+} from "./utils";
 
 const Imap = {
   /**

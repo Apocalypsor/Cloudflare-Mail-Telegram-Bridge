@@ -1,11 +1,10 @@
-import { deleteAccount, getOwnAccounts } from "@worker/db/accounts";
+import { deleteAccount } from "@worker/db/accounts";
 import { deleteFailedEmailsByAccountId } from "@worker/db/failed-emails";
 import {
   deleteCachedAccessToken,
   deleteCachedOutlookFolderIds,
 } from "@worker/db/kv";
 import { deleteMappingsByAccountId } from "@worker/db/message-map";
-import { deleteUser } from "@worker/db/users";
 import { getEmailProvider } from "@worker/providers";
 import type { Account, Env } from "@worker/types";
 import { reportErrorToObservability } from "@worker/utils/observability";
@@ -45,16 +44,4 @@ export async function cleanupAndDeleteAccount(
     // Outlook folder ID 缓存（其他 provider 没写入也无副作用，统一删）
     deleteCachedOutlookFolderIds(env.EMAIL_KV, account.id),
   ]);
-}
-
-/** 删除用户及其绑定的所有邮箱账号 */
-export async function deleteUserWithAccounts(
-  env: Env,
-  telegramId: string,
-): Promise<void> {
-  const accounts = await getOwnAccounts(env.DB, telegramId);
-  for (const acc of accounts) {
-    await cleanupAndDeleteAccount(env, acc);
-  }
-  await deleteUser(env.DB, telegramId);
 }

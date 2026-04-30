@@ -1,8 +1,10 @@
-import { deleteUserWithAccounts } from "@worker/bot/utils/account";
+import { cleanupAndDeleteAccount } from "@worker/bot/utils/account";
 import { isAdmin } from "@worker/bot/utils/auth";
 import { formatUserName } from "@worker/bot/utils/formatters";
+import { getOwnAccounts } from "@worker/db/accounts";
 import {
   approveUser,
+  deleteUser,
   getNonAdminUsers,
   getUserByTelegramId,
   rejectUser,
@@ -12,6 +14,18 @@ import type { Env } from "@worker/types";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { userListKeyboard, userListText } from "./utils";
+
+/** 删除用户及其绑定的所有邮箱账号 */
+async function deleteUserWithAccounts(
+  env: Env,
+  telegramId: string,
+): Promise<void> {
+  const accounts = await getOwnAccounts(env.DB, telegramId);
+  for (const acc of accounts) {
+    await cleanupAndDeleteAccount(env, acc);
+  }
+  await deleteUser(env.DB, telegramId);
+}
 
 /** 注册 user 管理回调：列表 / info / approve / reject / delete confirm + confirmed。 */
 export function registerUserCallbacks(bot: Bot, env: Env) {

@@ -1,5 +1,5 @@
-import { retryAllFailedEmails } from "@worker/handlers/queue/bridge";
-import { dispatchDueReminders } from "@worker/handlers/scheduled/reminders";
+import { retryAllFailedEmails } from "@worker/handlers/queue/utils";
+import { dispatchDueReminders } from "@worker/handlers/scheduled/utils";
 import { renewAllPush } from "@worker/providers";
 import { checkImapBridgeHealth } from "@worker/providers/imap";
 import type { Env } from "@worker/types";

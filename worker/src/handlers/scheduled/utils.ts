@@ -6,7 +6,7 @@ import {
   markReminderSent,
   type Reminder,
 } from "@worker/db/reminders";
-import { deliverEmailToTelegram } from "@worker/handlers/queue/bridge";
+import { deliverEmailToTelegram } from "@worker/handlers/queue/utils";
 import { t } from "@worker/i18n";
 import { getEmailProvider } from "@worker/providers";
 import type { Account, Env } from "@worker/types";
