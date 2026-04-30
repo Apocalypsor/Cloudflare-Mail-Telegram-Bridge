@@ -1,5 +1,5 @@
-// 手动镜像 worker/services/mail-list 的同名 tuple —— 不 import 是为了不把
-// worker 运行时依赖（@db 等）拖进前端 bundle。
+// 手动镜像 worker/src/utils/mail-list.ts 的同名 tuple —— 不 import 是为了不把
+// worker 运行时依赖（D1 等）拖进前端 bundle。
 export const MAIL_LIST_TYPES = [
   "unread",
   "starred",

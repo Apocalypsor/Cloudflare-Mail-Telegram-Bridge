@@ -9,8 +9,8 @@
 ## 技术栈
 
 - **Runtime**：Cloudflare Workers（后端）+ Cloudflare Pages（Mini App 前端 + web 工具页）
-- **后端**：[Hono](https://hono.dev) + [grammY](https://grammy.dev) + Cloudflare D1 / KV / Queue / Cron
-- **前端**：[Vite](https://vite.dev) + React 19 + [TanStack Router](https://tanstack.com/router) + [TanStack Query](https://tanstack.com/query) + [HeroUI](https://heroui.com) + [ky](https://github.com/sindresorhus/ky) + [zod](https://zod.dev)
+- **后端**：[Elysia](https://elysiajs.com)（CloudflareAdapter）+ [grammY](https://grammy.dev) + Cloudflare D1 / KV / Queue / Cron
+- **前端**：[Vite](https://vite.dev) + React 19 + [TanStack Router](https://tanstack.com/router) + [TanStack Query](https://tanstack.com/query) + [HeroUI](https://heroui.com) + [Eden treaty](https://elysiajs.com/eden/treaty/overview)（端到端类型安全 RPC）+ [TypeBox](https://github.com/sinclairzx81/typebox)
 - **邮件解析**：[postal-mime](https://github.com/postalsys/postal-mime)；HTML → Markdown：[turndown](https://github.com/mixmark-io/turndown) → Telegram MarkdownV2
 - **AI 摘要**：任何 OpenAI-compatible API（可选）
 - **i18n**：[i18next](https://www.i18next.com)（当前仅中文）
@@ -97,7 +97,7 @@ Queue Consumer 拉取原始 RFC 2822 邮件（Gmail REST / Outlook Graph / IMAP 
 | `/junk`     | 查看垃圾邮件     |
 | `/archived` | 查看归档邮件     |
 
-命令菜单通过 `setMyCommands` API 自动注册到 Telegram（webhook 收到消息时异步触发，KV 版本号不变则跳过）。修改 `worker/bot/commands.ts` 的 `BOT_COMMANDS` 后递增 `BOT_COMMANDS_VERSION` 即可，部署后发任意消息给 Bot 生效。
+命令菜单通过 `setMyCommands` API 自动注册到 Telegram（webhook 收到消息时异步触发，KV 版本号不变则跳过）。修改 `worker/src/bot/commands.ts` 的 `BOT_COMMANDS` 后递增 `BOT_COMMANDS_VERSION` 即可，部署后发任意消息给 Bot 生效。
 
 管理员另有几条不出现在公开菜单里的命令（`/users`、`/secrets` 等），定义在 `commands.ts` 的 `ADMIN_COMMANDS`，`/help` 里管理员可见。
 

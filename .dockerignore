@@ -23,21 +23,9 @@
 **/*.tsbuildinfo
 page/src/routeTree.gen.ts
 
-# 跟 middleware build 无关的子包源码（Dockerfile 只 COPY middleware/src）
-worker/src
-worker/scripts
-worker/migrations
-worker/i18n
-worker/index.ts
-worker/handlers
-worker/services
-worker/providers
-worker/db
-worker/bot
-worker/utils
-page/src
-page/public
-page/index.html
+# 跟 middleware build 无关的子包（Dockerfile 只 COPY middleware/src）
+worker
+page
 
 # docs
 docs

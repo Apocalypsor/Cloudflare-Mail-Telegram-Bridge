@@ -42,18 +42,6 @@ export interface TelegramUser {
   created_at: string;
 }
 
-/** Hono context variables set by session middleware */
-export interface SessionVariables {
-  userId: string;
-  isAdmin: boolean;
-}
-
-/** Hono app type with session variables */
-export type AppEnv = {
-  Bindings: Env;
-  Variables: SessionVariables;
-};
-
 export interface Env {
   /** 由 webhook handler 注入，用于在响应后执行后台任务 */
   waitUntil?: (p: Promise<unknown>) => void;
