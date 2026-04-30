@@ -23,9 +23,11 @@
 **/*.tsbuildinfo
 page/src/routeTree.gen.ts
 
-# 跟 middleware build 无关的子包（Dockerfile 只 COPY middleware/src）
-worker
-page
+# 跟 middleware build 无关的子包（Dockerfile 只 COPY package.json 用来解析 workspace）
+worker/**
+!worker/package.json
+page/**
+!page/package.json
 
 # docs
 docs
