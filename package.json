@@ -29,7 +29,7 @@
     "@biomejs/biome": "2.5.3",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.0",
-    "typescript": "^6.0.0",
+    "typescript": "^7.0.0",
     "wrangler": "^4.85.0"
   },
   "lint-staged": {
