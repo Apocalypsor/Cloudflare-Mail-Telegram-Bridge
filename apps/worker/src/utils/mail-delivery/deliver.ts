@@ -8,6 +8,7 @@ import {
   sendTextMessage,
   sendWithAttachments,
   setReplyMarkup,
+  type TelegramSendResult,
 } from "@worker/clients/telegram";
 import { putFailedEmail } from "@worker/db/failed-emails";
 import { putMessageMapping, updateShortSummary } from "@worker/db/message-map";
@@ -23,12 +24,17 @@ import { wrapExpandableQuote } from "@worker/utils/markdown-v2";
 import { syncStarPinState } from "@worker/utils/message-actions";
 import { reportErrorToObservability } from "@worker/utils/observability";
 import PostalMime from "postal-mime";
+import { type EmailDeliveryResult, runAfterDeliveryClaim } from "./coordinator";
+
+interface EmailDeliveryOptions {
+  beforeSend?: () => Promise<boolean>;
+}
 
 /**
  * 解析 raw email 并发送到账号对应的 Telegram chat。
  *
  * 流程：
- *  1. 远端状态 reconcile（队列入队 → 消费的窗口里用户可能在远端把邮件挪走 → 跳过投递）
+ *  1. 远端状态 reconcile（收到通知 → 后台投递的窗口里用户可能在远端把邮件挪走 → 跳过投递）
  *  2. parse + 渲染 header + body（共用 `prepareEmailContent`，跟 retry 流复用）
  *  3. 发"最小键盘"消息 → 拿 sentMessageId → 写 mapping → 升级到完整键盘
  *  4. （可选）后台 LLM 分析 + edit message；失败入 `failed_emails` 等 cron 重试
@@ -40,14 +46,15 @@ export const deliverEmailToTelegram = async (
   env: Env,
   waitUntil: (p: Promise<unknown>) => void,
   resolvedState?: MessageState | null,
-): Promise<void> => {
+  options: EmailDeliveryOptions = {},
+): Promise<EmailDeliveryResult> => {
   const chatId = account.chat_id;
   const topicId = account.topic_id;
 
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
 
-  // 查远端状态：队列入队到处理之间可能已被用户在远端 junk/archive/delete；仅 inbox 才投递。
+  // 查远端状态：通知到处理之间可能已被用户在远端 junk/archive/delete；仅 inbox 才投递。
   // 顺带拿到 starred 给初始 keyboard，避免 TG 键盘从 ☆ → ★ 闪烁
   const state =
     resolvedState !== undefined
@@ -59,7 +66,7 @@ export const deliverEmailToTelegram = async (
     console.log(
       `Skip delivery: email=${emailMessageId} already at ${state.location} on remote`,
     );
-    return;
+    return "skipped";
   }
   const initialStarred = state?.location === "inbox" ? state.starred : false;
 
@@ -80,25 +87,28 @@ export const deliverEmailToTelegram = async (
   // failed，`.catch(() => {})` 会把错误吞掉，用户就永远看不到任何键盘。
   // 有了这个初始刷新键，至少还能手动 refresh 触发重建。
   const initialKeyboard = buildInitialEmailKeyboard();
-  let sentMessageId: number;
-  if (hasAttachments) {
-    sentMessageId = await sendWithAttachments(
-      env,
-      chatId,
-      text,
-      email.attachments || [],
-      initialKeyboard,
-      topicId,
-    );
-  } else {
-    sentMessageId = await sendTextMessage(
-      env,
-      chatId,
-      text,
-      initialKeyboard,
-      topicId != null ? { message_thread_id: topicId } : undefined,
-    );
-  }
+  const initialSend = await runAfterDeliveryClaim<TelegramSendResult>(
+    options.beforeSend,
+    () =>
+      hasAttachments
+        ? sendWithAttachments(
+            env,
+            chatId,
+            text,
+            email.attachments || [],
+            initialKeyboard,
+            topicId,
+          )
+        : sendTextMessage(
+            env,
+            chatId,
+            text,
+            initialKeyboard,
+            topicId != null ? { message_thread_id: topicId } : undefined,
+          ).then((messageId) => ({ messageId })),
+  );
+  if (!initialSend.claimed) return "not-claimed";
+  const { messageId: sentMessageId, followupError } = initialSend.value;
 
   const inserted = await putMessageMapping(env.DB, {
     tg_message_id: sentMessageId,
@@ -114,7 +124,20 @@ export const deliverEmailToTelegram = async (
       `Duplicate delivery detected for ${emailMessageId}, deleting duplicate Telegram message`,
     );
     await deleteMessage(env, chatId, sentMessageId).catch(() => {});
-    return;
+    return "sent";
+  }
+
+  if (followupError) {
+    await reportErrorToObservability(
+      env,
+      "email.attachment_followup_failed",
+      followupError,
+      {
+        accountId: account.id,
+        emailMessageId,
+        tgMessageId: sentMessageId,
+      },
+    ).catch(() => {});
   }
 
   const keyboard = await buildEmailKeyboard(
@@ -133,9 +156,9 @@ export const deliverEmailToTelegram = async (
     await syncStarPinState(env, chatId, sentMessageId, true);
   }
 
-  if (!canAnalyze) return;
+  if (!canAnalyze) return "sent";
 
-  if (!plainBody.trim()) return;
+  if (!plainBody.trim()) return "sent";
 
   waitUntil(
     (async () => {
@@ -200,4 +223,5 @@ export const deliverEmailToTelegram = async (
       }
     })(),
   );
+  return "sent";
 };

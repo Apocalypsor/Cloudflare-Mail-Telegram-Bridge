@@ -12,13 +12,17 @@ import { registerPrivateOnlyCommandGuard } from "@worker/bot/utils/auth";
 import { memoizeAsync } from "@worker/bot/utils/memoize";
 import { getCachedBotInfo, putCachedBotInfo } from "@worker/db/kv";
 import { t } from "@worker/i18n";
-import type { Env } from "@worker/types";
+import type { Env, WaitUntil } from "@worker/types";
 import { reportErrorToObservability } from "@worker/utils/observability";
 import { Api, Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
 
 /** 创建 grammY Bot 实例（仅用于 webhook 接收端） */
-export const createBot = (env: Env, botInfo: UserFromGetMe) => {
+export const createBot = (
+  env: Env,
+  botInfo: UserFromGetMe,
+  waitUntil: WaitUntil,
+) => {
   const bot = new Bot(env.TELEGRAM_BOT_TOKEN, { botInfo });
 
   bot.catch(async (err) => {
@@ -41,13 +45,13 @@ export const createBot = (env: Env, botInfo: UserFromGetMe) => {
   // 必须在 register*Handlers 之前注册，否则 use() 顺序错过。
   registerPrivateOnlyCommandGuard(bot);
   registerStartHandlers(bot, env, botInfo.username);
-  registerAdminHandlers(bot, env, botInfo.username);
+  registerAdminHandlers(bot, env, botInfo.username, waitUntil);
   registerReactionHandler(bot, env);
   registerStarHandler(bot, env);
   registerJunkHandler(bot, env);
   registerArchiveHandler(bot, env);
   registerRefreshHandler(bot, env);
-  registerSyncHandler(bot, env);
+  registerSyncHandler(bot, env, waitUntil);
   registerMcpApiKeyHandler(bot, env);
   registerPinCleanupHandler(bot, env);
 

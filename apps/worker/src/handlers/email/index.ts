@@ -28,18 +28,21 @@ const emailHandler = async (
   }
 
   ctx.waitUntil(
-    ImapProvider.enqueue({ accountId: account.id, rfcMessageId }, env).catch(
-      (err) =>
-        reportErrorToObservability(
-          env,
-          "email.imap_forward_enqueue_failed",
-          err,
-          {
-            accountId: account.id,
-            recipient: message.to,
-            rfcMessageId,
-          },
-        ),
+    ImapProvider.dispatch(
+      { accountId: account.id, rfcMessageId },
+      env,
+      ctx.waitUntil.bind(ctx),
+    ).catch((err) =>
+      reportErrorToObservability(
+        env,
+        "email.imap_forward_dispatch_failed",
+        err,
+        {
+          accountId: account.id,
+          recipient: message.to,
+          rfcMessageId,
+        },
+      ),
     ),
   );
 };

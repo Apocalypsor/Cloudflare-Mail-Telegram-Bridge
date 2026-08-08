@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "telemail-test",
+  "main": "test/worker.ts",
+  "compatibility_date": "2026-04-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "telemail-test",
+      "database_id": "ed82b3d6-e172-43d6-a9cd-896269dc9b33",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

@@ -43,18 +43,22 @@ import type {
   PreviewContent,
   RawEmailWithState,
 } from "@worker/providers/types";
-import {
-  type Account,
-  type Env,
-  type MailAttachmentDownload,
-  type MailMeta,
-  QueueMessageType,
+import type {
+  Account,
+  Env,
+  MailAttachmentDownload,
+  MailMeta,
+  WaitUntil,
 } from "@worker/types";
 import {
   base64urlToArrayBuffer,
   base64urlToByteStream,
 } from "@worker/utils/base64url";
 import { parseEmailDate, wrapPlainText } from "@worker/utils/mail/body";
+import {
+  createEmailDeliveryScheduleContext,
+  scheduleEmailDeliveries,
+} from "@worker/utils/mail-delivery/dispatch";
 import { HTTPError } from "ky";
 
 export class GmailProvider extends EmailProvider {
@@ -106,12 +110,13 @@ export class GmailProvider extends EmailProvider {
     );
   }
 
-  // ─── Enqueue ──────────────────────────────────────────────────────────
+  // ─── Push dispatch ────────────────────────────────────────────────────
 
-  /** 解析 Pub/Sub 通知，获取新邮件列表并入队 */
-  static async enqueue(
+  /** 解析 Pub/Sub 通知，获取新邮件列表并安排后台投递 */
+  static async dispatch(
     body: { message: { data: string } },
     env: Env,
+    waitUntil: WaitUntil,
   ): Promise<void> {
     const decoded = JSON.parse(atob(body.message.data)) as {
       emailAddress: string;
@@ -127,6 +132,7 @@ export class GmailProvider extends EmailProvider {
       return;
     }
 
+    const scheduleContext = createEmailDeliveryScheduleContext();
     for (const account of accounts) {
       const storedHistoryId = await getHistoryId(env.DB, account.id);
       if (!storedHistoryId) {
@@ -145,17 +151,17 @@ export class GmailProvider extends EmailProvider {
         continue;
       }
 
-      console.log(
-        `Found ${messageIds.length} new messages for ${account.email} (#${account.id}), enqueueing`,
-      );
-      await env.EMAIL_QUEUE.sendBatch(
+      const scheduled = scheduleEmailDeliveries(
+        env,
         messageIds.map((id) => ({
-          body: {
-            type: QueueMessageType.Email,
-            accountId: account.id,
-            emailMessageId: id,
-          },
+          accountId: account.id,
+          emailMessageId: id,
         })),
+        waitUntil,
+        scheduleContext,
+      );
+      console.log(
+        `Found ${messageIds.length} new messages for ${account.email} (#${account.id}), scheduled ${scheduled}`,
       );
     }
   }

@@ -1,7 +1,7 @@
-import type { Env } from "@worker/types";
+import type { Env, WaitUntil } from "@worker/types";
 import { reportErrorToObservability } from "@worker/utils/observability";
 
-export type WaitUntil = (p: Promise<unknown>) => void;
+export type { WaitUntil } from "@worker/types";
 
 export interface ScheduledTaskContext {
   env: Env;

@@ -1,4 +1,5 @@
 import { deleteAccount } from "@worker/db/accounts";
+import { deleteEmailDeliveriesByAccountId } from "@worker/db/email-deliveries";
 import { deleteFailedEmailsByAccountId } from "@worker/db/failed-emails";
 import {
   deleteCachedAccessToken,
@@ -38,6 +39,7 @@ export const cleanupAndDeleteAccount = async (
   );
 
   await Promise.all([
+    deleteEmailDeliveriesByAccountId(env.DB, account.id),
     deleteMappingsByAccountId(env.DB, account.id),
     deleteFailedEmailsByAccountId(env.DB, account.id),
     deleteCachedAccessToken(env.EMAIL_KV, account.id),

@@ -23,7 +23,12 @@ import type {
   RawEmailWithState,
 } from "@worker/providers/types";
 import { attachmentBody, parseOffsetCursor } from "@worker/providers/utils";
-import type { Account, Env, MailAttachmentDownload } from "@worker/types";
+import type {
+  Account,
+  Env,
+  MailAttachmentDownload,
+  WaitUntil,
+} from "@worker/types";
 import {
   formatAddress,
   parseEmailDate,
@@ -290,9 +295,13 @@ export abstract class EmailProvider {
   /** 账号详情页是否显示归档标签入口。目前只有 Gmail（label 方式）需要。 */
   static needsArchiveSetup = false;
 
-  /** 子类必须 override —— 解析 provider 推送 payload 并入队。 */
-  static async enqueue(_body: unknown, _env: Env): Promise<void> {
-    throw new Error("enqueue not implemented");
+  /** 子类必须 override —— 解析 provider 推送 payload 并安排后台投递。 */
+  static async dispatch(
+    _body: unknown,
+    _env: Env,
+    _waitUntil: WaitUntil,
+  ): Promise<void> {
+    throw new Error("dispatch not implemented");
   }
 
   static createOAuthHandler(config: OAuthProviderConfig): OAuthHandler {

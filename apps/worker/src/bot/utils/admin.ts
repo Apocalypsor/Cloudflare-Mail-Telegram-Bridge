@@ -8,7 +8,7 @@ import { escapeBackslashAndBacktick } from "@worker/utils/string";
 import { getWorkerBaseUrl } from "@worker/utils/url";
 import { InlineKeyboard } from "grammy";
 
-export const SECRETS_AUTO_DELETE_SECONDS = 60;
+export const SECRETS_AUTO_DELETE_SECONDS = 20;
 
 type ChatType = "private" | "group" | "supergroup" | "channel" | undefined;
 

@@ -5,12 +5,16 @@ import {
   type Account,
   AccountType,
   type Env,
-  QueueMessageType,
+  type WaitUntil,
 } from "@worker/types";
+import {
+  createEmailDeliveryScheduleContext,
+  scheduleEmailDeliveries,
+} from "@worker/utils/mail-delivery/dispatch";
 import { reportErrorToObservability } from "@worker/utils/observability";
 
 export interface MailSyncResult {
-  enqueued: number;
+  scheduled: number;
   error?: string;
 }
 
@@ -23,12 +27,14 @@ const DEFAULT_MAX_SYNC_PER_ACCOUNT = 50;
 export const syncAccountUnreadMail = async (
   env: Env,
   account: Account,
+  waitUntil: WaitUntil,
   maxMessages = DEFAULT_MAX_SYNC_PER_ACCOUNT,
+  scheduleContext = createEmailDeliveryScheduleContext(),
 ): Promise<MailSyncResult> => {
   try {
     const provider = getEmailProvider(account, env);
     const unread = await provider.listUnread(maxMessages);
-    if (unread.length === 0) return { enqueued: 0 };
+    if (unread.length === 0) return { scheduled: 0 };
 
     const mappings = await getMappingsByEmailIds(
       env.DB,
@@ -37,24 +43,24 @@ export const syncAccountUnreadMail = async (
     );
     const delivered = new Set(mappings.map((m) => m.email_message_id));
     const newMessages = unread.filter((m) => !delivered.has(m.id));
-    if (newMessages.length === 0) return { enqueued: 0 };
+    if (newMessages.length === 0) return { scheduled: 0 };
 
-    await env.EMAIL_QUEUE.sendBatch(
+    const scheduled = scheduleEmailDeliveries(
+      env,
       newMessages.map((m) => ({
-        body: {
-          type: QueueMessageType.Email,
-          accountId: account.id,
-          emailMessageId: m.id,
-        },
+        accountId: account.id,
+        emailMessageId: m.id,
       })),
+      waitUntil,
+      scheduleContext,
     );
-    return { enqueued: newMessages.length };
+    return { scheduled };
   } catch (err) {
     await reportErrorToObservability(env, "mail_sync.account_failed", err, {
       accountId: account.id,
     });
     return {
-      enqueued: 0,
+      scheduled: 0,
       error: err instanceof Error ? err.message : String(err),
     };
   }
@@ -63,25 +69,42 @@ export const syncAccountUnreadMail = async (
 export const syncAccountsUnreadMail = async (
   env: Env,
   accounts: Account[],
-): Promise<AccountMailSyncResult[]> =>
-  Promise.all(
+  waitUntil: WaitUntil,
+): Promise<AccountMailSyncResult[]> => {
+  const scheduleContext = createEmailDeliveryScheduleContext();
+  return Promise.all(
     accounts.map(async (account) => ({
       account,
-      ...(await syncAccountUnreadMail(env, account)),
+      ...(await syncAccountUnreadMail(
+        env,
+        account,
+        waitUntil,
+        DEFAULT_MAX_SYNC_PER_ACCOUNT,
+        scheduleContext,
+      )),
     })),
   );
+};
 
 export const syncAllEnabledAccountsUnreadMail = async (
   env: Env,
+  waitUntil: WaitUntil,
 ): Promise<AccountMailSyncResult[]> => {
   const accounts = (await getAllAccounts(env.DB)).filter(canPollAccount);
   const results: AccountMailSyncResult[] = [];
+  const scheduleContext = createEmailDeliveryScheduleContext();
 
   // ponytail: sequential scan keeps cron from bursting IMAP/API connections; add bounded concurrency if account count makes this too slow.
   for (const account of accounts) {
     results.push({
       account,
-      ...(await syncAccountUnreadMail(env, account)),
+      ...(await syncAccountUnreadMail(
+        env,
+        account,
+        waitUntil,
+        DEFAULT_MAX_SYNC_PER_ACCOUNT,
+        scheduleContext,
+      )),
     });
   }
 

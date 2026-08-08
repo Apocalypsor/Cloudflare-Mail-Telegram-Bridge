@@ -51,12 +51,11 @@ import type {
   MessageState,
   PreviewContent,
 } from "@worker/providers/types";
+import type { Env, MailAttachmentDownload, WaitUntil } from "@worker/types";
 import {
-  type EmailQueueMessage,
-  type Env,
-  type MailAttachmentDownload,
-  QueueMessageType,
-} from "@worker/types";
+  type EmailDeliveryRequest,
+  scheduleEmailDeliveries,
+} from "@worker/utils/mail-delivery/dispatch";
 import { reportErrorToObservability } from "@worker/utils/observability";
 import { getWorkerBaseUrl } from "@worker/utils/url";
 import { HTTPError } from "ky";
@@ -98,10 +97,10 @@ export class OutlookProvider extends EmailProvider {
     );
   }
 
-  // ─── Enqueue ──────────────────────────────────────────────────────────
+  // ─── Push dispatch ────────────────────────────────────────────────────
 
-  /** 解析 Graph change notification 并入队 */
-  static async enqueue(
+  /** 解析 Graph change notification 并安排后台投递 */
+  static async dispatch(
     body: {
       value: Array<{
         subscriptionId: string;
@@ -112,8 +111,9 @@ export class OutlookProvider extends EmailProvider {
       }>;
     },
     env: Env,
+    waitUntil: WaitUntil,
   ): Promise<void> {
-    const batch: Array<{ body: EmailQueueMessage }> = [];
+    const batch: EmailDeliveryRequest[] = [];
 
     for (const notification of body.value) {
       if (notification.clientState !== env.MS_WEBHOOK_SECRET) {
@@ -145,18 +145,14 @@ export class OutlookProvider extends EmailProvider {
         continue;
       }
 
-      batch.push({
-        body: {
-          type: QueueMessageType.Email,
-          accountId: account.id,
-          emailMessageId: messageId,
-        },
-      });
+      batch.push({ accountId: account.id, emailMessageId: messageId });
     }
 
     if (batch.length > 0) {
-      console.log(`Outlook push: enqueueing ${batch.length} messages`);
-      await env.EMAIL_QUEUE.sendBatch(batch);
+      const scheduled = scheduleEmailDeliveries(env, batch, waitUntil);
+      console.log(
+        `Outlook push: found ${batch.length} messages, scheduled ${scheduled}`,
+      );
     }
   }
 
