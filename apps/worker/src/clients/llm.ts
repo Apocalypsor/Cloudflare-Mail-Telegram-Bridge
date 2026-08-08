@@ -18,10 +18,13 @@ interface ResponsesStreamState {
   fallbackText: string | null;
 }
 
-interface WorkersAiChatCompletion {
+interface WorkersAiResponse {
   choices?: {
     message?: { content?: string | null };
     text?: string | null;
+  }[];
+  output?: {
+    content?: { type?: string; text?: string }[];
   }[];
   output_text?: string;
   response?: string;
@@ -41,7 +44,7 @@ export interface EmailAnalysis {
   junkConfidence: number;
 }
 
-const WORKERS_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
+const WORKERS_AI_MODEL = "openai/gpt-5.6-luna";
 
 export const hasLlm = (env: Env): boolean =>
   !!env.AI || !!(env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL);
@@ -155,8 +158,8 @@ const callWorkersAI = async (
   json?: boolean,
 ): Promise<string> => {
   const response = await ai.run(WORKERS_AI_MODEL, {
-    messages: [{ role: "user", content: prompt }],
-    ...(json && { response_format: { type: "json_object" } }),
+    input: prompt,
+    ...(json && { text: { format: { type: "json_object" } } }),
   });
   const content = extractWorkersAIText(response);
   if (!content) throw new Error("Workers AI returned no output text");
@@ -176,9 +179,16 @@ const extractWorkersAIText = (response: unknown): string | null => {
   if (typeof response === "string") return response;
   if (!response || typeof response !== "object") return null;
 
-  const result = response as WorkersAiChatCompletion;
+  const result = response as WorkersAiResponse;
   if (typeof result.response === "string") return result.response;
   if (typeof result.output_text === "string") return result.output_text;
+
+  const outputText = result.output
+    ?.flatMap((item) => item.content ?? [])
+    .filter((item) => item.type === "output_text")
+    .map((item) => item.text ?? "")
+    .join("");
+  if (outputText) return outputText;
 
   const content =
     result.choices?.[0]?.message?.content ?? result.choices?.[0]?.text;
