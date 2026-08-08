@@ -1,0 +1,209 @@
+import { describe, expect, it } from "vitest";
+import { formatBody } from "../src/utils/mail/body";
+import {
+  htmlToMarkdown,
+  renderEmailBody,
+  truncateMarkdown,
+} from "../src/utils/mail/render";
+import { findLongestValidMdV2Prefix } from "../src/utils/markdown-v2";
+
+describe("email HTML rendering", () => {
+  it("removes hidden preheaders, zero-width filler, and image-only links", () => {
+    const html = `
+      <html><body>
+        <div style="display:none;max-height:0;overflow:hidden">Preview secret</div>
+        <span>&#8203;&#8203;</span>
+        <a href="https://tracker.example/pixel"><img src="pixel.gif" alt="badge"></a>
+        <p>Your order is ready.</p>
+      </body></html>`;
+
+    expect(htmlToMarkdown(html)).toBe("Your order is ready.");
+  });
+
+  it("renders layout rows without a blank paragraph per cell", () => {
+    const html = `
+      <table role="presentation">
+        <tr><td>Status</td><td>Shipped</td></tr>
+        <tr><td>Arrival</td><td>Tomorrow</td></tr>
+      </table>`;
+
+    expect(htmlToMarkdown(html)).toBe("Status: Shipped\nArrival: Tomorrow");
+  });
+
+  it("uses soft line breaks for paragraphs nested inside layout cells", () => {
+    const html = `
+      <table role="presentation">
+        <tr><td><p>Product title</p><p>Product details</p></td></tr>
+        <tr><td><p>Next product</p></td></tr>
+      </table>`;
+
+    expect(htmlToMarkdown(html)).toBe(
+      "Product title\nProduct details\nNext product",
+    );
+  });
+
+  it("preserves inline links in compact key-value rows", () => {
+    const html = `
+      <table>
+        <tr>
+          <td><a href="https://orders.example/42">Order</a></td>
+          <td>Ready</td>
+        </tr>
+      </table>`;
+
+    expect(htmlToMarkdown(html)).toBe(
+      "[Order](https://orders.example/42): Ready",
+    );
+  });
+
+  it("keeps genuine paragraphs separated", () => {
+    expect(
+      htmlToMarkdown("<p>First paragraph.</p><p>Second paragraph.</p>"),
+    ).toBe("First paragraph.\n\nSecond paragraph.");
+  });
+
+  it("uses a hostname for a sole long actionable URL", () => {
+    const target = `https://verify.example/action?token=${"x".repeat(240)}`;
+
+    expect(htmlToMarkdown(`<p><a href="${target}">${target}</a></p>`)).toBe(
+      `[verify.example](${target})`,
+    );
+  });
+
+  it("removes a duplicate raw URL when a meaningful link has the same target", () => {
+    const target = `https://verify.example/action?token=${"x".repeat(240)}`;
+    const html = `
+      <p><a href="${target}">Verify account</a></p>
+      <p><a href="${target}">${target}</a></p>`;
+
+    expect(htmlToMarkdown(html)).toBe(`[Verify account](${target})`);
+  });
+
+  it("compacts an explicit footer but keeps required links", () => {
+    const html = `
+      <main><p>Useful message.</p></main>
+      <footer>
+        <a href="https://example.test/home">Home</a>
+        <a href="https://example.test/social">Social</a>
+        <a href="https://example.test/unsubscribe">Unsubscribe</a>
+        <a href="https://example.test/privacy">Privacy</a>
+        <p>Copyright 2026 Example.</p>
+      </footer>`;
+
+    expect(htmlToMarkdown(html)).toBe(
+      "Useful message.\n\n" +
+        "[Unsubscribe](https://example.test/unsubscribe) · " +
+        "[Privacy](https://example.test/privacy)\n" +
+        "Copyright 2026 Example.",
+    );
+  });
+
+  it("removes only near-adjacent exact duplicates", () => {
+    const html = `
+      <p>Repeated title</p><p>|</p><p>Repeated title</p>
+      <p>Keep this</p><p>Repeated title</p>`;
+
+    expect(htmlToMarkdown(html)).toBe(
+      "Repeated title\n\nKeep this\n\nRepeated title",
+    );
+  });
+
+  it("prefers clean HTML when both MIME alternatives are present", () => {
+    expect(
+      renderEmailBody("Plain fallback", "<p><strong>Rich body</strong></p>"),
+    ).toEqual({ markdown: "**Rich body**", source: "html" });
+  });
+
+  it("uses plain text when HTML triggers independent noise signals", () => {
+    const rows = Array.from(
+      { length: 16 },
+      (_, index) => `<tr><td>${index}</td><td>|</td></tr>`,
+    ).join("");
+    const links = Array.from(
+      { length: 4 },
+      (_, index) =>
+        `<p><a href="https://track.example/${index}?token=${"x".repeat(320)}">${index}</a></p>`,
+    ).join("");
+
+    expect(
+      renderEmailBody(
+        "Your package ships tomorrow. Track it from your account.",
+        `<table role="presentation">${rows}</table>${links}`,
+      ),
+    ).toEqual({
+      markdown: "Your package ships tomorrow. Track it from your account.",
+      source: "text",
+    });
+  });
+
+  it("keeps HTML when the plain alternative is more verbose", () => {
+    const rows = Array.from(
+      { length: 16 },
+      (_, index) => `<tr><td>${index}</td><td>|</td></tr>`,
+    ).join("");
+    const links = Array.from(
+      { length: 4 },
+      (_, index) =>
+        `<p><a href="https://track.example/${index}?token=${"x".repeat(320)}">${index}</a></p>`,
+    ).join("");
+
+    expect(
+      renderEmailBody(
+        "Readable but unnecessarily verbose. ".repeat(300),
+        `<table role="presentation">${rows}</table>${links}`,
+      ).source,
+    ).toBe("html");
+  });
+
+  it("keeps HTML when a short plain alternative may be incomplete", () => {
+    const html = `<p>${"Detailed content ".repeat(20)}</p>`;
+
+    expect(renderEmailBody("Unsubscribe", html).source).toBe("html");
+  });
+
+  it("normalizes compact hyphen list markers", () => {
+    expect(renderEmailBody("-支持邮件转发\n-保留操作链接")).toEqual({
+      markdown: "- 支持邮件转发\n- 保留操作链接",
+      source: "text",
+    });
+  });
+
+  it("does not revive intentionally hidden HTML as a stripped fallback", () => {
+    expect(
+      renderEmailBody(
+        undefined,
+        '<div style="display:none;max-height:0;overflow:hidden">Preview only</div>',
+      ),
+    ).toEqual({ markdown: "", source: "empty" });
+  });
+
+  it("truncates at a complete block without charging for a link target", () => {
+    const target = `https://action.example/open?token=${"x".repeat(500)}`;
+    const markdown = `Intro\n\n[Open order](${target})\n\nTrailing details`;
+
+    expect(truncateMarkdown(markdown, 18)).toEqual({
+      markdown: `Intro\n\n[Open order](${target})`,
+      truncated: true,
+    });
+  });
+
+  it("preserves complete lines when the first block exceeds the budget", () => {
+    expect(truncateMarkdown("Row one\nRow two\nRow three", 15)).toEqual({
+      markdown: "Row one\nRow two",
+      truncated: true,
+    });
+  });
+
+  it("keeps a complete long-target link in valid truncated MarkdownV2", () => {
+    const target = `https://action.example/open?token=${"x".repeat(500)}`;
+    const result = formatBody(
+      undefined,
+      `<p>Intro</p><p><a href="${target}">Open order</a></p><p>After link</p>`,
+      18,
+    );
+
+    expect(result).toContain(`[Open order](${target})`);
+    expect(result).toContain("正文过长");
+    expect(findLongestValidMdV2Prefix(result)).toBe(result.length);
+  });
+});
