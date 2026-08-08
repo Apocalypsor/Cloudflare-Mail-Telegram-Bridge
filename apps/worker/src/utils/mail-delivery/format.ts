@@ -8,11 +8,8 @@ import {
 } from "@worker/constants";
 import { t } from "@worker/i18n";
 import type { Account, Env } from "@worker/types";
-import {
-  formatBody,
-  htmlToMarkdown,
-  toTelegramMdV2,
-} from "@worker/utils/mail/body";
+import { formatBody, toTelegramMdV2 } from "@worker/utils/mail/body";
+import { htmlToMarkdown } from "@worker/utils/mail/render";
 import { escapeMdV2 } from "@worker/utils/markdown-v2";
 
 /**

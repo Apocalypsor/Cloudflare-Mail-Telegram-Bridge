@@ -5,7 +5,7 @@ import type {
 } from "@worker/api/modules/miniapp/types";
 import { getOwnAccounts } from "@worker/db/accounts";
 import type { Account, Env } from "@worker/types";
-import { htmlToMarkdown } from "@worker/utils/mail/body";
+import { htmlToMarkdown } from "@worker/utils/mail/render";
 import { stripHtmlTags } from "@worker/utils/string";
 
 export const mcpJsonResult = (data: unknown): CallToolResult => {
