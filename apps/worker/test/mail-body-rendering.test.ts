@@ -20,6 +20,23 @@ describe("email HTML rendering", () => {
     expect(htmlToMarkdown(html)).toBe("Your order is ready.");
   });
 
+  it("preserves meaningful image alt text while removing decorative images", () => {
+    const html = `
+      <p><img src="spacer.gif" alt="badge"></p>
+      <p><img src="brand.png" alt="EXAMPLE PIZZA"></p>
+      <p><a href="https://offers.example/redeem">
+        <img src="offer.png" alt="50% off menu-priced items">
+      </a></p>
+      <p><a href="https://offers.example/order">
+        <img src="button.png" alt="Order now">
+      </a></p>`;
+
+    expect(htmlToMarkdown(html)).toBe(
+      "[50% off menu-priced items](https://offers.example/redeem)\n\n" +
+        "[Order now](https://offers.example/order)",
+    );
+  });
+
   it("renders layout rows without a blank paragraph per cell", () => {
     const html = `
       <table role="presentation">
@@ -54,6 +71,20 @@ describe("email HTML rendering", () => {
     expect(htmlToMarkdown(html)).toBe(
       "[Order](https://orders.example/42): Ready",
     );
+  });
+
+  it("keeps a coupon label and nested value on one line", () => {
+    const html = `
+      <table role="presentation">
+        <td><h4>Use Code:</h4></td>
+        <td>
+          <table role="presentation">
+            <tr><td><div>REWARD-TEST-26</div></td></tr>
+          </table>
+        </td>
+      </table>`;
+
+    expect(htmlToMarkdown(html)).toBe("Use Code: REWARD-TEST-26");
   });
 
   it("keeps genuine paragraphs separated", () => {

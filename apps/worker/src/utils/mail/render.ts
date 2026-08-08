@@ -38,6 +38,13 @@ const FOOTER_LINK_RE =
 const FOOTER_LEGAL_RE = /copyright|©|all rights reserved|版权所有|版權所有/i;
 const DECORATIVE_BLOCK_RE = /^(?:\||¦)+$/;
 const EMPTY_LINK_RE = /^\[\s*\]\([^)]*\)$/;
+const DECORATIVE_IMAGE_ALT_RE =
+  /^(?:badge|banner|decorative|graphic|icon|image|img|logo|photo|pixel|spacer)(?:\s+\d+)?$/i;
+const ACTIONABLE_IMAGE_ALT_RE =
+  /\b(?:activate|buy|claim|confirm|download|get|learn|open|order|read|redeem|register|reset|review|shop|sign\s*in|track|verify|view)\b|优惠|折扣|免费|领取|查看|下单|购买|兑换|验证|确认|立即/i;
+const OFFER_IMAGE_ALT_RE =
+  /\b(?:coupon|deal|discount|free|offer|off|reward|sale|save)\b|优惠|折扣|免费|奖励|促销/i;
+const MIN_MEANINGFUL_IMAGE_ALT_LENGTH = 16;
 const SERIALIZED_RATIO_THRESHOLD = 1.8;
 const MIN_SERIALIZED_INFLATION = 300;
 const MIN_FRAGMENT_BLOCKS = 12;
@@ -202,7 +209,14 @@ const cleanDocument = (document: HtmlDocument): void => {
     }
   }
 
-  for (const image of selectAll(document, "img")) image.remove();
+  for (const image of selectAll(document, "img")) {
+    const alt = normalizeVisibleText(image.getAttribute("alt"));
+    if (!isMeaningfulImageAlt(alt)) {
+      image.remove();
+      continue;
+    }
+    image.replaceWith(document.createTextNode(alt));
+  }
   for (const anchor of selectAll(document, "a")) {
     const visibleText = normalizeVisibleText(anchor.textContent);
     if (!visibleText) {
@@ -214,6 +228,16 @@ const cleanDocument = (document: HtmlDocument): void => {
     const visibleText = normalizeVisibleText(anchor.textContent);
     shortenLongVisibleUrl(anchor, visibleText);
   }
+};
+
+const isMeaningfulImageAlt = (alt: string): boolean => {
+  if (!alt || DECORATIVE_IMAGE_ALT_RE.test(alt)) return false;
+  return (
+    alt.length >= MIN_MEANINGFUL_IMAGE_ALT_LENGTH ||
+    /\d|[%$€£¥₹]/u.test(alt) ||
+    ACTIONABLE_IMAGE_ALT_RE.test(alt) ||
+    OFFER_IMAGE_ALT_RE.test(alt)
+  );
 };
 
 const removeDuplicateRawUrlLinks = (document: HtmlDocument): void => {
@@ -315,12 +339,17 @@ const normalizeTables = (document: HtmlDocument): void => {
     const rows = selectAll(table, "tr").filter(
       (row) => row.closest("table") === table,
     );
-
-    for (const row of rows) {
-      const cells = Array.from(row.children) as HtmlElement[];
-      const rowCells = cells.filter((child) =>
+    const rowCellGroups = rows.map((row) =>
+      (Array.from(row.children) as HtmlElement[]).filter((child) =>
         /^(?:TD|TH)$/.test(child.tagName),
-      );
+      ),
+    );
+    const orphanCells = (Array.from(table.children) as HtmlElement[]).filter(
+      (child) => /^(?:TD|TH)$/.test(child.tagName),
+    );
+    if (orphanCells.length > 0) rowCellGroups.unshift(orphanCells);
+
+    for (const rowCells of rowCellGroups) {
       const nonEmptyCells = rowCells.filter((cell) =>
         Boolean(normalizeVisibleText(cell.textContent)),
       );
@@ -329,10 +358,16 @@ const normalizeTables = (document: HtmlDocument): void => {
       const normalizedRow = document.createElement("div");
       normalizedRow.setAttribute("data-mail-layout-row", "true");
       if (isShortTextPair(nonEmptyCells)) {
+        const hasLabelTerminator = /[:：]\s*$/.test(
+          normalizeVisibleText(nonEmptyCells[0].textContent),
+        );
+        if (hasLabelTerminator) flattenPairCellBlocks(nonEmptyCells);
         while (nonEmptyCells[0].firstChild) {
           normalizedRow.appendChild(nonEmptyCells[0].firstChild);
         }
-        normalizedRow.appendChild(document.createTextNode(": "));
+        normalizedRow.appendChild(
+          document.createTextNode(hasLabelTerminator ? " " : ": "),
+        );
         while (nonEmptyCells[1].firstChild) {
           normalizedRow.appendChild(nonEmptyCells[1].firstChild);
         }
@@ -353,11 +388,32 @@ const normalizeTables = (document: HtmlDocument): void => {
 
 const isShortTextPair = (cells: HtmlElement[]): boolean => {
   if (cells.length !== 2) return false;
+  if (
+    !cells.every(
+      (cell) =>
+        normalizeVisibleText(cell.textContent).length <=
+        SHORT_TABLE_CELL_LENGTH,
+    )
+  ) {
+    return false;
+  }
+  if (/[:：]\s*$/.test(normalizeVisibleText(cells[0].textContent))) {
+    return true;
+  }
   return cells.every(
-    (cell) =>
-      !cell.querySelector("blockquote, div, ol, p, pre, table, ul") &&
-      normalizeVisibleText(cell.textContent).length <= SHORT_TABLE_CELL_LENGTH,
+    (cell) => !cell.querySelector("blockquote, div, ol, p, pre, table, ul"),
   );
+};
+
+const flattenPairCellBlocks = (cells: HtmlElement[]): void => {
+  for (const cell of cells) {
+    for (const block of selectAll(cell, "div, h1, h2, h3, h4, h5, h6, p")) {
+      const parent = block.parentNode;
+      if (!parent) continue;
+      while (block.firstChild) parent.insertBefore(block.firstChild, block);
+      block.remove();
+    }
+  }
 };
 
 const selectAll = (root: QueryRoot, selector: string): HtmlElement[] => {

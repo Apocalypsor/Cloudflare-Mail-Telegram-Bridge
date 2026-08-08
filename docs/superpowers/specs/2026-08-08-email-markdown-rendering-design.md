@@ -14,8 +14,9 @@ shared by Telegram delivery, the preview API, and MCP HTML conversion.
 - Do not add sender-, brand-, or account-specific rules.
 - Keep meaningful text links such as order, verification, primary CTA,
   unsubscribe, privacy, and terms links.
-- Remove image-only links, social/app badges, and bare tracking URLs when they
-  duplicate a meaningful action.
+- Preserve meaningful promotional and action text stored only in image `alt`
+  attributes. Remove decorative image-only links, social/app badges, and bare
+  tracking URLs when they duplicate a meaningful action.
 - Prefer HTML, falling back to `text/plain` only when HTML is demonstrably
   noisier.
 - Do not store real email content in the repository. Regression fixtures must
@@ -68,8 +69,9 @@ Before Turndown:
   `aria-hidden=true`, or inline `display:none`, `visibility:hidden`,
   `opacity:0`, or zero-height/overflow preheader styles;
 - remove zero-width filler and invisible preheader padding;
-- remove images, tracking pixels, spacers, and anchors whose only meaningful
-  descendant is an image;
+- replace images carrying meaningful promotional or action `alt` text with
+  that text, preserving a surrounding action link; remove logos, tracking
+  pixels, spacers, badges, and other decorative image-only anchors;
 - unwrap presentation/layout containers while preserving visible descendant
   text in DOM reading order;
 - normalize table rows into compact logical rows instead of allowing each
@@ -83,12 +85,15 @@ Before Turndown:
 Table rows with two short non-empty cells render as `label: value`. Other rows
 join non-empty cells with a compact separator while preserving anchors and
 inline emphasis inside the cells. Nested/presentation tables are flattened in
-reading order. Telegram pipe tables are not generated.
+reading order. Malformed email tables that place `td`/`th` directly under a
+`table` are treated as one logical row instead of being discarded. Telegram
+pipe tables are not generated.
 
 ## Link handling
 
 - Preserve an anchor when it has non-empty, meaningful visible text.
-- Remove empty and image-only anchors.
+- Remove empty and decorative image-only anchors; retain a meaningful image
+  `alt` label as the anchor text.
 - Preserve normal short URLs when the URL itself is intentional visible text.
 - When visible text is a long tracking URL, remove a duplicate fallback URL;
   if it is the only actionable destination, use its hostname as display text
