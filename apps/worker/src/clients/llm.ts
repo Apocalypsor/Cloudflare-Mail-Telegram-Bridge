@@ -41,7 +41,7 @@ export interface EmailAnalysis {
   junkConfidence: number;
 }
 
-const WORKERS_AI_MODEL = "openai/gpt-5.6-luna";
+const WORKERS_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
 
 export const hasLlm = (env: Env): boolean =>
   !!env.AI || !!(env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL);
