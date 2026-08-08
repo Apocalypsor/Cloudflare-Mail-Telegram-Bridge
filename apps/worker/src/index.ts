@@ -1,9 +1,8 @@
 import { app } from "@worker/api";
 import type { RequestWithCtx } from "@worker/api/plugins/cf";
 import emailHandler from "@worker/handlers/email";
-import queueHandler from "@worker/handlers/queue";
 import scheduledHandler from "@worker/handlers/scheduled";
-import type { Env, QueueMessage } from "@worker/types";
+import type { Env } from "@worker/types";
 
 export { TelegramRateLimiter } from "@worker/durable-objects/telegram-rate-limiter";
 
@@ -27,14 +26,6 @@ export default {
     ctx: ExecutionContext,
   ): Promise<void> {
     await emailHandler(message, env, ctx);
-  },
-
-  async queue(
-    batch: MessageBatch<QueueMessage>,
-    env: Env,
-    ctx: ExecutionContext,
-  ): Promise<void> {
-    await queueHandler(batch, env, ctx);
   },
 
   async scheduled(

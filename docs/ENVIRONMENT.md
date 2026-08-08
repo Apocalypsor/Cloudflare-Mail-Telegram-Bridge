@@ -95,11 +95,12 @@ fallback 调用走 `/v1/responses`，并使用流式 SSE 读取 `response.output
 | Binding                 | 类型           | 用途                                                                 |
 | ----------------------- | -------------- | -------------------------------------------------------------------- |
 | `AI`                    | Workers AI     | 邮件摘要 + 垃圾检测（`@cf/zai-org/glm-4.7-flash`）                  |
-| `DB`                    | D1             | 账号 / 消息映射 / 提醒 / 用户 / 失败邮件                             |
+| `DB`                    | D1             | 账号 / 投递抢占 / 消息映射 / 提醒 / 用户 / 失败邮件                   |
 | `EMAIL_KV`              | KV             | access_token 缓存、消息去重、OAuth state、IMAP folder cache、预览 HTML（7 天 TTL） |
-| `EMAIL_QUEUE`           | Queue          | 邮件处理队列（max_batch_size=5, max_retries=3, max_concurrency=3）   |
-| `TELEGRAM_RATE_LIMITER` | Durable Object | Telegram API 写请求限流闸门；Queue 遇到 TG 429 时按 retry_after 延迟重试 |
+| `TELEGRAM_RATE_LIMITER` | Durable Object | 直接投递和 bot 操作共用的 Telegram API 写请求限流闸门；明确的限流失败会留给未读扫描重试 |
 | `OBS_SERVICE`           | Service        | 错误上报到 [workers-observability-hub](https://www.npmjs.com/package/workers-observability-hub) |
+
+直接投递每次 Worker invocation 最多启动 10 封，并在后台任务运行 20 秒后停止抢占下一封；未启动的邮件由每 10 分钟的未读扫描继续兜底。
 
 ## Cron Triggers
 
@@ -117,6 +118,7 @@ fallback 调用走 `/v1/responses`，并使用流式 SSE 读取 `response.output
 
 - `accounts` —— 每个邮箱账号（`type`、`email`、`chat_id`、可选 `topic_id`、`refresh_token`、IMAP credentials / forward token 等）
 - `message_map` —— `emailMessageId` ↔ `(tg_chat_id, tg_message_id, tg_thread_id)`，幂等去重用
+- `email_deliveries` —— 自动投递的短生命周期原子抢占；成功写入 `message_map` 后删除，明确限流时可重试，结果不明确或超时中断时保留为 `unknown` 以避免双发；删除账号会级联清理
 - `reminders` —— Mini App 设的提醒，可选记录推送到 Things Cloud 的 task UUID
 - `users` —— Telegram 用户记录（`approved` 状态控制访问 Mini App、web 工具页 `/preview` / `/junk-check` 与 `/api/mcp`），以及可选的 per-user Things Cloud 设置和 MCP API key hash
-- `failed_emails` —— LLM / queue 处理失败的邮件，cron 批量重试
+- `failed_emails` —— LLM 摘要失败的邮件，cron 批量重试

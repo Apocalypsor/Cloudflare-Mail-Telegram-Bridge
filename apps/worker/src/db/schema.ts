@@ -51,7 +51,7 @@ export const accounts = sqliteTable(
     archive_folder: text("archive_folder"),
     /** 归档目标的人类可读名称（仅 Gmail 需要：label ID 用户不可读，存这份用于 UI 展示） */
     archive_folder_name: text("archive_folder_name"),
-    /** 1 = 暂停：push/队列/定时任务/列表都会跳过；账号配置保留，可随时恢复 */
+    /** 1 = 暂停：push/后台投递/定时任务/列表都会跳过；账号配置保留，可随时恢复 */
     disabled: integer("disabled").notNull().default(0),
   },
   (t) => [
@@ -102,6 +102,28 @@ export const messageMap = sqliteTable(
       t.account_id,
       t.email_message_id,
     ),
+  ],
+);
+
+/** 自动投递的短生命周期抢占状态；成功后由 message_map 接管并删除本行。 */
+export const emailDeliveries = sqliteTable(
+  "email_deliveries",
+  {
+    account_id: integer("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    email_message_id: text("email_message_id").notNull(),
+    state: text("state", {
+      enum: ["pending", "sending", "retryable", "unknown"],
+    })
+      .notNull()
+      .default("pending"),
+    created_at: tsMs("created_at").notNull().default(nowDefault),
+    updated_at: tsMs("updated_at").notNull().default(nowDefault),
+  },
+  (t) => [
+    primaryKey({ columns: [t.account_id, t.email_message_id] }),
+    index("idx_email_deliveries_state_updated_at").on(t.state, t.updated_at),
   ],
 );
 

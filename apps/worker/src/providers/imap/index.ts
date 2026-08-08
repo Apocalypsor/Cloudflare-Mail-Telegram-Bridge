@@ -25,7 +25,8 @@ import type {
   MessageState,
   RawEmailWithState,
 } from "@worker/providers/types";
-import { type Env, QueueMessageType } from "@worker/types";
+import type { Env, WaitUntil } from "@worker/types";
+import { scheduleEmailDeliveries } from "@worker/utils/mail-delivery/dispatch";
 
 /**
  * IMAP provider —— 所有 `messageId` 参数都是 RFC 822 Message-Id（全局唯一，跨 folder
@@ -36,12 +37,13 @@ import { type Env, QueueMessageType } from "@worker/types";
 export class ImapProvider extends EmailProvider {
   static displayName = "IMAP";
 
-  // ─── Enqueue ──────────────────────────────────────────────────────────
+  // ─── Push dispatch ────────────────────────────────────────────────────
 
-  /** 解析 Email Routing / IMAP signal 并入队。payload 里 `rfcMessageId` 是 RFC 822 Message-Id。 */
-  static async enqueue(
+  /** 解析 Email Routing / IMAP signal 并安排后台投递。payload 里的 ID 是 RFC 822 Message-Id。 */
+  static async dispatch(
     body: { accountId: number; rfcMessageId: string },
     env: Env,
+    waitUntil: WaitUntil,
   ): Promise<void> {
     const { accountId, rfcMessageId } = body;
 
@@ -58,12 +60,11 @@ export class ImapProvider extends EmailProvider {
     console.log(
       `IMAP push: new message for ${account.email}, rfcMessageId=${rfcMessageId}`,
     );
-    // 队列里用 emailMessageId 字段（跨 provider 统一）；对 IMAP 来说它就是 RFC Message-Id
-    await env.EMAIL_QUEUE.send({
-      type: QueueMessageType.Email,
-      accountId,
-      emailMessageId: rfcMessageId,
-    });
+    scheduleEmailDeliveries(
+      env,
+      [{ accountId, emailMessageId: rfcMessageId }],
+      waitUntil,
+    );
   }
 
   // ─── Message actions ──────────────────────────────────────────────────

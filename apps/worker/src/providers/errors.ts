@@ -1,3 +1,5 @@
+import { HTTPError } from "ky";
+
 export class EmailMessageNotFoundError extends Error {
   readonly folder: string;
   readonly messageId: string;
@@ -9,3 +11,7 @@ export class EmailMessageNotFoundError extends Error {
     this.messageId = messageId;
   }
 }
+
+export const isEmailMessageNotFound = (error: unknown): boolean =>
+  error instanceof EmailMessageNotFoundError ||
+  (error instanceof HTTPError && error.response.status === 404);

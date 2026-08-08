@@ -15,6 +15,7 @@ export type AccountType = (typeof AccountType)[keyof typeof AccountType];
  *  也写在那里（IMAP only / archive_folder / disabled 等）。 */
 export type Account = typeof accounts.$inferSelect;
 export type TelegramUser = typeof users.$inferSelect;
+export type WaitUntil = (promise: Promise<unknown>) => void;
 
 interface WorkerSecrets {
   /** Telegram Bot Token（环境变量 / wrangler secret） */
@@ -60,12 +61,7 @@ interface WorkerSecrets {
   TG_MINI_APP_SHORT_NAME?: string;
 }
 
-type RefinedBindings = Omit<
-  Cloudflare.Env,
-  "EMAIL_QUEUE" | "TELEGRAM_RATE_LIMITER"
-> & {
-  /** Queue 绑定 —— wrangler 生成 binding，项目侧细化 message body 类型 */
-  EMAIL_QUEUE: Queue<QueueMessage>;
+type RefinedBindings = Omit<Cloudflare.Env, "TELEGRAM_RATE_LIMITER"> & {
   /** Durable Object：统一协调 Telegram API 限流窗口 */
   TELEGRAM_RATE_LIMITER: DurableObjectNamespace<TelegramRateLimiter>;
 };
@@ -94,29 +90,6 @@ export interface MailAttachmentDownload {
   filename: string | null;
   mimeType: string | null;
   body: string | ArrayBuffer | ReadableStream<Uint8Array>;
-}
-
-export enum QueueMessageType {
-  Email = "email",
-  DeleteTgMessage = "delete-tg-message",
-}
-
-/** 队列消息体（discriminated union, 按 type 派发） */
-export type QueueMessage = EmailQueueMessage | DeleteTgMessageQueueMessage;
-
-/** 邮件投递任务（默认主用途） */
-export interface EmailQueueMessage {
-  type: QueueMessageType.Email;
-  accountId: number;
-  /** Provider 原生邮件 id：Gmail messageId / Outlook Graph id / IMAP RFC 822 Message-Id（非 per-folder UID） */
-  emailMessageId: string;
-}
-
-/** 延迟删除 Telegram 消息（用于 Secrets 面板自销毁等） */
-export interface DeleteTgMessageQueueMessage {
-  type: QueueMessageType.DeleteTgMessage;
-  chatId: string;
-  messageId: number;
 }
 
 /** Pub/Sub push 请求体 */

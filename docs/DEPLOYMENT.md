@@ -1,6 +1,6 @@
 # 部署
 
-部署顺序：外部服务（GCP / MS Entra）→ Cloudflare 资源（D1 / KV / Queue）→ Worker + Pages → Telegram webhook + Mini App 注册。
+部署顺序：外部服务（GCP / MS Entra）→ Cloudflare 资源（D1 / KV）→ Worker + Pages → Telegram webhook + Mini App 注册。
 
 所有 Worker secrets、GitHub Actions secrets 和 bindings 的完整说明见 [ENVIRONMENT.md](./ENVIRONMENT.md)。
 
@@ -91,13 +91,7 @@ bun migrate:worker:remote
 bun wrangler kv namespace create EMAIL_KV
 ```
 
-### 4.3 Queue
-
-```sh
-bun wrangler queues create gmail-tg-queue
-```
-
-### 4.4 Secrets
+### 4.3 Secrets
 
 按 [ENVIRONMENT.md §Secrets](./ENVIRONMENT.md#secrets) 配置核心 secrets，并按你启用的 Gmail / Outlook / IMAP / 可选功能补齐对应小节。
 

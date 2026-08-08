@@ -15,6 +15,11 @@ interface TelegramErrorPayload {
   };
 }
 
+export interface TelegramSendResult {
+  messageId: number;
+  followupError?: unknown;
+}
+
 type TelegramApiResponse<T> = { result: T };
 
 export type DeleteMessageResult =
@@ -327,8 +332,21 @@ const attToBlob = (att: Attachment): Blob => {
 /** pinChatMessage 的精细返回值 —— 上层（reminder dispatch）需要分支。 */
 export type PinResult = "ok" | "not_found" | "rate_limited";
 
+export const runTelegramFollowups = async (
+  messageId: number,
+  operation: () => Promise<void>,
+): Promise<TelegramSendResult> => {
+  try {
+    await operation();
+    return { messageId };
+  } catch (followupError) {
+    return { messageId, followupError };
+  }
+};
+
 /**
- * 发送消息 + 附件，返回文字消息的 message_id。
+ * 发送消息 + 附件，返回首条可见消息的 ID。多附件后续发送失败时保留
+ * `messageId` 并返回 `followupError`，让上层先建 mapping，避免整封重发。
  * - 1 个附件: sendDocument + caption + reply_markup
  * - 多个附件: 先发文字消息（带 reply_markup），再发媒体组作为回复
  * - 超过 10 个附件: 分批发送，每批最多 10 个
@@ -340,7 +358,7 @@ export const sendWithAttachments = async (
   attachments: Attachment[],
   replyMarkup?: unknown,
   messageThreadId?: number | null,
-): Promise<number> => {
+): Promise<TelegramSendResult> => {
   try {
     if (attachments.length === 1) {
       const att = attachments[0];
@@ -364,7 +382,7 @@ export const sendWithAttachments = async (
           form,
           "sendDocument",
         );
-        return data.message_id;
+        return { messageId: data.message_id };
       } catch (err) {
         if (!(err instanceof HTTPError)) throw err;
 
@@ -396,7 +414,7 @@ export const sendWithAttachments = async (
             fallbackForm,
             "sendDocument",
           );
-          return fallbackData.message_id;
+          return { messageId: fallbackData.message_id };
         }
 
         throw new Error(
@@ -414,21 +432,22 @@ export const sendWithAttachments = async (
           : undefined,
       );
 
-      const chunks: Attachment[][] = [];
-      for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
-        chunks.push(attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT));
-      }
-      for (const chunk of chunks) {
-        await sendMediaGroupChunk(
-          env,
-          chatId,
-          "",
-          chunk,
-          textMsgId,
-          messageThreadId,
-        );
-      }
-      return textMsgId;
+      return runTelegramFollowups(textMsgId, async () => {
+        const chunks: Attachment[][] = [];
+        for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
+          chunks.push(attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT));
+        }
+        for (const chunk of chunks) {
+          await sendMediaGroupChunk(
+            env,
+            chatId,
+            "",
+            chunk,
+            textMsgId,
+            messageThreadId,
+          );
+        }
+      });
     }
   } catch (e) {
     if (isTelegramRateLimitError(e)) throw e;

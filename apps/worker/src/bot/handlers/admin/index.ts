@@ -4,10 +4,12 @@ import {
   SECRETS_AUTO_DELETE_SECONDS,
 } from "@worker/bot/utils/admin";
 import { isAdmin } from "@worker/bot/utils/auth";
+import { deleteMessage } from "@worker/clients/telegram";
 import { t } from "@worker/i18n";
 import { renewAllPush } from "@worker/providers";
-import { type Env, QueueMessageType } from "@worker/types";
+import type { Env, WaitUntil } from "@worker/types";
 import { reportErrorToObservability } from "@worker/utils/observability";
+import { sleep } from "@worker/utils/sleep";
 import type { Bot } from "grammy";
 import { registerFailedEmailCallbacks } from "./failed";
 
@@ -15,6 +17,7 @@ export const registerAdminHandlers = (
   bot: Bot,
   env: Env,
   botUsername: string,
+  waitUntil: WaitUntil,
 ) => {
   // Secrets panel (admin only, hidden behind /start -> global management)
   bot.callbackQuery("secrets", async (ctx) => {
@@ -26,13 +29,18 @@ export const registerAdminHandlers = (
     const sent = await ctx.reply(buildSecretsText(env), {
       parse_mode: "MarkdownV2",
     });
-    await env.EMAIL_QUEUE.send(
-      {
-        type: QueueMessageType.DeleteTgMessage,
-        chatId: String(sent.chat.id),
-        messageId: sent.message_id,
-      },
-      { delaySeconds: SECRETS_AUTO_DELETE_SECONDS },
+    const chatId = String(sent.chat.id);
+    waitUntil(
+      sleep(SECRETS_AUTO_DELETE_SECONDS * 1_000)
+        .then(() => deleteMessage(env, chatId, sent.message_id))
+        .catch((err) =>
+          reportErrorToObservability(
+            env,
+            "bot.secrets_auto_delete_failed",
+            err,
+            { chatId, messageId: sent.message_id },
+          ),
+        ),
     );
     await ctx.answerCallbackQuery({
       text: t("admin:secrets.sent", { seconds: SECRETS_AUTO_DELETE_SECONDS }),

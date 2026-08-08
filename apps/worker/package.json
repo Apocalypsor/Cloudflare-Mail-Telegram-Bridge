@@ -14,7 +14,8 @@
     "deploy": "wrangler deploy",
     "deploy:version": "wrangler versions upload",
     "check:wrangler": "bun scripts/check-wrangler-template.mjs",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -p test/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.9",
@@ -33,8 +34,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.8",
     "@types/node": "^26.0.0",
     "@types/turndown": "^5.0.6",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "vitest": "^4.1.0"
   }
 }

@@ -19,7 +19,7 @@ export const telegramController = new Elysia({ name: "controller.telegram" })
   .use(cf)
   .post(
     "/api/telegram/webhook",
-    async ({ env, executionCtx, query, body, status }) => {
+    async ({ env, waitUntil, query, body, status }) => {
       const provided = query.secret;
       if (
         typeof provided !== "string" ||
@@ -29,10 +29,10 @@ export const telegramController = new Elysia({ name: "controller.telegram" })
       }
 
       // 异步同步 Bot 命令菜单
-      executionCtx.waitUntil(syncBotCommands(env).catch(() => {}));
+      waitUntil(syncBotCommands(env).catch(() => {}));
 
       const botInfo = await getBotInfo(env);
-      const bot = createBot(env, botInfo);
+      const bot = createBot(env, botInfo, waitUntil);
       try {
         await bot.handleUpdate(body as Update);
       } catch {

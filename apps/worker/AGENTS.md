@@ -34,7 +34,7 @@ When `utils.ts` grows too large, promote it to a `utils/` directory with purpose
 
 - **Use current boundaries**: find the existing owner for a behavior before adding code. Preserve established provider, API, bot, persistence, and utility boundaries unless the change is intentionally restructuring them.
 - **Provider behavior**: start from the current provider abstraction and dispatch pattern before changing mail sync, message actions, archive, forwarding, or OAuth behavior. Do not duplicate provider-specific branching in unrelated layers.
-- **Runtime context**: follow the current handler pattern for passing runtime environment, queue context, background work, and side effects. Do not introduce hidden globals for request/runtime state.
+- **Runtime context**: follow the current handler pattern for passing runtime environment, background work, and side effects. Do not introduce hidden globals for request/runtime state.
 - **Error reporting**: use the existing Worker error-reporting path instead of ad hoc logging.
 - **Persistence**: use existing typed database / KV wrappers. Do not hand-write storage access in feature code when a local wrapper pattern already exists.
 - **User-visible behavior**: update user-facing docs when changing account setup, delivery behavior, auth, reminders, or deployment requirements.

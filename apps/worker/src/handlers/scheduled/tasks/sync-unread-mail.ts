@@ -13,7 +13,7 @@ export class SyncUnreadMailTask extends ScheduledTask {
     return ctx.date.getUTCMinutes() % 10 === 0;
   }
 
-  protected async run({ env }: ScheduledTaskContext): Promise<void> {
-    await syncAllEnabledAccountsUnreadMail(env);
+  protected async run({ env, waitUntil }: ScheduledTaskContext): Promise<void> {
+    await syncAllEnabledAccountsUnreadMail(env, waitUntil);
   }
 }

@@ -18,6 +18,7 @@
     "deploy:worker": "bun --filter telemail-worker deploy",
     "dev:page": "bun --filter telemail-page dev",
     "build:page": "bun --filter telemail-page build",
+    "test:worker": "bun --filter telemail-worker test",
     "deploy:page": "bun --filter telemail-page deploy",
     "check": "biome check --no-errors-on-unmatched --files-ignore-unknown=true",
     "typecheck": "bun --cwd apps/page generate:routes && tsc -b --noEmit",

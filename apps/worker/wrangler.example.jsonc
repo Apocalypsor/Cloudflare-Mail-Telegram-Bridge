@@ -74,8 +74,8 @@
     }
   ],
   /**
-   * Durable Object — Telegram API 全局限流闸门。Queue 并发可以保持，
-   * 但所有项目自有 Telegram client 请求会先经过这里预约发送窗口。
+   * Durable Object — Telegram API 全局限流闸门。所有项目自有 Telegram
+   * client 请求会先经过这里预约发送窗口。
    */
   "durable_objects": {
     "bindings": [
@@ -92,29 +92,9 @@
     }
   ],
   /**
-   * Queue — 邮件处理队列（sync + message），并发消费，内置重试
-   * 先运行: bun wrangler queues create gmail-tg-queue
-   */
-  "queues": {
-    "producers": [
-      {
-        "queue": "gmail-tg-queue",
-        "binding": "EMAIL_QUEUE"
-      }
-    ],
-    "consumers": [
-      {
-        "queue": "gmail-tg-queue",
-        "max_batch_size": 5,
-        "max_batch_timeout": 1,
-        "max_retries": 3,
-        "max_concurrency": 3
-      }
-    ]
-  },
-  /**
    * Cron Triggers
    *  - 每分钟：分发到期提醒（Mini App 设置的）
+   *  - 每 10 分钟：扫描未读邮件，兜底直接投递失败
    *  - 每 15 分钟：检查是否有用户到达本地 19:00 邮件摘要时间
    *  - 每整点（minute=0）：重试失败邮件；UTC 凌晨额外续订 Gmail / Outlook push
    *  scheduled tasks 各自声明 shouldRun 条件
