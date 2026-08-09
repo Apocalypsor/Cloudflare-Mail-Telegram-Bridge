@@ -34,9 +34,6 @@
   "vars": {
     "WORKER_NAME": "telemail"
   },
-  "ai": {
-    "binding": "AI"
-  },
   "workers_dev": true,
   "preview_urls": true,
   /**

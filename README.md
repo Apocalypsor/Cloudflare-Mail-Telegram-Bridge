@@ -13,7 +13,7 @@
 - **后端**：[Elysia](https://elysiajs.com)（CloudflareAdapter）+ [grammY](https://grammy.dev) + Cloudflare D1 / KV / Durable Objects / Cron
 - **前端**：[Vite](https://vite.dev) + React 19 + [TanStack Router](https://tanstack.com/router) + [TanStack Query](https://tanstack.com/query) + [HeroUI](https://heroui.com) + [Eden treaty](https://elysiajs.com/eden/treaty/overview)（端到端类型安全 RPC）+ [TypeBox](https://github.com/sinclairzx81/typebox)
 - **邮件解析**：[postal-mime](https://github.com/postalsys/postal-mime)；HTML → Markdown：[turndown](https://github.com/mixmark-io/turndown) → Telegram MarkdownV2
-- **AI 摘要**：Cloudflare Workers AI（`@cf/zai-org/glm-4.7-flash`）优先，兼容 OpenAI Responses API 的 LLM endpoint 可作 fallback
+- **AI 摘要**：通过兼容 OpenAI Responses API 的 LLM endpoint 生成摘要、标签和垃圾邮件判断
 - **i18n**：[i18next](https://www.i18next.com)（当前仅中文）
 
 ## 文档

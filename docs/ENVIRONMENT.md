@@ -39,17 +39,17 @@
 
 IMAP 账号的 host / port / username / password 由用户在 Mini App 里保存到 `accounts` 表。`IMAP_FORWARD_DOMAIN` 只用来生成每个账号的 `fwd+<token>` 转发地址；Cloudflare Email Routing 侧应启用 Subaddressing，并把 `fwd` 地址路由到 Worker。
 
-### LLM / AI 摘要（可选 fallback）
+### LLM / AI 摘要（可选）
 
-默认通过 `AI` binding 使用 Cloudflare Workers AI 模型 `@cf/zai-org/glm-4.7-flash`。下面三个都配置后，会在 Workers AI 调用失败时 fallback 到兼容 OpenAI Responses API 的 endpoint：
+下面三个 Secret 全部配置后，通过兼容 OpenAI Responses API 的 endpoint 生成邮件摘要、标签和垃圾邮件判断；缺少任意一项时跳过 AI 分析：
 
 | Secret        | 说明                                              |
 | ------------- | ------------------------------------------------- |
 | `LLM_API_URL` | OpenAI Responses API base URL（含 `/v1`）         |
 | `LLM_API_KEY` | LLM API key                                       |
-| `LLM_MODEL`   | 模型名称（例如 `gpt-4o-mini`）                    |
+| `LLM_MODEL`   | 模型名称（例如 `gpt-5.6-luna`）                  |
 
-fallback 调用走 `/v1/responses`，并使用流式 SSE 读取 `response.output_text.delta`。
+调用走 `/v1/responses`，并使用流式 SSE 读取 `response.output_text.delta`。
 
 ### Mini App / Web 预览（可选）
 
@@ -94,7 +94,6 @@ fallback 调用走 `/v1/responses`，并使用流式 SSE 读取 `response.output
 
 | Binding                 | 类型           | 用途                                                                 |
 | ----------------------- | -------------- | -------------------------------------------------------------------- |
-| `AI`                    | Workers AI     | 邮件摘要 + 垃圾检测（`@cf/zai-org/glm-4.7-flash`）                  |
 | `DB`                    | D1             | 账号 / 投递抢占 / 消息映射 / 提醒 / 用户 / 失败邮件                   |
 | `EMAIL_KV`              | KV             | access_token 缓存、消息去重、OAuth state、IMAP folder cache、预览 HTML（7 天 TTL） |
 | `TELEGRAM_RATE_LIMITER` | Durable Object | 直接投递和 bot 操作共用的 Telegram API 写请求限流闸门；明确的限流失败会留给未读扫描重试 |

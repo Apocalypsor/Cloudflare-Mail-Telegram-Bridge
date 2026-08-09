@@ -1,4 +1,4 @@
-/** 使用 Workers AI 优先、OpenAI Responses API fallback 对邮件正文做 AI 分析 */
+/** 使用 OpenAI Responses API 兼容 endpoint 对邮件正文做 AI 分析 */
 
 import { LLM_TIMEOUT_MS, MAX_LINKS } from "@worker/constants";
 import type { Env } from "@worker/types";
@@ -18,18 +18,6 @@ interface ResponsesStreamState {
   fallbackText: string | null;
 }
 
-interface WorkersAiResponse {
-  choices?: {
-    message?: { content?: string | null };
-    text?: string | null;
-  }[];
-  output?: {
-    content?: { type?: string; text?: string }[];
-  }[];
-  output_text?: string;
-  response?: string;
-}
-
 /** LLM 一次调用返回结果 */
 export interface EmailAnalysis {
   /** 摘要（bullet list） */
@@ -44,10 +32,8 @@ export interface EmailAnalysis {
   junkConfidence: number;
 }
 
-const WORKERS_AI_MODEL = "openai/gpt-5.6-luna";
-
 export const hasLlm = (env: Env): boolean =>
-  !!env.AI || !!(env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL);
+  !!(env.LLM_API_URL && env.LLM_API_KEY && env.LLM_MODEL);
 
 /** 一次 LLM 调用完成邮件分析：摘要 + 标签 */
 export const analyzeEmail = async (
@@ -139,31 +125,10 @@ const callConfiguredLLM = async (
   prompt: string,
   json?: boolean,
 ): Promise<string> => {
-  try {
-    if (env.AI) return await callWorkersAI(env.AI, prompt, json);
-  } catch (err) {
-    if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL) throw err;
-    console.warn("Workers AI failed, falling back to LLM endpoint", err);
-  }
-
   if (!env.LLM_API_URL || !env.LLM_API_KEY || !env.LLM_MODEL)
     throw new Error("LLM not configured");
 
   return callLLM(env.LLM_API_URL, env.LLM_API_KEY, env.LLM_MODEL, prompt, json);
-};
-
-const callWorkersAI = async (
-  ai: Ai,
-  prompt: string,
-  json?: boolean,
-): Promise<string> => {
-  const response = await ai.run(WORKERS_AI_MODEL, {
-    input: prompt,
-    ...(json && { text: { format: { type: "json_object" } } }),
-  });
-  const content = extractWorkersAIText(response);
-  if (!content) throw new Error("Workers AI returned no output text");
-  return content.trim();
 };
 
 /** 从逗号分隔的 API Key 列表中随机选一个 */
@@ -173,26 +138,6 @@ const pickRandomKey = (apiKeys: string): string => {
     .map((k) => k.trim())
     .filter(Boolean);
   return keys[Math.floor(Math.random() * keys.length)];
-};
-
-const extractWorkersAIText = (response: unknown): string | null => {
-  if (typeof response === "string") return response;
-  if (!response || typeof response !== "object") return null;
-
-  const result = response as WorkersAiResponse;
-  if (typeof result.response === "string") return result.response;
-  if (typeof result.output_text === "string") return result.output_text;
-
-  const outputText = result.output
-    ?.flatMap((item) => item.content ?? [])
-    .filter((item) => item.type === "output_text")
-    .map((item) => item.text ?? "")
-    .join("");
-  if (outputText) return outputText;
-
-  const content =
-    result.choices?.[0]?.message?.content ?? result.choices?.[0]?.text;
-  return typeof content === "string" ? content : null;
 };
 
 /** 调用 OpenAI /v1/responses 接口，以 SSE 流式读取文本增量。 */
