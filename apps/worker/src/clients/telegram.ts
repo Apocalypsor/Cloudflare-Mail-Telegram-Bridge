@@ -1,5 +1,10 @@
 import { http } from "@worker/clients/http";
-import { TG_API_BASE, TG_MEDIA_GROUP_LIMIT } from "@worker/constants";
+import {
+  TG_API_BASE,
+  TG_CAPTION_LIMIT,
+  TG_MEDIA_GROUP_LIMIT,
+  TG_MSG_LIMIT,
+} from "@worker/constants";
 import type {
   TelegramRateLimitReason,
   TelegramRateLimitReservation,
@@ -63,11 +68,25 @@ const isEntityParseError = (description: string | undefined): boolean => {
   return !!description && /can't parse entities/i.test(description);
 };
 
+const isTextFallbackError = (description: string | undefined): boolean =>
+  isEntityParseError(description) ||
+  (!!description &&
+    /ENTITIES_TOO_LONG|MESSAGE_TOO_LONG|MEDIA_CAPTION_TOO_LONG|(?:message|caption) is too long/i.test(
+      description,
+    ));
+
 const markdownV2ToPlainText = (text: string): string => {
   let out = text;
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1: $2");
   out = out.replace(/\\([_*[\]()~`>#+\-=|{}.!\\])/g, "$1");
   return out;
+};
+
+const truncateTelegramText = (text: string, limit: number): string => {
+  if (text.length <= limit) return text;
+  let truncated = text.slice(0, limit - 1);
+  if (/[\uD800-\uDBFF]$/.test(truncated)) truncated = truncated.slice(0, -1);
+  return `${truncated}…`;
 };
 
 const extractTelegramDescription = (payload: unknown): string => {
@@ -229,7 +248,7 @@ const postFormResult = async <T>(
 /**
  * 通用 Telegram JSON API 请求，带 MarkdownV2 parse error 自动回退。
  * 429 会解析 Telegram `parameters.retry_after` 并写回全局 gate。
- * 当 parse_mode 存在且返回 entity parse error 时，自动去掉 parse_mode 并将 text/caption 转为纯文本重试。
+ * 当格式解析、entity 或文本长度被拒绝时，去掉 parse_mode，裁剪为纯文本后重试。
  */
 const tgPost = async <T = unknown>(
   env: Env,
@@ -246,14 +265,19 @@ const tgPost = async <T = unknown>(
 
     const errDescription = extractTelegramDescription(err.data);
 
-    // parse_mode 错误 → 回退纯文本
-    if (payload.parse_mode && isEntityParseError(errDescription)) {
+    // Markdown 解析、entity 或长度超限 → 回退为有界纯文本。
+    if (payload.parse_mode && isTextFallbackError(errDescription)) {
       const textKey = "text" in payload ? "text" : "caption";
       const textValue = payload[textKey];
       if (typeof textValue === "string") {
-        console.warn(`TG ${label} parse_mode failed, retrying as plain text`);
+        console.warn(
+          `TG ${label} rejected formatted text, retrying as bounded plain text`,
+        );
         const { parse_mode: _, ...rest } = payload;
-        rest[textKey] = markdownV2ToPlainText(textValue);
+        rest[textKey] = truncateTelegramText(
+          markdownV2ToPlainText(textValue),
+          textKey === "text" ? TG_MSG_LIMIT : TG_CAPTION_LIMIT,
+        );
         try {
           return await postJsonResult(env, chatId, url, rest, label);
         } catch (fallbackErr) {
@@ -394,9 +418,9 @@ export const sendWithAttachments = async (
           description: errDescription,
         });
 
-        if (isEntityParseError(errDescription)) {
+        if (isTextFallbackError(errDescription)) {
           console.warn(
-            "TG sendDocument parse_mode failed, retrying as plain caption",
+            "TG sendDocument rejected formatted caption, retrying as bounded plain caption",
           );
           const fallbackForm = new FormData();
           fallbackForm.append("chat_id", chatId);
@@ -404,7 +428,13 @@ export const sendWithAttachments = async (
             fallbackForm.append("message_thread_id", String(messageThreadId));
           }
           fallbackForm.append("document", blob, att.filename || "attachment");
-          fallbackForm.append("caption", markdownV2ToPlainText(caption));
+          fallbackForm.append(
+            "caption",
+            truncateTelegramText(
+              markdownV2ToPlainText(caption),
+              TG_CAPTION_LIMIT,
+            ),
+          );
           if (replyMarkup)
             fallbackForm.append("reply_markup", JSON.stringify(replyMarkup));
           const fallbackData = await postFormResult<{ message_id: number }>(
@@ -673,9 +703,9 @@ const sendMediaGroupChunk = async (
       description: errDescription,
     });
 
-    if (isEntityParseError(errDescription) && caption) {
+    if (isTextFallbackError(errDescription) && caption) {
       console.warn(
-        "TG sendMediaGroup parse_mode failed, retrying as plain caption",
+        "TG sendMediaGroup rejected formatted caption, retrying as bounded plain caption",
       );
       const fallbackForm = new FormData();
       fallbackForm.append("chat_id", chatId);
@@ -695,7 +725,10 @@ const sendMediaGroupChunk = async (
           media: `attach://${fieldName}`,
         };
         if (i === 0) {
-          entry.caption = markdownV2ToPlainText(caption);
+          entry.caption = truncateTelegramText(
+            markdownV2ToPlainText(caption),
+            TG_CAPTION_LIMIT,
+          );
         }
         return entry;
       });
