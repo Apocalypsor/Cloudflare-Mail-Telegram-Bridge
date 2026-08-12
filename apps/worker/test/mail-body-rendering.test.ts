@@ -240,6 +240,14 @@ describe("email HTML rendering", () => {
     );
   });
 
+  it("removes Markdown horizontal rules from the email body", () => {
+    expect(
+      toTelegramRichHtml(
+        "First section\n\n---\n\nSecond section\n\n***\n\n___",
+      ),
+    ).toBe("<p>First section</p><p>Second section</p>");
+  });
+
   it("shortens only the email body to fit the Rich Message text budget", () => {
     const header = "<p><b>From:</b> sender@example.com</p>";
     const code = "123456";
@@ -276,8 +284,7 @@ describe("email HTML rendering", () => {
     const body = "[Open order](https://example.com/order)";
 
     expect(buildTelegramEmailHtml(header, body, null, 500)).toBe(
-      `${header}<h6>邮件正文</h6>` +
-        '<p><a href="https://example.com/order">Open order</a></p>',
+      `${header}<p><a href="https://example.com/order">Open order</a></p>`,
     );
   });
 
@@ -317,8 +324,11 @@ describe("email HTML rendering", () => {
     expect(result).toMatch(
       /时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
-    expect(result).toContain("<b>🔒 验证码:</b> <code>482913</code><br><br>");
-    expect(result).toContain("<h6>邮件正文</h6>");
+    expect(result).toContain("主题: <b>Your verification code is 482913</b>");
+    expect(result).toContain(
+      "<b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
+    );
+    expect(result).not.toContain("邮件正文");
     expect(result).not.toContain("<details");
   });
 });

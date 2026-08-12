@@ -72,7 +72,6 @@ const renderRichMarkdown = (markdown: string): string => {
     }
 
     if (/^(?:\s*[-*_]){3,}\s*$/.test(line)) {
-      blocks.push("<hr/>");
       index++;
       continue;
     }

@@ -32,10 +32,17 @@ const buildTelegramHeader = (
   const date = now.toLocaleString(MESSAGE_DATE_LOCALE, {
     timeZone: MESSAGE_DATE_TIMEZONE,
   });
-  const line = (label: string, value: string) =>
-    markdownV2
-      ? `*${label}*  ${escapeMdV2(value)}`
-      : `${escapeHtmlText(label)} ${escapeHtmlText(value)}`;
+  const line = (label: string, value: string, boldValue = false) => {
+    const escapedValue = markdownV2 ? escapeMdV2(value) : escapeHtmlText(value);
+    const formattedValue = boldValue
+      ? markdownV2
+        ? `*${escapedValue}*`
+        : `<b>${escapedValue}</b>`
+      : escapedValue;
+    return markdownV2
+      ? `*${label}*  ${formattedValue}`
+      : `${escapeHtmlText(label)} ${formattedValue}`;
+  };
   const lines = [
     line(t("bridge:header.from"), `${fromName} <${fromAddress}>`),
     line(t("bridge:header.to"), recipient),
@@ -47,7 +54,7 @@ const buildTelegramHeader = (
     markdownV2
       ? line(t("bridge:header.time"), date)
       : `${escapeHtmlText(t("bridge:header.time"))} <tg-time unix="${Math.floor(now.getTime() / 1_000)}" format="wDT">${escapeHtmlText(date)}</tg-time>`,
-    line(t("bridge:header.subject"), subject),
+    line(t("bridge:header.subject"), subject, true),
   );
   return markdownV2
     ? `${lines.join("\n")}\n\n`
@@ -58,7 +65,7 @@ const buildVerificationCodeSection = (code: string): string =>
   `*${t("bridge:verificationCode")}*  \`${escapeMdV2(code)}\`\n\n`;
 
 const buildRichVerificationCodeSection = (code: string): string =>
-  `<p><b>${escapeHtmlText(t("bridge:verificationCode"))}</b> <code>${escapeHtmlText(code)}</code><br><br></p>`;
+  `<p><b>${escapeHtmlText(t("bridge:verificationCode"))}</b> <code>${escapeHtmlText(code)}</code></p><p>&#160;</p>`;
 
 export const buildTelegramEmailHtml = (
   headerHtml: string,
@@ -78,7 +85,7 @@ export const buildTelegramEmailHtml = (
       !truncated &&
       stripHtmlTags(body).length <= TG_RICH_BODY_AUTO_EXPAND_LIMIT
     ) {
-      return `${headerHtml}${codeSection}<h6>邮件正文</h6>${body}`;
+      return `${headerHtml}${codeSection}${body}`;
     }
     return `${headerHtml}${codeSection}<details><summary>邮件正文</summary>${body}${hint}</details>`;
   };
