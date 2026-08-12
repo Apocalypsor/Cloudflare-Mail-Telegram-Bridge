@@ -440,10 +440,14 @@ describe("email HTML rendering", () => {
     );
 
     expect(content.verificationCode).toBe("482913");
+    expect(content.header).toMatch(/^<p><b>[\s\S]*<\/b><\/p><hr\/>$/);
+    expect(content.header).not.toContain("<h6>");
     expect(result).toMatch(
       /时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
-    expect(result).toContain("主题: <b>Your verification code is 482913</b>");
+    expect(content.header).toContain(
+      "主题: Your verification code is 482913</b></p><hr/>",
+    );
     expect(result).toContain(
       "<b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
     );

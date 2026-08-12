@@ -38,12 +38,11 @@ const buildTelegramHeader = (
   const date = now.toLocaleString(MESSAGE_DATE_LOCALE, {
     timeZone: MESSAGE_DATE_TIMEZONE,
   });
-  const line = (label: string, value: string, boldValue = false) => {
+  const line = (label: string, value: string) => {
     const escapedValue = escapeHtmlText(
       truncateUnicodeText(value, TG_HEADER_FIELD_LIMIT),
     );
-    const formattedValue = boldValue ? `<b>${escapedValue}</b>` : escapedValue;
-    return `${escapeHtmlText(label)} ${formattedValue}`;
+    return `${escapeHtmlText(label)} ${escapedValue}`;
   };
   const lines = [
     line(t("bridge:header.from"), `${fromName} <${fromAddress}>`),
@@ -54,9 +53,9 @@ const buildTelegramHeader = (
   }
   lines.push(
     `${escapeHtmlText(t("bridge:header.time"))} <tg-time unix="${Math.floor(now.getTime() / 1_000)}" format="wDT">${escapeHtmlText(date)}</tg-time>`,
-    line(t("bridge:header.subject"), subject, true),
+    line(t("bridge:header.subject"), subject),
   );
-  return `<h6>${lines.join("<br>")}</h6><hr/>`;
+  return `<p><b>${lines.join("<br>")}</b></p><hr/>`;
 };
 
 const buildRichVerificationCodeSection = (
