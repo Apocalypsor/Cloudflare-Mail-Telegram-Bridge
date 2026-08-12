@@ -64,8 +64,11 @@ const buildTelegramHeader = (
 const buildVerificationCodeSection = (code: string): string =>
   `*${t("bridge:verificationCode")}*  \`${escapeMdV2(code)}\`\n\n`;
 
-const buildRichVerificationCodeSection = (code: string): string =>
-  `<p><b>${escapeHtmlText(t("bridge:verificationCode"))}</b> <code>${escapeHtmlText(code)}</code></p><p>&#160;</p>`;
+const buildRichVerificationCodeSection = (
+  code: string,
+  addBodySpacing = false,
+): string =>
+  `<p><b>${escapeHtmlText(t("bridge:verificationCode"))}</b> <code>${escapeHtmlText(code)}</code></p>${addBodySpacing ? "<p>&#160;</p>" : ""}`;
 
 export const buildTelegramEmailHtml = (
   headerHtml: string,
@@ -73,22 +76,25 @@ export const buildTelegramEmailHtml = (
   verificationCode: string | null,
   maxVisibleCharacters = TG_RICH_TEXT_LIMIT,
 ): string => {
-  const codeSection = verificationCode
-    ? buildRichVerificationCodeSection(verificationCode)
-    : "";
   const build = (markdown: string, truncated: boolean) => {
     const body = markdown
       ? toTelegramRichHtml(markdown)
       : "<p>（正文为空）</p>";
     const hint = truncated ? "<footer>… 正文过长，已截断 …</footer>" : "";
-    if (
+    const isDirectBody =
       !truncated &&
-      stripHtmlTags(body).length <= TG_RICH_BODY_AUTO_EXPAND_LIMIT
-    ) {
+      stripHtmlTags(body).length <= TG_RICH_BODY_AUTO_EXPAND_LIMIT;
+    const codeSection = verificationCode
+      ? buildRichVerificationCodeSection(verificationCode, isDirectBody)
+      : "";
+    if (isDirectBody) {
       return `${headerHtml}${codeSection}${body}`;
     }
     return `${headerHtml}${codeSection}<details><summary>邮件正文</summary>${body}${hint}</details>`;
   };
+  const codeSection = verificationCode
+    ? buildRichVerificationCodeSection(verificationCode, true)
+    : "";
   const fixedCharacters = stripHtmlTags(headerHtml + codeSection).length + 32;
   const { markdown, truncated } = truncateMarkdown(
     bodyMarkdown,

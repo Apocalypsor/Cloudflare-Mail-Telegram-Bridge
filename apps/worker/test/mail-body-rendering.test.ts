@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Account } from "../src/types";
 import { toTelegramRichHtml } from "../src/utils/mail/body";
 import {
@@ -8,8 +8,22 @@ import {
 } from "../src/utils/mail/render";
 import {
   buildTelegramEmailHtml,
+  editMessageWithAnalysis,
   prepareEmailContent,
 } from "../src/utils/mail-delivery/format";
+
+const { analyzeEmailMock, editMessageCaptionMock, editRichMessageMock } =
+  vi.hoisted(() => ({
+    analyzeEmailMock: vi.fn(),
+    editMessageCaptionMock: vi.fn(),
+    editRichMessageMock: vi.fn(),
+  }));
+
+vi.mock("@worker/clients/llm", () => ({ analyzeEmail: analyzeEmailMock }));
+vi.mock("@worker/clients/telegram", () => ({
+  editMessageCaption: editMessageCaptionMock,
+  editRichMessage: editRichMessageMock,
+}));
 
 describe("email HTML rendering", () => {
   it("removes hidden preheaders, zero-width filler, and image-only links", () => {
@@ -261,6 +275,8 @@ describe("email HTML rendering", () => {
     expect(result.startsWith(`${header}<p><b>🔒 验证码:</b> <code>`)).toBe(
       true,
     );
+    expect(result).not.toContain("</code></p><p>&#160;</p><details>");
+    expect(result).toContain("</code></p><details>");
     expect(result).toContain("Action 0");
     expect(result).toContain("<details><summary>邮件正文</summary>");
     expect(result).toContain("正文过长");
@@ -330,5 +346,38 @@ describe("email HTML rendering", () => {
     );
     expect(result).not.toContain("邮件正文");
     expect(result).not.toContain("<details");
+  });
+
+  it("does not add a blank paragraph between a code and an AI summary", async () => {
+    analyzeEmailMock.mockResolvedValueOnce({
+      summary: "• Use the verification code to sign in",
+      shortSummary: "Verification code",
+      tags: ["Security"],
+      isJunk: false,
+      junkConfidence: 0,
+    });
+
+    await editMessageWithAnalysis(
+      {} as never,
+      "42",
+      7,
+      false,
+      "<h6>Header</h6><hr/>",
+      "Verification code",
+      "Use code 482913",
+      { inline_keyboard: [] },
+      "482913",
+    );
+
+    expect(editRichMessageMock).toHaveBeenCalledWith(
+      {},
+      "42",
+      7,
+      expect.stringContaining("<code>482913</code></p><h6>🤖 AI 摘要</h6>"),
+      { inline_keyboard: [] },
+    );
+    expect(editRichMessageMock.mock.calls[0][3]).not.toContain(
+      "<code>482913</code></p><p>&#160;</p><h6>",
+    );
   });
 });
