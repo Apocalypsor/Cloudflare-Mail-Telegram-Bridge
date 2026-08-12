@@ -5,6 +5,7 @@ import {
   renderEmailBody,
   truncateMarkdown,
 } from "../src/utils/mail/render";
+import { buildTelegramEmailText } from "../src/utils/mail-delivery/format";
 import { findLongestValidMdV2Prefix } from "../src/utils/markdown-v2";
 
 describe("email HTML rendering", () => {
@@ -236,5 +237,34 @@ describe("email HTML rendering", () => {
     expect(result).toContain(`[Open order](${target})`);
     expect(result).toContain("正文过长");
     expect(findLongestValidMdV2Prefix(result)).toBe(result.length);
+  });
+
+  it("shortens only the email body to fit the formatted-text byte budget", () => {
+    const header = "*From*  sender@example.com\n\n";
+    const code = "123456";
+    const body = Array.from(
+      { length: 20 },
+      (_, index) =>
+        `[Action ${index}](https://example.com/${index}?token=${"x".repeat(80)})`,
+    ).join("\n\n");
+
+    const result = buildTelegramEmailText(header, body, code, 500);
+
+    expect(new TextEncoder().encode(result).length).toBeLessThanOrEqual(500);
+    expect(result.startsWith(`${header}*🔒 验证码:*  \`${code}\`\n\n`)).toBe(
+      true,
+    );
+    expect(result).toContain("[Action 0]");
+    expect(result).toContain("正文过长");
+    expect(findLongestValidMdV2Prefix(result)).toBe(result.length);
+  });
+
+  it("does not change email text already within the byte budget", () => {
+    const header = "*From*  sender@example.com\n\n";
+    const body = "[Open order](https://example.com/order)";
+
+    expect(buildTelegramEmailText(header, body, null, 500)).toBe(
+      `${header}**>${body}||`,
+    );
   });
 });

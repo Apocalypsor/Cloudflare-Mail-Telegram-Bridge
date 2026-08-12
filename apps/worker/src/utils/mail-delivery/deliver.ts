@@ -16,11 +16,10 @@ import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import type { MessageState } from "@worker/providers/types";
 import type { Account, Env } from "@worker/types";
 import {
-  buildVerificationCodeSection,
+  buildTelegramEmailText,
   editMessageWithAnalysis,
   prepareEmailContent,
 } from "@worker/utils/mail-delivery/format";
-import { wrapExpandableQuote } from "@worker/utils/markdown-v2";
 import { syncStarPinState } from "@worker/utils/message-actions";
 import { reportErrorToObservability } from "@worker/utils/observability";
 import PostalMime from "postal-mime";
@@ -74,10 +73,7 @@ export const deliverEmailToTelegram = async (
   const hasSingleAttachment = hasAttachments && email.attachments?.length === 1;
   const { subject, header, formattedBody, plainBody, verificationCode } =
     prepareEmailContent(email, account, hasSingleAttachment);
-  const codeSection = verificationCode
-    ? buildVerificationCodeSection(verificationCode)
-    : "";
-  const text = header + codeSection + wrapExpandableQuote(formattedBody);
+  const text = buildTelegramEmailText(header, formattedBody, verificationCode);
 
   const canAnalyze = hasLlm(env);
 

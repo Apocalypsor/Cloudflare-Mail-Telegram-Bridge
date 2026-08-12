@@ -24,6 +24,8 @@ export const TG_API_BASE = "https://api.telegram.org/bot";
 export const TG_MSG_LIMIT = 4096;
 export const TG_CAPTION_LIMIT = 1024;
 export const TG_MEDIA_GROUP_LIMIT = 10;
+/** Telegram 维护者仅确认约 9500 是 entity 总体积的良好近似；以最终 MarkdownV2 字节数保守代理。 */
+export const TG_FORMATTED_TEXT_SAFE_BYTES = 9000;
 
 // ── LLM / 邮件处理 ──────────────────────────────────────────────────────────
 export const MAX_BODY_CHARS = 4000;

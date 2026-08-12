@@ -1,10 +1,5 @@
 import { http } from "@worker/clients/http";
-import {
-  TG_API_BASE,
-  TG_CAPTION_LIMIT,
-  TG_MEDIA_GROUP_LIMIT,
-  TG_MSG_LIMIT,
-} from "@worker/constants";
+import { TG_API_BASE, TG_MEDIA_GROUP_LIMIT } from "@worker/constants";
 import type {
   TelegramRateLimitReason,
   TelegramRateLimitReservation,
@@ -68,25 +63,11 @@ const isEntityParseError = (description: string | undefined): boolean => {
   return !!description && /can't parse entities/i.test(description);
 };
 
-const isTextFallbackError = (description: string | undefined): boolean =>
-  isEntityParseError(description) ||
-  (!!description &&
-    /ENTITIES_TOO_LONG|MESSAGE_TOO_LONG|MEDIA_CAPTION_TOO_LONG|(?:message|caption) is too long/i.test(
-      description,
-    ));
-
 const markdownV2ToPlainText = (text: string): string => {
   let out = text;
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1: $2");
   out = out.replace(/\\([_*[\]()~`>#+\-=|{}.!\\])/g, "$1");
   return out;
-};
-
-const truncateTelegramText = (text: string, limit: number): string => {
-  if (text.length <= limit) return text;
-  let truncated = text.slice(0, limit - 1);
-  if (/[\uD800-\uDBFF]$/.test(truncated)) truncated = truncated.slice(0, -1);
-  return `${truncated}…`;
 };
 
 const extractTelegramDescription = (payload: unknown): string => {
@@ -248,7 +229,7 @@ const postFormResult = async <T>(
 /**
  * 通用 Telegram JSON API 请求，带 MarkdownV2 parse error 自动回退。
  * 429 会解析 Telegram `parameters.retry_after` 并写回全局 gate。
- * 当格式解析、entity 或文本长度被拒绝时，去掉 parse_mode，裁剪为纯文本后重试。
+ * 当 parse_mode 存在且返回 entity parse error 时，自动去掉 parse_mode 并将 text/caption 转为纯文本重试。
  */
 const tgPost = async <T = unknown>(
   env: Env,
@@ -265,30 +246,15 @@ const tgPost = async <T = unknown>(
 
     const errDescription = extractTelegramDescription(err.data);
 
-    // Markdown 解析、entity 或长度超限 → 回退为有界纯文本。
-    if (payload.parse_mode && isTextFallbackError(errDescription)) {
+    // parse_mode 错误 → 回退纯文本
+    if (payload.parse_mode && isEntityParseError(errDescription)) {
       const textKey = "text" in payload ? "text" : "caption";
       const textValue = payload[textKey];
       if (typeof textValue === "string") {
-        console.warn(
-          `TG ${label} rejected formatted text, retrying as bounded plain text`,
-        );
+        console.warn(`TG ${label} parse_mode failed, retrying as plain text`);
         const { parse_mode: _, ...rest } = payload;
-        rest[textKey] = truncateTelegramText(
-          markdownV2ToPlainText(textValue),
-          textKey === "text" ? TG_MSG_LIMIT : TG_CAPTION_LIMIT,
-        );
-        try {
-          return await postJsonResult(env, chatId, url, rest, label);
-        } catch (fallbackErr) {
-          if (!(fallbackErr instanceof HTTPError)) throw fallbackErr;
-          const fallbackDescription = extractTelegramDescription(
-            fallbackErr.data,
-          );
-          throw new Error(
-            `TG ${label} ${fallbackErr.response.status}: ${fallbackDescription}`,
-          );
-        }
+        rest[textKey] = markdownV2ToPlainText(textValue);
+        return tgPost(env, chatId, url, rest, label);
       }
     }
 
@@ -383,108 +349,84 @@ export const sendWithAttachments = async (
   replyMarkup?: unknown,
   messageThreadId?: number | null,
 ): Promise<TelegramSendResult> => {
-  try {
-    if (attachments.length === 1) {
-      const att = attachments[0];
-      const blob = attToBlob(att);
+  if (attachments.length === 1) {
+    const att = attachments[0];
+    const blob = attToBlob(att);
+    const buildForm = (text: string, useMarkdown: boolean): FormData => {
       const form = new FormData();
       form.append("chat_id", chatId);
       if (messageThreadId != null) {
         form.append("message_thread_id", String(messageThreadId));
       }
       form.append("document", blob, att.filename || "attachment");
-      form.append("caption", caption);
-      form.append("parse_mode", "MarkdownV2");
+      form.append("caption", text);
+      if (useMarkdown) form.append("parse_mode", "MarkdownV2");
       if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
+      return form;
+    };
 
-      const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendDocument`;
-      try {
-        const data = await postFormResult<{ message_id: number }>(
+    const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendDocument`;
+    try {
+      const data = await postFormResult<{ message_id: number }>(
+        env,
+        chatId,
+        url,
+        buildForm(caption, true),
+        "sendDocument",
+      );
+      return { messageId: data.message_id };
+    } catch (err) {
+      if (!(err instanceof HTTPError)) throw err;
+
+      const errDescription = extractTelegramDescription(err.data);
+      console.error("TG sendDocument failed payload:", {
+        chatId,
+        captionLength: caption.length,
+        filename: att.filename || "attachment",
+        description: errDescription,
+      });
+
+      if (isEntityParseError(errDescription)) {
+        console.warn(
+          "TG sendDocument parse_mode failed, retrying as plain caption",
+        );
+        const fallbackData = await postFormResult<{ message_id: number }>(
           env,
           chatId,
           url,
-          form,
+          buildForm(markdownV2ToPlainText(caption), false),
           "sendDocument",
         );
-        return { messageId: data.message_id };
-      } catch (err) {
-        if (!(err instanceof HTTPError)) throw err;
-
-        const errDescription = extractTelegramDescription(err.data);
-        console.error("TG sendDocument failed payload:", {
-          chatId,
-          captionLength: caption.length,
-          filename: att.filename || "attachment",
-          description: errDescription,
-        });
-
-        if (isTextFallbackError(errDescription)) {
-          console.warn(
-            "TG sendDocument rejected formatted caption, retrying as bounded plain caption",
-          );
-          const fallbackForm = new FormData();
-          fallbackForm.append("chat_id", chatId);
-          if (messageThreadId != null) {
-            fallbackForm.append("message_thread_id", String(messageThreadId));
-          }
-          fallbackForm.append("document", blob, att.filename || "attachment");
-          fallbackForm.append(
-            "caption",
-            truncateTelegramText(
-              markdownV2ToPlainText(caption),
-              TG_CAPTION_LIMIT,
-            ),
-          );
-          if (replyMarkup)
-            fallbackForm.append("reply_markup", JSON.stringify(replyMarkup));
-          const fallbackData = await postFormResult<{ message_id: number }>(
-            env,
-            chatId,
-            url,
-            fallbackForm,
-            "sendDocument",
-          );
-          return { messageId: fallbackData.message_id };
-        }
-
-        throw new Error(
-          `TG sendDocument ${err.response.status}: ${errDescription}`,
-        );
+        return { messageId: fallbackData.message_id };
       }
-    } else {
-      const textMsgId = await sendTextMessage(
+
+      throw new Error(
+        `TG sendDocument ${err.response.status}: ${errDescription}`,
+      );
+    }
+  }
+
+  const textMsgId = await sendTextMessage(
+    env,
+    chatId,
+    caption,
+    replyMarkup,
+    messageThreadId != null
+      ? { message_thread_id: messageThreadId }
+      : undefined,
+  );
+
+  return runTelegramFollowups(textMsgId, async () => {
+    for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
+      await sendMediaGroupChunk(
         env,
         chatId,
-        caption,
-        replyMarkup,
-        messageThreadId != null
-          ? { message_thread_id: messageThreadId }
-          : undefined,
+        attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT),
+        textMsgId,
+        messageThreadId,
       );
-
-      return runTelegramFollowups(textMsgId, async () => {
-        const chunks: Attachment[][] = [];
-        for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
-          chunks.push(attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT));
-        }
-        for (const chunk of chunks) {
-          await sendMediaGroupChunk(
-            env,
-            chatId,
-            "",
-            chunk,
-            textMsgId,
-            messageThreadId,
-          );
-        }
-      });
     }
-  } catch (e) {
-    if (isTelegramRateLimitError(e)) throw e;
-    throw new Error(
-      `发送附件消息异常: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
+  });
 };
 
 /** 编辑附件消息的 caption */
@@ -526,14 +468,11 @@ export const pinChatMessage = async (
     );
     return "ok";
   } catch (err) {
+    if (isTelegramRateLimitError(err)) return "rate_limited";
     if (err instanceof Error) {
       if (/already pinned/i.test(err.message)) return "ok";
       // 消息不存在（被用户删了）→ 上层可能想重发。
-      if (/not found|MESSAGE_ID_INVALID|message to pin/i.test(err.message))
-        return "not_found";
-      // 限流 / 群权限不够 / 其它 TG 临时错误 —— 不算失败，下次同步再试。
-      // 之前 429 会冒到 syncStarPinState 里 reportErrorToObservability，刷屏告警。
-      if (/too many requests|429/i.test(err.message)) return "rate_limited";
+      if (isTelegramMessageMissing(err)) return "not_found";
     }
     throw err;
   }
@@ -555,13 +494,8 @@ export const unpinChatMessage = async (
       "unpinChatMessage",
     );
   } catch (err) {
-    if (
-      err instanceof Error &&
-      /not found|not pinned|too many requests|429|MESSAGE_ID_INVALID/i.test(
-        err.message,
-      )
-    )
-      return;
+    if (isTelegramRateLimitError(err) || isTelegramMessageMissing(err)) return;
+    if (err instanceof Error && /not pinned/i.test(err.message)) return;
     throw err;
   }
 };
@@ -621,17 +555,9 @@ export const deleteMessageIfPresent = async (
     await deleteMessage(env, chatId, messageId);
     return "deleted";
   } catch (err) {
+    if (isTelegramRateLimitError(err)) return "rate_limited";
     if (err instanceof Error) {
-      if (
-        /message to delete not found|not found|MESSAGE_ID_INVALID/i.test(
-          err.message,
-        )
-      ) {
-        return "not_found";
-      }
-      if (/too many requests|429/i.test(err.message)) {
-        return "rate_limited";
-      }
+      if (isTelegramMessageMissing(err)) return "not_found";
       if (
         /can't be deleted|cannot be deleted|not enough rights/i.test(
           err.message,
@@ -647,11 +573,10 @@ export const deleteMessageIfPresent = async (
 const sendMediaGroupChunk = async (
   env: Env,
   chatId: string,
-  caption: string,
   attachments: Attachment[],
   replyToMessageId?: number,
   messageThreadId?: number | null,
-): Promise<number> => {
+): Promise<void> => {
   const form = new FormData();
   form.append("chat_id", chatId);
   if (messageThreadId != null) {
@@ -669,82 +594,33 @@ const sendMediaGroupChunk = async (
     const blob = attToBlob(att);
     form.append(fieldName, blob, att.filename || `attachment_${i + 1}`);
 
-    const entry: Record<string, string> = {
+    return {
       type: "document",
       media: `attach://${fieldName}`,
     };
-    if (i === 0 && caption) {
-      entry.caption = caption;
-      entry.parse_mode = "MarkdownV2";
-    }
-    return entry;
   });
 
   form.append("media", JSON.stringify(media));
 
   const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendMediaGroup`;
   try {
-    const data = await postFormResult<Array<{ message_id: number }>>(
-      env,
-      chatId,
-      url,
-      form,
-      "sendMediaGroup",
-    );
-    return data[0].message_id;
+    await postFormResult(env, chatId, url, form, "sendMediaGroup");
   } catch (err) {
     if (!(err instanceof HTTPError)) throw err;
 
     const errDescription = extractTelegramDescription(err.data);
     console.error("TG sendMediaGroup failed payload:", {
       chatId,
-      captionLength: caption.length,
       attachments: attachments.length,
       description: errDescription,
     });
-
-    if (isTextFallbackError(errDescription) && caption) {
-      console.warn(
-        "TG sendMediaGroup rejected formatted caption, retrying as bounded plain caption",
-      );
-      const fallbackForm = new FormData();
-      fallbackForm.append("chat_id", chatId);
-      if (messageThreadId != null) {
-        fallbackForm.append("message_thread_id", String(messageThreadId));
-      }
-      const fallbackMedia = attachments.map((att, i) => {
-        const fieldName = `file${i}`;
-        const blob = attToBlob(att);
-        fallbackForm.append(
-          fieldName,
-          blob,
-          att.filename || `attachment_${i + 1}`,
-        );
-        const entry: Record<string, string> = {
-          type: "document",
-          media: `attach://${fieldName}`,
-        };
-        if (i === 0) {
-          entry.caption = truncateTelegramText(
-            markdownV2ToPlainText(caption),
-            TG_CAPTION_LIMIT,
-          );
-        }
-        return entry;
-      });
-      fallbackForm.append("media", JSON.stringify(fallbackMedia));
-      const fallbackData = await postFormResult<Array<{ message_id: number }>>(
-        env,
-        chatId,
-        url,
-        fallbackForm,
-        "sendMediaGroup",
-      );
-      return fallbackData[0].message_id;
-    }
 
     throw new Error(
       `TG sendMediaGroup ${err.response.status}: ${errDescription}`,
     );
   }
 };
+
+const isTelegramMessageMissing = (err: unknown): boolean =>
+  err instanceof Error &&
+  /not found|MESSAGE_ID_INVALID|message to pin/i.test(err.message);

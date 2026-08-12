@@ -4,13 +4,18 @@ import {
   MESSAGE_DATE_LOCALE,
   MESSAGE_DATE_TIMEZONE,
   TG_CAPTION_LIMIT,
+  TG_FORMATTED_TEXT_SAFE_BYTES,
   TG_MSG_LIMIT,
 } from "@worker/constants";
 import { t } from "@worker/i18n";
 import type { Account, Env } from "@worker/types";
 import { formatBody, toTelegramMdV2 } from "@worker/utils/mail/body";
 import { htmlToMarkdown } from "@worker/utils/mail/render";
-import { escapeMdV2 } from "@worker/utils/markdown-v2";
+import {
+  escapeMdV2,
+  findLongestValidMdV2Prefix,
+  wrapExpandableQuote,
+} from "@worker/utils/markdown-v2";
 
 /**
  * 邮件 → Telegram 消息的格式化层 —— delivery / retry 共用。
@@ -58,6 +63,41 @@ const buildTelegramHeader = (
 
 export const buildVerificationCodeSection = (code: string): string =>
   `*${t("bridge:verificationCode")}*  \`${escapeMdV2(code)}\`\n\n`;
+
+/** 只缩短邮件正文，使完整 MarkdownV2 请求避开 Telegram entity 总体积限制。 */
+export const buildTelegramEmailText = (
+  header: string,
+  formattedBody: string,
+  verificationCode: string | null,
+  maxBytes = TG_FORMATTED_TEXT_SAFE_BYTES,
+): string => {
+  const codeSection = verificationCode
+    ? buildVerificationCodeSection(verificationCode)
+    : "";
+  const build = (body: string) =>
+    header + codeSection + wrapExpandableQuote(body);
+  const fullText = build(formattedBody);
+  if (utf8Length(fullText) <= maxBytes) return fullText;
+
+  const hint = toTelegramMdV2("*… 正文过长，已截断 …*");
+  let low = 0;
+  let high = formattedBody.length;
+  let best = "";
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const end = findLongestValidMdV2Prefix(
+      formattedBody.slice(0, safeSliceEnd(formattedBody, middle)),
+    );
+    const body = formattedBody.slice(0, end).trimEnd();
+    if (utf8Length(buildBodyWithHint(build, body, hint)) <= maxBytes) {
+      best = body;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return buildBodyWithHint(build, best, hint);
+};
 
 const STRONG_CONTEXT_RE =
   /verification\s+code|security\s+code|login\s+code|launch\s+code|sign[-\s]?in\s+code|one[-\s]?time\s+(?:code|password)|auth(?:entication)?\s+code|2fa\s+code|mfa\s+code|otp|passcode|验证码|校验码|动态码|确认码|安全码|一次性(?:代码|密码)|登录(?:代码|验证码)|驗證碼|校驗碼|認證碼|確認碼|安全碼/gi;
@@ -271,3 +311,15 @@ export const editMessageWithAnalysis = async (
   await editMsg(header + codeSection + summarySection + tagsLine);
   return result;
 };
+
+const utf8Length = (text: string): number =>
+  new TextEncoder().encode(text).length;
+
+const safeSliceEnd = (text: string, end: number): number =>
+  end > 0 && /[\uD800-\uDBFF]/.test(text[end - 1]) ? end - 1 : end;
+
+const buildBodyWithHint = (
+  build: (body: string) => string,
+  body: string,
+  hint: string,
+): string => build(body ? `${body}\n\n${hint}` : hint);
