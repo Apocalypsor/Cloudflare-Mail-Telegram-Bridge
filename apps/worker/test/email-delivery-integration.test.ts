@@ -1,11 +1,6 @@
 import { env } from "cloudflare:workers";
-import { HTTPError } from "ky";
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  isTelegramRateLimitError,
-  runTelegramFollowups,
-  TelegramRateLimitError,
-} from "../src/clients/telegram";
+import { TelegramClient } from "../src/clients/telegram";
 import {
   claimEmailDelivery,
   deleteEmailDelivery,
@@ -18,6 +13,8 @@ import {
   getMappingsByEmailIds,
   putMessageMapping,
 } from "../src/db/message-map";
+import { EmailMessageNotFoundError } from "../src/errors/email-provider";
+import { TelegramRateLimitError } from "../src/errors/telegram";
 import {
   coordinateEmailDelivery,
   type EmailDeliveryOperations,
@@ -171,7 +168,7 @@ describe("persisted email delivery safety boundary", () => {
     const deliver: InjectedDelivery = async (beforeSend) => {
       const initialSend = await runAfterDeliveryClaim(beforeSend, async () => {
         telegramCalls += 1;
-        return runTelegramFollowups(204, async () => {
+        return TelegramClient.runFollowups(204, async () => {
           throw new TelegramRateLimitError("sendMediaGroup", 1, "blocked");
         });
       });
@@ -200,11 +197,7 @@ describe("persisted email delivery safety boundary", () => {
 
   it("clears a pending claim when Gmail or Outlook reports HTTP 404", async () => {
     await ensureEmailDeliveryPending(env.DB, 1, "message-6");
-    const notFound = new HTTPError(
-      new Response(null, { status: 404 }),
-      new Request("https://provider.example/messages/missing"),
-      {} as never,
-    );
+    const notFound = new EmailMessageNotFoundError("message-6", "INBOX");
 
     const cleared = await clearMissingEmailDelivery(
       env.DB,
@@ -244,7 +237,7 @@ const createPersistedOperations = (
   ensurePending: () => ensureEmailDeliveryPending(env.DB, 1, emailMessageId),
   claim: () => claimEmailDelivery(env.DB, 1, emailMessageId),
   deliver,
-  isRetryableError: isTelegramRateLimitError,
+  isRetryableError: (error) => error instanceof TelegramRateLimitError,
   markRetryable: () => markEmailDeliveryRetryable(env.DB, 1, emailMessageId),
   markUnknown: () => markEmailDeliveryUnknown(env.DB, 1, emailMessageId),
   clear: async () => {

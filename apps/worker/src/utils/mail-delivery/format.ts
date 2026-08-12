@@ -1,5 +1,5 @@
-import { analyzeEmail, type EmailAnalysis } from "@worker/clients/llm";
-import { editRichMessage } from "@worker/clients/telegram";
+import { type EmailAnalysis, LLMClient } from "@worker/clients/llm";
+import { TelegramClient } from "@worker/clients/telegram";
 import {
   MESSAGE_DATE_LOCALE,
   MESSAGE_DATE_TIMEZONE,
@@ -277,7 +277,7 @@ export const editMessageWithAnalysis = async (
   keyboard: unknown,
   verificationCode: string | null,
 ): Promise<EmailAnalysis> => {
-  const result = await analyzeEmail(env, subject, plainBody);
+  const result = await new LLMClient(env).analyzeEmail(subject, plainBody);
 
   // 高置信度垃圾邮件仅添加 Junk 标签，不移动到垃圾箱
   if (
@@ -299,8 +299,7 @@ export const editMessageWithAnalysis = async (
     result.tags.length > 0
       ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(truncateUnicodeText(tag.replace(/\s+/g, "_"), TG_TAG_LENGTH_LIMIT))}`).join(" ")}</p>`
       : "";
-  await editRichMessage(
-    env,
+  await new TelegramClient(env).editRichMessage(
     chatId,
     tgMessageId,
     `${header}${codeSection}<h6>${escapeHtmlText(t("bridge:aiSummary"))}</h6>${summary}${tags}`,

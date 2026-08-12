@@ -1,25 +1,14 @@
-import { HTTPError } from "ky";
 import { describe, expect, it } from "vitest";
-import { isEmailMessageNotFound } from "../src/providers/errors";
+import { EmailMessageNotFoundError } from "../src/errors/email-provider";
 
 describe("provider delivery errors", () => {
-  it("treats a provider HTTP 404 as a stale email notification", () => {
-    const notFound = new HTTPError(
-      new Response(null, { status: 404 }),
-      new Request("https://provider.example/messages/missing"),
-      {} as never,
-    );
+  it("retains the missing message context", () => {
+    const notFound = new EmailMessageNotFoundError("message-1", "INBOX");
 
-    expect(isEmailMessageNotFound(notFound)).toBe(true);
-  });
-
-  it("does not discard transient provider HTTP failures", () => {
-    const unavailable = new HTTPError(
-      new Response(null, { status: 503 }),
-      new Request("https://provider.example/messages/temporary"),
-      {} as never,
-    );
-
-    expect(isEmailMessageNotFound(unavailable)).toBe(false);
+    expect(notFound).toMatchObject({
+      folder: "INBOX",
+      messageId: "message-1",
+      name: "EmailMessageNotFoundError",
+    });
   });
 });

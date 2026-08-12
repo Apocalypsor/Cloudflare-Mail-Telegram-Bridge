@@ -1,11 +1,5 @@
 import { buildEmailKeyboard } from "@worker/bot/keyboards";
-import {
-  deleteMessageIfPresent,
-  editRichMessage,
-  pinChatMessage,
-  setReplyMarkup,
-  unpinChatMessage,
-} from "@worker/clients/telegram";
+import { TelegramClient } from "@worker/clients/telegram";
 import { getAccountById, getOwnAccounts } from "@worker/db/accounts";
 import {
   deleteMappingByEmailId,
@@ -13,6 +7,10 @@ import {
   getMessageMapping,
   type MessageMapping,
 } from "@worker/db/message-map";
+import {
+  TelegramApiError,
+  TelegramApiErrorCode,
+} from "@worker/errors/telegram";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import type { MessageLocation, MessageState } from "@worker/providers/types";
 import type { Account, Env } from "@worker/types";
@@ -37,8 +35,7 @@ export const removeFromTelegram = async (
 ): Promise<void> => {
   let removed = false;
   try {
-    const result = await deleteMessageIfPresent(
-      env,
+    const result = await new TelegramClient(env).deleteMessageIfPresent(
       mapping.tg_chat_id,
       mapping.tg_message_id,
     );
@@ -107,9 +104,9 @@ export const syncStarPinState = async (
 ): Promise<void> => {
   try {
     if (starred) {
-      await pinChatMessage(env, chatId, tgMessageId);
+      await new TelegramClient(env).pinChatMessage(chatId, tgMessageId);
     } else {
-      await unpinChatMessage(env, chatId, tgMessageId);
+      await new TelegramClient(env).unpinChatMessage(chatId, tgMessageId);
     }
   } catch (err) {
     await reportErrorToObservability(env, "tg.pin_sync_failed", err, {
@@ -179,15 +176,17 @@ export const reconcileMessageState = async (
       mapping.tg_chat_id,
       mapping.tg_message_id,
     );
-    await setReplyMarkup(
-      env,
+    await new TelegramClient(env).setReplyMarkup(
       mapping.tg_chat_id,
       mapping.tg_message_id,
       keyboard,
     );
   } catch (err) {
     if (
-      !(err instanceof Error && err.message.includes("message is not modified"))
+      !(
+        err instanceof TelegramApiError &&
+        err.code === TelegramApiErrorCode.MessageNotModified
+      )
     ) {
       await reportErrorToObservability(
         env,
@@ -245,10 +244,18 @@ export const refreshEmailKeyboardAfterReminderChange = async (
     m.tg_message_id,
   );
   try {
-    await setReplyMarkup(env, m.tg_chat_id, m.tg_message_id, keyboard);
+    await new TelegramClient(env).setReplyMarkup(
+      m.tg_chat_id,
+      m.tg_message_id,
+      keyboard,
+    );
   } catch (err) {
-    if (err instanceof Error && err.message.includes("message is not modified"))
+    if (
+      err instanceof TelegramApiError &&
+      err.code === TelegramApiErrorCode.MessageNotModified
+    ) {
       return;
+    }
     await reportErrorToObservability(
       env,
       "reminder.refresh_keyboard_failed",
@@ -452,8 +459,7 @@ const markTelegramMessageAsRemoved = async (
   mapping: MessageMapping,
 ): Promise<boolean> => {
   try {
-    await editRichMessage(
-      env,
+    await new TelegramClient(env).editRichMessage(
       mapping.tg_chat_id,
       mapping.tg_message_id,
       `<p>${REMOVED_FROM_INBOX_TEXT}</p>`,
@@ -461,14 +467,15 @@ const markTelegramMessageAsRemoved = async (
     );
     return true;
   } catch (err) {
-    if (isMessageNotModified(err)) return true;
+    if (
+      err instanceof TelegramApiError &&
+      err.code === TelegramApiErrorCode.MessageNotModified
+    ) {
+      return true;
+    }
     await reportRemovedFallbackFailure(env, mapping, err);
     return false;
   }
-};
-
-const isMessageNotModified = (err: unknown): boolean => {
-  return err instanceof Error && /message is not modified/i.test(err.message);
 };
 
 const reportRemovedFallbackFailure = async (

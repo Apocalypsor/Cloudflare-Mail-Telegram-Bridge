@@ -10,6 +10,7 @@ import {
   putCachedAccessToken,
   putOAuthState,
 } from "@worker/db/kv";
+import { EmailMessageNotFoundError } from "@worker/errors/email-provider";
 import type {
   EmailCount,
   EmailListItem,
@@ -40,6 +41,7 @@ import {
   visibleMailAttachments,
 } from "@worker/utils/mail/mime";
 import { reportErrorToObservability } from "@worker/utils/observability";
+import { HTTPError } from "ky";
 import PostalMime from "postal-mime";
 
 export abstract class EmailProvider {
@@ -222,7 +224,15 @@ export abstract class EmailProvider {
   ): Promise<ArrayBuffer>;
 
   async fetchRawEmailWithState(messageId: string): Promise<RawEmailWithState> {
-    const rawEmail = await this.fetchRawEmail(messageId);
+    let rawEmail: ArrayBuffer;
+    try {
+      rawEmail = await this.fetchRawEmail(messageId);
+    } catch (error) {
+      if (error instanceof HTTPError && error.response.status === 404) {
+        throw new EmailMessageNotFoundError(messageId, "INBOX", error);
+      }
+      throw error;
+    }
     const state = await this.resolveMessageState(messageId).catch(() => null);
     return { rawEmail, state };
   }

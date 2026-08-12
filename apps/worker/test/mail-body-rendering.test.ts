@@ -18,9 +18,15 @@ const { analyzeEmailMock, editRichMessageMock } = vi.hoisted(() => ({
   editRichMessageMock: vi.fn(),
 }));
 
-vi.mock("@worker/clients/llm", () => ({ analyzeEmail: analyzeEmailMock }));
+vi.mock("@worker/clients/llm", () => ({
+  LLMClient: class {
+    analyzeEmail = analyzeEmailMock;
+  },
+}));
 vi.mock("@worker/clients/telegram", () => ({
-  editRichMessage: editRichMessageMock,
+  TelegramClient: class {
+    editRichMessage = editRichMessageMock;
+  },
 }));
 
 describe("email HTML rendering", () => {
@@ -466,13 +472,12 @@ describe("email HTML rendering", () => {
     );
 
     expect(editRichMessageMock).toHaveBeenCalledWith(
-      {},
       "42",
       7,
       expect.stringContaining("<code>482913</code></p><h6>🤖 AI 摘要</h6>"),
       { inline_keyboard: [] },
     );
-    expect(editRichMessageMock.mock.calls[0][3]).not.toContain(
+    expect(editRichMessageMock.mock.calls[0][2]).not.toContain(
       "<code>482913</code></p><p>&#160;</p><h6>",
     );
   });

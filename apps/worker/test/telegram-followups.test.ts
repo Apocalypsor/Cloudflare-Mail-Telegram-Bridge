@@ -1,9 +1,7 @@
-import type { Env } from "@worker/types";
+import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  runTelegramFollowups,
-  sendWithAttachments,
-} from "../src/clients/telegram";
+import { TelegramClient } from "../src/clients/telegram";
+import type { TelegramClientEnv } from "../src/clients/telegram/types";
 
 describe("Telegram follow-up operations", () => {
   afterEach(() => {
@@ -13,7 +11,7 @@ describe("Telegram follow-up operations", () => {
   it("preserves the initial message id when a later attachment send fails", async () => {
     const followupError = new Error("media group rate limited");
 
-    const result = await runTelegramFollowups(123, async () => {
+    const result = await TelegramClient.runFollowups(123, async () => {
       throw followupError;
     });
 
@@ -22,7 +20,7 @@ describe("Telegram follow-up operations", () => {
   });
 
   it("returns the initial message without an error after all follow-ups", async () => {
-    const result = await runTelegramFollowups(124, async () => {});
+    const result = await TelegramClient.runFollowups(124, async () => {});
 
     expect(result).toEqual({ messageId: 124 });
   });
@@ -40,16 +38,13 @@ describe("Telegram follow-up operations", () => {
         });
       }),
     );
-    const env = {
+    const testEnv: TelegramClientEnv = {
       TELEGRAM_BOT_TOKEN: "test-token",
-      TELEGRAM_RATE_LIMITER: {
-        getByName: () => ({ reserve: async () => ({ ok: true }) }),
-      },
-    } as Env;
+      TELEGRAM_RATE_LIMITER: env.TELEGRAM_RATE_LIMITER,
+    };
 
     await expect(
-      sendWithAttachments(
-        env,
+      new TelegramClient(testEnv).sendWithAttachments(
         "42",
         "<p>Hello &amp; welcome</p>",
         [{ filename: "hello.txt", mimeType: "text/plain", content: "hello" }],

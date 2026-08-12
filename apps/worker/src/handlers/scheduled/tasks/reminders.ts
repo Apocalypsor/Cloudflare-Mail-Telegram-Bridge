@@ -1,5 +1,5 @@
 import { RemindersService } from "@worker/api/modules/reminders/service";
-import { pinChatMessage, sendTextMessage } from "@worker/clients/telegram";
+import { TelegramClient } from "@worker/clients/telegram";
 import { getAccountById } from "@worker/db/accounts";
 import { deleteMessageMapping } from "@worker/db/message-map";
 import {
@@ -7,6 +7,10 @@ import {
   markReminderSent,
   type Reminder,
 } from "@worker/db/reminders";
+import {
+  TelegramApiError,
+  TelegramApiErrorCode,
+} from "@worker/errors/telegram";
 import {
   ScheduledTask,
   type ScheduledTaskContext,
@@ -61,7 +65,10 @@ export class DueRemindersTask extends ScheduledTask {
           }
           await this.markSentAndRefresh(env, r);
         } catch (err) {
-          if (this.isPermanentSendError(err)) {
+          if (
+            err instanceof TelegramApiError &&
+            err.code === TelegramApiErrorCode.ChatUnavailable
+          ) {
             await this.markSentAndRefresh(env, r);
           }
           await reportErrorToObservability(env, "reminders.send_failed", err, {
@@ -97,16 +104,6 @@ export class DueRemindersTask extends ScheduledTask {
         await sleep(delayMs);
       }
     }
-  }
-
-  private isPermanentSendError(err: unknown): boolean {
-    const msg = err instanceof Error ? err.message : String(err);
-    return (
-      /\b(403|400)\b/.test(msg) &&
-      /(blocked|kicked|deactivated|chat not found|chat_id is empty|bot was blocked|bot was kicked)/i.test(
-        msg,
-      )
-    );
   }
 
   private formatRemindAt(d: Date): string {
@@ -170,9 +167,14 @@ export class DueRemindersTask extends ScheduledTask {
       inline_keyboard: [[{ text: t("reminders:viewMail"), web_app: { url } }]],
     };
 
-    await sendTextMessage(env, r.telegram_user_id, text, replyMarkup, {
-      link_preview_options: { is_disabled: true },
-    });
+    await new TelegramClient(env).sendTextMessage(
+      r.telegram_user_id,
+      text,
+      replyMarkup,
+      {
+        link_preview_options: { is_disabled: true },
+      },
+    );
 
     waitUntil(this.applyReminderSideEffects(env, r, waitUntil));
   }
@@ -220,9 +222,12 @@ export class DueRemindersTask extends ScheduledTask {
 
     const pinP = (async () => {
       if (r.tg_chat_id == null || r.tg_message_id == null) return;
-      let status: Awaited<ReturnType<typeof pinChatMessage>>;
+      let status: Awaited<ReturnType<TelegramClient["pinChatMessage"]>>;
       try {
-        status = await pinChatMessage(env, r.tg_chat_id, r.tg_message_id);
+        status = await new TelegramClient(env).pinChatMessage(
+          r.tg_chat_id,
+          r.tg_message_id,
+        );
       } catch (err) {
         await reportErrorToObservability(env, "reminders.pin_failed", err, {
           reminderId: r.id,
@@ -287,6 +292,6 @@ export class DueRemindersTask extends ScheduledTask {
       "",
       escapeMdV2(r.text || "(无备注)"),
     ].join("\n");
-    await sendTextMessage(env, r.telegram_user_id, text);
+    await new TelegramClient(env).sendTextMessage(r.telegram_user_id, text);
   }
 }

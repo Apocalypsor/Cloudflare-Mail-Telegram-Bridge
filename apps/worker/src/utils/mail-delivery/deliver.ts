@@ -2,12 +2,9 @@ import {
   buildEmailKeyboard,
   buildInitialEmailKeyboard,
 } from "@worker/bot/keyboards";
-import { hasLlm } from "@worker/clients/llm";
+import { LLMClient } from "@worker/clients/llm";
 import {
-  deleteMessage,
-  sendRichMessage,
-  sendWithAttachments,
-  setReplyMarkup,
+  TelegramClient,
   type TelegramSendResult,
 } from "@worker/clients/telegram";
 import { putFailedEmail } from "@worker/db/failed-emails";
@@ -74,7 +71,8 @@ export const deliverEmailToTelegram = async (
     prepareEmailContent(email, account);
   const html = buildTelegramEmailHtml(header, bodyMarkdown, verificationCode);
 
-  const canAnalyze = hasLlm(env);
+  const canAnalyze = LLMClient.isConfigured(env);
+  const telegram = new TelegramClient(env);
 
   // 投递流程：先带"最小键盘"（仅刷新）发消息 → 拿到 sentMessageId → 建
   // 完整键盘 → setReplyMarkup 升级。首发就挂刷新键是保底 —— 完整键盘要求
@@ -86,17 +84,16 @@ export const deliverEmailToTelegram = async (
     options.beforeSend,
     () =>
       hasAttachments
-        ? sendWithAttachments(
-            env,
+        ? telegram.sendWithAttachments(
             chatId,
             html,
             email.attachments || [],
             initialKeyboard,
             topicId,
           )
-        : sendRichMessage(env, chatId, html, initialKeyboard, topicId).then(
-            (messageId) => ({ messageId }),
-          ),
+        : telegram
+            .sendRichMessage(chatId, html, initialKeyboard, topicId)
+            .then((messageId) => ({ messageId })),
   );
   if (!initialSend.claimed) return "not-claimed";
   const { messageId: sentMessageId, followupError } = initialSend.value;
@@ -114,7 +111,7 @@ export const deliverEmailToTelegram = async (
     console.log(
       `Duplicate delivery detected for ${emailMessageId}, deleting duplicate Telegram message`,
     );
-    await deleteMessage(env, chatId, sentMessageId).catch(() => {});
+    await telegram.deleteMessage(chatId, sentMessageId).catch(() => {});
     return "sent";
   }
 
@@ -140,7 +137,9 @@ export const deliverEmailToTelegram = async (
     chatId,
     sentMessageId,
   );
-  await setReplyMarkup(env, chatId, sentMessageId, keyboard).catch(() => {});
+  await telegram
+    .setReplyMarkup(chatId, sentMessageId, keyboard)
+    .catch(() => {});
 
   if (initialStarred) {
     // 新消息投递完 + 初始就是 star → 同步置顶
