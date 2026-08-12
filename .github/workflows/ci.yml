@@ -119,14 +119,6 @@ jobs:
           packageManager: bun
           workingDirectory: apps/worker
           command: deploy
-      - uses: cloudflare/wrangler-action@v4
-        name: Apply D1 migrations after Worker deploy
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: bun
-          workingDirectory: apps/worker
-          command: d1 migrations apply gmail-tg-bridge --remote
 
   preview-worker:
     name: Preview Worker (PR version)
