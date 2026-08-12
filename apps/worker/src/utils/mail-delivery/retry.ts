@@ -27,7 +27,7 @@ const reanalyzeEmail = async (
   env: Env,
   account: Account,
   mapping: MessageMapping,
-  isCaptionHint?: boolean,
+  legacyCaption = false,
 ): Promise<ReanalyzeResult> => {
   const reconcile = await reconcileMessageState(env, account, mapping);
   if (reconcile.status === "removed") {
@@ -39,13 +39,11 @@ const reanalyzeEmail = async (
   const rawEmail = await provider.fetchRawEmail(email_message_id);
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
-  const isCaption =
-    isCaptionHint ?? !!(email.attachments && email.attachments.length === 1);
 
   const { subject, header, plainBody, verificationCode } = prepareEmailContent(
     email,
     account,
-    isCaption,
+    legacyCaption,
   );
   if (!plainBody.trim()) return { status: "analyzed" };
 
@@ -63,7 +61,7 @@ const reanalyzeEmail = async (
     env,
     tg_chat_id,
     tg_message_id,
-    isCaption,
+    legacyCaption,
     header,
     subject,
     plainBody,

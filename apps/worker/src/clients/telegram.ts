@@ -308,6 +308,47 @@ export const editTextMessage = async (
   await tgPost(env, chatId, url, payload, "editMessageText");
 };
 
+export const sendRichMessage = async (
+  env: Env,
+  chatId: string,
+  html: string,
+  replyMarkup?: unknown,
+  messageThreadId?: number | null,
+): Promise<number> => {
+  const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendRichMessage`;
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    rich_message: { html },
+  };
+  if (messageThreadId != null) payload.message_thread_id = messageThreadId;
+  if (replyMarkup) payload.reply_markup = replyMarkup;
+  const data = await tgPost<{ message_id: number }>(
+    env,
+    chatId,
+    url,
+    payload,
+    "sendRichMessage",
+  );
+  return data.message_id;
+};
+
+export const editRichMessage = async (
+  env: Env,
+  chatId: string,
+  messageId: number,
+  html: string,
+  replyMarkup?: unknown,
+): Promise<void> => {
+  const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+    rich_message: { html },
+  };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
+  await tgPost(env, chatId, url, payload, "editMessageText");
+};
+
 const attToBlob = (att: Attachment): Blob => {
   const mime = att.mimeType || "application/octet-stream";
   // Cast through unknown：Workers runtime 的 ArrayBufferLike 跟 page tsconfig
@@ -337,92 +378,32 @@ export const runTelegramFollowups = async (
 /**
  * 发送消息 + 附件，返回首条可见消息的 ID。多附件后续发送失败时保留
  * `messageId` 并返回 `followupError`，让上层先建 mapping，避免整封重发。
- * - 1 个附件: sendDocument + caption + reply_markup
- * - 多个附件: 先发文字消息（带 reply_markup），再发媒体组作为回复
+ * - 主消息始终使用 Rich HTML，附件作为回复发送
  * - 超过 10 个附件: 分批发送，每批最多 10 个
  */
 export const sendWithAttachments = async (
   env: Env,
   chatId: string,
-  caption: string,
+  html: string,
   attachments: Attachment[],
   replyMarkup?: unknown,
   messageThreadId?: number | null,
 ): Promise<TelegramSendResult> => {
-  if (attachments.length === 1) {
-    const att = attachments[0];
-    const blob = attToBlob(att);
-    const buildForm = (text: string, useMarkdown: boolean): FormData => {
-      const form = new FormData();
-      form.append("chat_id", chatId);
-      if (messageThreadId != null) {
-        form.append("message_thread_id", String(messageThreadId));
-      }
-      form.append("document", blob, att.filename || "attachment");
-      form.append("caption", text);
-      if (useMarkdown) form.append("parse_mode", "MarkdownV2");
-      if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
-      return form;
-    };
-
-    const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendDocument`;
-    try {
-      const data = await postFormResult<{ message_id: number }>(
-        env,
-        chatId,
-        url,
-        buildForm(caption, true),
-        "sendDocument",
-      );
-      return { messageId: data.message_id };
-    } catch (err) {
-      if (!(err instanceof HTTPError)) throw err;
-
-      const errDescription = extractTelegramDescription(err.data);
-      console.error("TG sendDocument failed payload:", {
-        chatId,
-        captionLength: caption.length,
-        filename: att.filename || "attachment",
-        description: errDescription,
-      });
-
-      if (isEntityParseError(errDescription)) {
-        console.warn(
-          "TG sendDocument parse_mode failed, retrying as plain caption",
-        );
-        const fallbackData = await postFormResult<{ message_id: number }>(
-          env,
-          chatId,
-          url,
-          buildForm(markdownV2ToPlainText(caption), false),
-          "sendDocument",
-        );
-        return { messageId: fallbackData.message_id };
-      }
-
-      throw new Error(
-        `TG sendDocument ${err.response.status}: ${errDescription}`,
-      );
-    }
-  }
-
-  const textMsgId = await sendTextMessage(
+  const messageId = await sendRichMessage(
     env,
     chatId,
-    caption,
+    html,
     replyMarkup,
-    messageThreadId != null
-      ? { message_thread_id: messageThreadId }
-      : undefined,
+    messageThreadId,
   );
 
-  return runTelegramFollowups(textMsgId, async () => {
+  return runTelegramFollowups(messageId, async () => {
     for (let i = 0; i < attachments.length; i += TG_MEDIA_GROUP_LIMIT) {
-      await sendMediaGroupChunk(
+      await sendAttachmentChunk(
         env,
         chatId,
         attachments.slice(i, i + TG_MEDIA_GROUP_LIMIT),
-        textMsgId,
+        messageId,
         messageThreadId,
       );
     }
@@ -570,11 +551,11 @@ export const deleteMessageIfPresent = async (
   }
 };
 
-const sendMediaGroupChunk = async (
+const sendAttachmentChunk = async (
   env: Env,
   chatId: string,
   attachments: Attachment[],
-  replyToMessageId?: number,
+  replyToMessageId: number,
   messageThreadId?: number | null,
 ): Promise<void> => {
   const form = new FormData();
@@ -582,11 +563,21 @@ const sendMediaGroupChunk = async (
   if (messageThreadId != null) {
     form.append("message_thread_id", String(messageThreadId));
   }
-  if (replyToMessageId) {
+  form.append(
+    "reply_parameters",
+    JSON.stringify({ message_id: replyToMessageId }),
+  );
+
+  if (attachments.length === 1) {
+    const attachment = attachments[0];
     form.append(
-      "reply_parameters",
-      JSON.stringify({ message_id: replyToMessageId }),
+      "document",
+      attToBlob(attachment),
+      attachment.filename || "attachment",
     );
+    const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/sendDocument`;
+    await postFormResult(env, chatId, url, form, "sendDocument");
+    return;
   }
 
   const media = attachments.map((att, i) => {

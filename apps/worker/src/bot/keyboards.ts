@@ -49,8 +49,8 @@ const remindLabel = (count: number): string => {
 
 /**
  * 构建邮件消息的完整 inline keyboard。**必须在 send 之后调用**（需要 tgMessageId
- * 才能给群聊构造 Mini App deep link）。投递流程是：先 sendTextMessage/
- * sendWithAttachments 裸发文本拿到 sentMessageId，再 buildEmailKeyboard +
+ * 才能给群聊构造 Mini App deep link）。投递流程是：先 sendRichMessage/
+ * sendWithAttachments 发主消息拿到 sentMessageId，再 buildEmailKeyboard +
  * setReplyMarkup —— 这样群聊和私聊只有一条路径。
  *
  * ⏰ / 👁 Mini App 入口：

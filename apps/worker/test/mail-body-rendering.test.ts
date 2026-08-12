@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatBody } from "../src/utils/mail/body";
+import type { Account } from "../src/types";
+import { toTelegramRichHtml } from "../src/utils/mail/body";
 import {
   htmlToMarkdown,
   renderEmailBody,
   truncateMarkdown,
 } from "../src/utils/mail/render";
-import { buildTelegramEmailText } from "../src/utils/mail-delivery/format";
-import { findLongestValidMdV2Prefix } from "../src/utils/markdown-v2";
+import {
+  buildTelegramEmailHtml,
+  prepareEmailContent,
+} from "../src/utils/mail-delivery/format";
 
 describe("email HTML rendering", () => {
   it("removes hidden preheaders, zero-width filler, and image-only links", () => {
@@ -226,45 +229,96 @@ describe("email HTML rendering", () => {
     });
   });
 
-  it("keeps a complete long-target link in valid truncated MarkdownV2", () => {
-    const target = `https://action.example/open?token=${"x".repeat(500)}`;
-    const result = formatBody(
-      undefined,
-      `<p>Intro</p><p><a href="${target}">Open order</a></p><p>After link</p>`,
-      18,
+  it("renders standard Markdown as escaped Telegram Rich HTML", () => {
+    expect(
+      toTelegramRichHtml(
+        "## Offer\n\n**Save 50%** & use `CODE`\n\n[Order](https://example.com?a=1&b=2)",
+      ),
+    ).toBe(
+      "<h2>Offer</h2><p><b>Save 50%</b> &amp; use <code>CODE</code></p>" +
+        '<p><a href="https://example.com?a=1&amp;b=2">Order</a></p>',
     );
-
-    expect(result).toContain(`[Open order](${target})`);
-    expect(result).toContain("正文过长");
-    expect(findLongestValidMdV2Prefix(result)).toBe(result.length);
   });
 
-  it("shortens only the email body to fit the formatted-text byte budget", () => {
-    const header = "*From*  sender@example.com\n\n";
+  it("shortens only the email body to fit the Rich Message text budget", () => {
+    const header = "<p><b>From:</b> sender@example.com</p>";
     const code = "123456";
     const body = Array.from(
       { length: 20 },
-      (_, index) =>
-        `[Action ${index}](https://example.com/${index}?token=${"x".repeat(80)})`,
+      (_, index) => `Action ${index} ${"x".repeat(80)}`,
     ).join("\n\n");
 
-    const result = buildTelegramEmailText(header, body, code, 500);
+    const result = buildTelegramEmailHtml(header, body, code, 500);
 
-    expect(new TextEncoder().encode(result).length).toBeLessThanOrEqual(500);
-    expect(result.startsWith(`${header}*🔒 验证码:*  \`${code}\`\n\n`)).toBe(
+    expect(result.startsWith(`${header}<p><b>🔒 验证码:</b> <code>`)).toBe(
       true,
     );
-    expect(result).toContain("[Action 0]");
+    expect(result).toContain("Action 0");
+    expect(result).toContain("<details><summary>邮件正文</summary>");
     expect(result).toContain("正文过长");
-    expect(findLongestValidMdV2Prefix(result)).toBe(result.length);
   });
 
-  it("does not change email text already within the byte budget", () => {
-    const header = "*From*  sender@example.com\n\n";
+  it("does not charge a long link target against the Rich Message text limit", () => {
+    const target = `https://action.example/open?token=${"x".repeat(500)}`;
+    const result = buildTelegramEmailHtml(
+      "<p>Header</p>",
+      `[Open order](${target})`,
+      null,
+      100,
+    );
+
+    expect(result).toContain(`<a href="${target}">Open order</a>`);
+    expect(result).not.toContain("正文过长");
+  });
+
+  it("renders a short email body directly without a details border", () => {
+    const header = "<p><b>From:</b> sender@example.com</p>";
     const body = "[Open order](https://example.com/order)";
 
-    expect(buildTelegramEmailText(header, body, null, 500)).toBe(
-      `${header}**>${body}||`,
+    expect(buildTelegramEmailHtml(header, body, null, 500)).toBe(
+      `${header}<h6>邮件正文</h6>` +
+        '<p><a href="https://example.com/order">Open order</a></p>',
     );
+  });
+
+  it("keeps a long email body collapsed by default", () => {
+    const result = buildTelegramEmailHtml(
+      "<p>Header</p>",
+      "x".repeat(801),
+      null,
+      2_000,
+    );
+
+    expect(result).toContain("<details><summary>邮件正文</summary>");
+    expect(result).not.toContain("正文过长");
+  });
+
+  it("renders a localized Telegram time and a detected verification code", () => {
+    const content = prepareEmailContent(
+      {
+        subject: "Your verification code is 482913",
+        from: { name: "Example", address: "security@example.com" },
+        to: [{ address: "user@example.com" }],
+        text: "Use verification code 482913 to sign in.",
+      },
+      {
+        id: 1,
+        email: "account@example.com",
+        chat_id: "42",
+      } as Account,
+    );
+    const result = buildTelegramEmailHtml(
+      content.header,
+      content.bodyMarkdown,
+      content.verificationCode,
+    );
+
+    expect(content.verificationCode).toBe("482913");
+    expect(result).toMatch(
+      /时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
+    );
+    expect(result).toContain("<b>🔒 验证码:</b> <code>482913</code><br><br>");
+    expect(result).toContain("<h6>邮件正文</h6>");
+    expect(result).not.toContain("<details");
   });
 });

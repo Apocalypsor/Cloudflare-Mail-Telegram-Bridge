@@ -5,7 +5,7 @@ import {
 import { hasLlm } from "@worker/clients/llm";
 import {
   deleteMessage,
-  sendTextMessage,
+  sendRichMessage,
   sendWithAttachments,
   setReplyMarkup,
   type TelegramSendResult,
@@ -16,7 +16,7 @@ import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import type { MessageState } from "@worker/providers/types";
 import type { Account, Env } from "@worker/types";
 import {
-  buildTelegramEmailText,
+  buildTelegramEmailHtml,
   editMessageWithAnalysis,
   prepareEmailContent,
 } from "@worker/utils/mail-delivery/format";
@@ -70,10 +70,9 @@ export const deliverEmailToTelegram = async (
   const initialStarred = state?.location === "inbox" ? state.starred : false;
 
   const hasAttachments = !!(email.attachments && email.attachments.length > 0);
-  const hasSingleAttachment = hasAttachments && email.attachments?.length === 1;
-  const { subject, header, formattedBody, plainBody, verificationCode } =
-    prepareEmailContent(email, account, hasSingleAttachment);
-  const text = buildTelegramEmailText(header, formattedBody, verificationCode);
+  const { subject, header, bodyMarkdown, plainBody, verificationCode } =
+    prepareEmailContent(email, account);
+  const html = buildTelegramEmailHtml(header, bodyMarkdown, verificationCode);
 
   const canAnalyze = hasLlm(env);
 
@@ -90,18 +89,14 @@ export const deliverEmailToTelegram = async (
         ? sendWithAttachments(
             env,
             chatId,
-            text,
+            html,
             email.attachments || [],
             initialKeyboard,
             topicId,
           )
-        : sendTextMessage(
-            env,
-            chatId,
-            text,
-            initialKeyboard,
-            topicId != null ? { message_thread_id: topicId } : undefined,
-          ).then((messageId) => ({ messageId })),
+        : sendRichMessage(env, chatId, html, initialKeyboard, topicId).then(
+            (messageId) => ({ messageId }),
+          ),
   );
   if (!initialSend.claimed) return "not-claimed";
   const { messageId: sentMessageId, followupError } = initialSend.value;
@@ -175,7 +170,7 @@ export const deliverEmailToTelegram = async (
           env,
           chatId,
           sentMessageId,
-          hasSingleAttachment,
+          false,
           header,
           subject,
           plainBody,
@@ -206,7 +201,7 @@ export const deliverEmailToTelegram = async (
           email_message_id: emailMessageId,
           tg_chat_id: chatId,
           tg_message_id: sentMessageId,
-          is_caption: hasSingleAttachment ? 1 : 0,
+          is_caption: 0,
           subject,
           error_message: err instanceof Error ? err.message : String(err),
         }).catch((e) =>

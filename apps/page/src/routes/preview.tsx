@@ -37,7 +37,7 @@ const PreviewPage = () => {
               HTML → Telegram 预览
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
-              粘贴邮件 HTML，查看处理后发送到 Telegram 的 MarkdownV2 文本
+              粘贴邮件 HTML，查看处理后发送到 Telegram 的 Rich HTML
             </p>
           </div>
           <Button
@@ -69,7 +69,7 @@ const PreviewPage = () => {
 
           <Pane
             label="OUTPUT"
-            subLabel="MarkdownV2"
+            subLabel="Rich HTML"
             sideLabel={
               data ? `${data.length} 字符` : error ? "错误" : "等待输入"
             }
