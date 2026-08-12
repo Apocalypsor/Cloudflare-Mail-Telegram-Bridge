@@ -1,5 +1,5 @@
 import { analyzeEmail, type EmailAnalysis } from "@worker/clients/llm";
-import { editMessageCaption, editRichMessage } from "@worker/clients/telegram";
+import { editRichMessage } from "@worker/clients/telegram";
 import {
   MESSAGE_DATE_LOCALE,
   MESSAGE_DATE_TIMEZONE,
@@ -7,9 +7,8 @@ import {
 } from "@worker/constants";
 import { t } from "@worker/i18n";
 import type { Account, Env } from "@worker/types";
-import { toTelegramMdV2, toTelegramRichHtml } from "@worker/utils/mail/body";
+import { toTelegramRichHtml } from "@worker/utils/mail/body";
 import { renderEmailBody, truncateMarkdown } from "@worker/utils/mail/render";
-import { escapeMdV2 } from "@worker/utils/markdown-v2";
 import { escapeHtmlText, stripHtmlTags } from "@worker/utils/string";
 
 const TG_RICH_BODY_AUTO_EXPAND_LIMIT = 800;
@@ -26,22 +25,15 @@ const buildTelegramHeader = (
   recipient: string,
   subject: string,
   accountEmail?: string,
-  markdownV2 = false,
 ): string => {
   const now = new Date();
   const date = now.toLocaleString(MESSAGE_DATE_LOCALE, {
     timeZone: MESSAGE_DATE_TIMEZONE,
   });
   const line = (label: string, value: string, boldValue = false) => {
-    const escapedValue = markdownV2 ? escapeMdV2(value) : escapeHtmlText(value);
-    const formattedValue = boldValue
-      ? markdownV2
-        ? `*${escapedValue}*`
-        : `<b>${escapedValue}</b>`
-      : escapedValue;
-    return markdownV2
-      ? `*${label}*  ${formattedValue}`
-      : `${escapeHtmlText(label)} ${formattedValue}`;
+    const escapedValue = escapeHtmlText(value);
+    const formattedValue = boldValue ? `<b>${escapedValue}</b>` : escapedValue;
+    return `${escapeHtmlText(label)} ${formattedValue}`;
   };
   const lines = [
     line(t("bridge:header.from"), `${fromName} <${fromAddress}>`),
@@ -51,18 +43,11 @@ const buildTelegramHeader = (
     lines.push(line(t("bridge:header.account"), accountEmail));
   }
   lines.push(
-    markdownV2
-      ? line(t("bridge:header.time"), date)
-      : `${escapeHtmlText(t("bridge:header.time"))} <tg-time unix="${Math.floor(now.getTime() / 1_000)}" format="wDT">${escapeHtmlText(date)}</tg-time>`,
+    `${escapeHtmlText(t("bridge:header.time"))} <tg-time unix="${Math.floor(now.getTime() / 1_000)}" format="wDT">${escapeHtmlText(date)}</tg-time>`,
     line(t("bridge:header.subject"), subject, true),
   );
-  return markdownV2
-    ? `${lines.join("\n")}\n\n`
-    : `<h6>${lines.join("<br>")}</h6><hr/>`;
+  return `<h6>${lines.join("<br>")}</h6><hr/>`;
 };
-
-const buildVerificationCodeSection = (code: string): string =>
-  `*${t("bridge:verificationCode")}*  \`${escapeMdV2(code)}\`\n\n`;
 
 const buildRichVerificationCodeSection = (
   code: string,
@@ -247,7 +232,6 @@ export const prepareEmailContent = (
     html?: string;
   },
   account: Account,
-  legacyCaption = false,
 ) => {
   const subject = email.subject || t("common:label.noSubject");
   const recipient =
@@ -260,7 +244,6 @@ export const prepareEmailContent = (
     recipient,
     subject,
     account.email ?? undefined,
-    legacyCaption,
   );
   const bodyMarkdown = renderEmailBody(email.text, email.html).markdown;
   const plainBody = email.text?.trim() ? email.text : bodyMarkdown;
@@ -273,7 +256,6 @@ export const editMessageWithAnalysis = async (
   env: Env,
   chatId: string,
   tgMessageId: number,
-  legacyCaption: boolean,
   header: string,
   subject: string,
   plainBody: string,
@@ -291,38 +273,20 @@ export const editMessageWithAnalysis = async (
     result.tags.push("Junk");
   }
 
-  if (legacyCaption) {
-    const tagsLine =
-      result.tags.length > 0
-        ? `\n\n${result.tags.map((tag: string) => `\\#${escapeMdV2(tag.replace(/\s+/g, "_"))}`).join("  ")}`
-        : "";
-    const summarySection = `*${escapeMdV2(t("bridge:aiSummary"))}*\n\n${toTelegramMdV2(result.summary)}`;
-    const codeSection = verificationCode
-      ? buildVerificationCodeSection(verificationCode)
+  const codeSection = verificationCode
+    ? buildRichVerificationCodeSection(verificationCode)
+    : "";
+  const summary = toTelegramRichHtml(result.summary);
+  const tags =
+    result.tags.length > 0
+      ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(tag.replace(/\s+/g, "_"))}`).join(" ")}</p>`
       : "";
-    await editMessageCaption(
-      env,
-      chatId,
-      tgMessageId,
-      header + codeSection + summarySection + tagsLine,
-      keyboard,
-    );
-  } else {
-    const codeSection = verificationCode
-      ? buildRichVerificationCodeSection(verificationCode)
-      : "";
-    const summary = toTelegramRichHtml(result.summary);
-    const tags =
-      result.tags.length > 0
-        ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(tag.replace(/\s+/g, "_"))}`).join(" ")}</p>`
-        : "";
-    await editRichMessage(
-      env,
-      chatId,
-      tgMessageId,
-      `${header}${codeSection}<h6>${escapeHtmlText(t("bridge:aiSummary"))}</h6>${summary}${tags}`,
-      keyboard,
-    );
-  }
+  await editRichMessage(
+    env,
+    chatId,
+    tgMessageId,
+    `${header}${codeSection}<h6>${escapeHtmlText(t("bridge:aiSummary"))}</h6>${summary}${tags}`,
+    keyboard,
+  );
   return result;
 };

@@ -13,12 +13,10 @@ export const registerRefreshHandler = (bot: Bot, env: Env) => {
     await ctx.answerCallbackQuery({ text: t("bridge:refreshing") });
 
     try {
-      const isCaption = "caption" in msg && !!msg.caption;
       const result = await refreshEmail(
         env,
         String(msg.chat.id),
         msg.message_id,
-        isCaption,
       );
 
       if (!result.ok) {

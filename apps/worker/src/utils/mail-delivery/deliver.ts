@@ -170,7 +170,6 @@ export const deliverEmailToTelegram = async (
           env,
           chatId,
           sentMessageId,
-          false,
           header,
           subject,
           plainBody,
@@ -201,7 +200,6 @@ export const deliverEmailToTelegram = async (
           email_message_id: emailMessageId,
           tg_chat_id: chatId,
           tg_message_id: sentMessageId,
-          is_caption: 0,
           subject,
           error_message: err instanceof Error ? err.message : String(err),
         }).catch((e) =>

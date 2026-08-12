@@ -289,25 +289,6 @@ export const sendTextMessage = async (
   return data.message_id;
 };
 
-/** 编辑已发送的文字消息 */
-export const editTextMessage = async (
-  env: Env,
-  chatId: string,
-  messageId: number,
-  text: string,
-  replyMarkup?: unknown,
-): Promise<void> => {
-  const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
-  const payload: Record<string, unknown> = {
-    chat_id: chatId,
-    message_id: messageId,
-    text,
-    parse_mode: "MarkdownV2",
-  };
-  if (replyMarkup) payload.reply_markup = replyMarkup;
-  await tgPost(env, chatId, url, payload, "editMessageText");
-};
-
 export const sendRichMessage = async (
   env: Env,
   chatId: string,
@@ -408,25 +389,6 @@ export const sendWithAttachments = async (
       );
     }
   });
-};
-
-/** 编辑附件消息的 caption */
-export const editMessageCaption = async (
-  env: Env,
-  chatId: string,
-  messageId: number,
-  caption: string,
-  replyMarkup?: unknown,
-): Promise<void> => {
-  const url = `${TG_API_BASE}${env.TELEGRAM_BOT_TOKEN}/editMessageCaption`;
-  const payload: Record<string, unknown> = {
-    chat_id: chatId,
-    message_id: messageId,
-    caption,
-    parse_mode: "MarkdownV2",
-  };
-  if (replyMarkup) payload.reply_markup = replyMarkup;
-  await tgPost(env, chatId, url, payload, "editMessageCaption");
 };
 
 /**

@@ -27,7 +27,6 @@ const reanalyzeEmail = async (
   env: Env,
   account: Account,
   mapping: MessageMapping,
-  legacyCaption = false,
 ): Promise<ReanalyzeResult> => {
   const reconcile = await reconcileMessageState(env, account, mapping);
   if (reconcile.status === "removed") {
@@ -43,7 +42,6 @@ const reanalyzeEmail = async (
   const { subject, header, plainBody, verificationCode } = prepareEmailContent(
     email,
     account,
-    legacyCaption,
   );
   if (!plainBody.trim()) return { status: "analyzed" };
 
@@ -61,7 +59,6 @@ const reanalyzeEmail = async (
     env,
     tg_chat_id,
     tg_message_id,
-    legacyCaption,
     header,
     subject,
     plainBody,
@@ -106,7 +103,7 @@ export const retryFailedEmail = async (
     return;
   }
 
-  await reanalyzeEmail(env, account, mapping, !!failed.is_caption);
+  await reanalyzeEmail(env, account, mapping);
 
   // removed 也算「处理完」—— 邮件已不在 inbox，没必要再重试
   await deleteFailedEmail(env.DB, failed.id);
@@ -117,7 +114,6 @@ export const refreshEmail = async (
   env: Env,
   chatId: string,
   tgMessageId: number,
-  isCaption?: boolean,
 ): Promise<
   | { ok: true; removed?: "junk" | "archive" | "deleted" }
   | { ok: false; reason: string }
@@ -136,7 +132,7 @@ export const refreshEmail = async (
     return { ok: false, reason: t("common:error.accountNotFoundShort") };
   }
 
-  const result = await reanalyzeEmail(env, account, mapping, isCaption);
+  const result = await reanalyzeEmail(env, account, mapping);
   if (result.status === "removed") {
     return { ok: true, removed: result.location };
   }

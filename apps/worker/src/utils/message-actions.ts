@@ -1,8 +1,7 @@
 import { buildEmailKeyboard } from "@worker/bot/keyboards";
 import {
   deleteMessageIfPresent,
-  editMessageCaption,
-  editTextMessage,
+  editRichMessage,
   pinChatMessage,
   setReplyMarkup,
   unpinChatMessage,
@@ -453,43 +452,19 @@ const markTelegramMessageAsRemoved = async (
   mapping: MessageMapping,
 ): Promise<boolean> => {
   try {
-    await editTextMessage(
+    await editRichMessage(
       env,
       mapping.tg_chat_id,
       mapping.tg_message_id,
-      REMOVED_FROM_INBOX_TEXT,
+      `<p>${REMOVED_FROM_INBOX_TEXT}</p>`,
       EMPTY_INLINE_KEYBOARD,
     );
     return true;
-  } catch (textErr) {
-    if (isMessageNotModified(textErr)) return true;
-    if (!shouldTryCaptionRemoval(textErr)) {
-      await reportRemovedFallbackFailure(env, mapping, textErr);
-      return false;
-    }
-  }
-
-  try {
-    await editMessageCaption(
-      env,
-      mapping.tg_chat_id,
-      mapping.tg_message_id,
-      REMOVED_FROM_INBOX_TEXT,
-      EMPTY_INLINE_KEYBOARD,
-    );
-    return true;
-  } catch (captionErr) {
-    if (isMessageNotModified(captionErr)) return true;
-    await reportRemovedFallbackFailure(env, mapping, captionErr);
+  } catch (err) {
+    if (isMessageNotModified(err)) return true;
+    await reportRemovedFallbackFailure(env, mapping, err);
     return false;
   }
-};
-
-const shouldTryCaptionRemoval = (err: unknown): boolean => {
-  if (!(err instanceof Error)) return false;
-  return /message is not a text|there is no text|no text in the message/i.test(
-    err.message,
-  );
 };
 
 const isMessageNotModified = (err: unknown): boolean => {

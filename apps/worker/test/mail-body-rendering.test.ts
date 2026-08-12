@@ -12,16 +12,13 @@ import {
   prepareEmailContent,
 } from "../src/utils/mail-delivery/format";
 
-const { analyzeEmailMock, editMessageCaptionMock, editRichMessageMock } =
-  vi.hoisted(() => ({
-    analyzeEmailMock: vi.fn(),
-    editMessageCaptionMock: vi.fn(),
-    editRichMessageMock: vi.fn(),
-  }));
+const { analyzeEmailMock, editRichMessageMock } = vi.hoisted(() => ({
+  analyzeEmailMock: vi.fn(),
+  editRichMessageMock: vi.fn(),
+}));
 
 vi.mock("@worker/clients/llm", () => ({ analyzeEmail: analyzeEmailMock }));
 vi.mock("@worker/clients/telegram", () => ({
-  editMessageCaption: editMessageCaptionMock,
   editRichMessage: editRichMessageMock,
 }));
 
@@ -361,7 +358,6 @@ describe("email HTML rendering", () => {
       {} as never,
       "42",
       7,
-      false,
       "<h6>Header</h6><hr/>",
       "Verification code",
       "Use code 482913",

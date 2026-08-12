@@ -1,12 +1,5 @@
-import { markdownToMdV2 } from "@worker/utils/markdown-v2";
 import { escapeHtmlText } from "@worker/utils/string";
 import type { Address } from "postal-mime";
-
-/** 标准 Markdown → Telegram MarkdownV2 */
-export const toTelegramMdV2 = (markdown: string): string => {
-  if (!markdown) return "";
-  return markdownToMdV2(markdown).trimEnd();
-};
 
 /** 标准 Markdown → Telegram Rich HTML。 */
 export const toTelegramRichHtml = (markdown: string): string => {

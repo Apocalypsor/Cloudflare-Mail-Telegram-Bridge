@@ -135,7 +135,6 @@ export const failedEmails = sqliteTable(
     email_message_id: text("email_message_id").notNull(),
     tg_chat_id: text("tg_chat_id").notNull(),
     tg_message_id: integer("tg_message_id").notNull(),
-    is_caption: integer("is_caption").notNull().default(0),
     subject: text("subject"),
     error_message: text("error_message"),
     created_at: tsMs("created_at").notNull().default(nowDefault),
