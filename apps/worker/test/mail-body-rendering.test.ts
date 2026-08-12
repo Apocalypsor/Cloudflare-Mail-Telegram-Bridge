@@ -416,7 +416,7 @@ describe("email HTML rendering", () => {
     expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
       32_768,
     );
-    expect(content.header).toContain("…</summary>");
+    expect(content.header).toContain("…</b></summary>");
   });
 
   it("renders a localized Telegram time and a detected verification code", () => {
@@ -441,7 +441,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<details><summary>Your verification code is 482913<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
+      /^<details><summary><b>Your verification code is 482913<\/b><\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
