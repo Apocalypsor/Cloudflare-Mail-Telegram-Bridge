@@ -3,9 +3,8 @@ import { cf } from "@worker/api/plugins/cf";
 import { http } from "@worker/clients/http";
 import { analyzeEmail, hasLlm } from "@worker/clients/llm";
 import { MAX_BODY_CHARS } from "@worker/constants";
-import { toTelegramRichHtml } from "@worker/utils/mail/body";
 import { verifyProxySignature } from "@worker/utils/mail/image-proxy";
-import { renderEmailBody, truncateMarkdown } from "@worker/utils/mail/render";
+import { renderTelegramEmailBodyHtml } from "@worker/utils/mail/telegram-rich-html";
 import { Elysia } from "elysia";
 import { HTTPError } from "ky";
 import { JunkCheckBody, PreviewBody, ProxyQuery } from "./model";
@@ -61,9 +60,10 @@ export const previewController = new Elysia({ name: "controller.preview" })
     ({ body }) => {
       const html = body.html;
       if (!html) return { result: "", length: 0 };
-      const markdown = renderEmailBody(undefined, html).markdown;
-      const result = toTelegramRichHtml(
-        truncateMarkdown(markdown, MAX_BODY_CHARS).markdown,
+      const result = renderTelegramEmailBodyHtml(
+        undefined,
+        html,
+        MAX_BODY_CHARS,
       );
       return { result, length: result.length };
     },

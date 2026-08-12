@@ -22,7 +22,7 @@ export interface TelegramSendResult {
 
 type TelegramApiResponse<T> = { result: T };
 
-export type DeleteMessageResult =
+type DeleteMessageResult =
   | "deleted"
   | "not_found"
   | "rate_limited"
@@ -229,7 +229,7 @@ const postFormResult = async <T>(
 /**
  * 通用 Telegram JSON API 请求，带 MarkdownV2 parse error 自动回退。
  * 429 会解析 Telegram `parameters.retry_after` 并写回全局 gate。
- * 当 parse_mode 存在且返回 entity parse error 时，自动去掉 parse_mode 并将 text/caption 转为纯文本重试。
+ * 当 parse_mode 存在且返回 entity parse error 时，自动去掉 parse_mode 并将 text 转为纯文本重试。
  */
 const tgPost = async <T = unknown>(
   env: Env,
@@ -248,12 +248,11 @@ const tgPost = async <T = unknown>(
 
     // parse_mode 错误 → 回退纯文本
     if (payload.parse_mode && isEntityParseError(errDescription)) {
-      const textKey = "text" in payload ? "text" : "caption";
-      const textValue = payload[textKey];
+      const textValue = payload.text;
       if (typeof textValue === "string") {
         console.warn(`TG ${label} parse_mode failed, retrying as plain text`);
         const { parse_mode: _, ...rest } = payload;
-        rest[textKey] = markdownV2ToPlainText(textValue);
+        rest.text = markdownV2ToPlainText(textValue);
         return tgPost(env, chatId, url, rest, label);
       }
     }
@@ -342,7 +341,7 @@ const attToBlob = (att: Attachment): Blob => {
 };
 
 /** pinChatMessage 的精细返回值 —— 上层（reminder dispatch）需要分支。 */
-export type PinResult = "ok" | "not_found" | "rate_limited";
+type PinResult = "ok" | "not_found" | "rate_limited";
 
 export const runTelegramFollowups = async (
   messageId: number,

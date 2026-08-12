@@ -3,15 +3,23 @@ import { editRichMessage } from "@worker/clients/telegram";
 import {
   MESSAGE_DATE_LOCALE,
   MESSAGE_DATE_TIMEZONE,
+  TG_RICH_BLOCK_LIMIT,
   TG_RICH_TEXT_LIMIT,
 } from "@worker/constants";
 import { t } from "@worker/i18n";
 import type { Account, Env } from "@worker/types";
-import { toTelegramRichHtml } from "@worker/utils/mail/body";
-import { renderEmailBody, truncateMarkdown } from "@worker/utils/mail/render";
-import { escapeHtmlText, stripHtmlTags } from "@worker/utils/string";
+import { renderEmailBody } from "@worker/utils/mail/render";
+import {
+  measureTelegramRichHtml,
+  toTelegramRichHtml,
+  truncateMarkdown,
+  truncateMarkdownBlocks,
+} from "@worker/utils/mail/telegram-rich-html";
+import { escapeHtmlText, truncateUnicodeText } from "@worker/utils/string";
 
 const TG_RICH_BODY_AUTO_EXPAND_LIMIT = 800;
+const TG_HEADER_FIELD_LIMIT = 1_000;
+const TG_TAG_LENGTH_LIMIT = 80;
 
 /**
  * 邮件 → Telegram 消息的格式化层 —— delivery / retry 共用。
@@ -31,7 +39,9 @@ const buildTelegramHeader = (
     timeZone: MESSAGE_DATE_TIMEZONE,
   });
   const line = (label: string, value: string, boldValue = false) => {
-    const escapedValue = escapeHtmlText(value);
+    const escapedValue = escapeHtmlText(
+      truncateUnicodeText(value, TG_HEADER_FIELD_LIMIT),
+    );
     const formattedValue = boldValue ? `<b>${escapedValue}</b>` : escapedValue;
     return `${escapeHtmlText(label)} ${formattedValue}`;
   };
@@ -61,14 +71,15 @@ export const buildTelegramEmailHtml = (
   verificationCode: string | null,
   maxVisibleCharacters = TG_RICH_TEXT_LIMIT,
 ): string => {
-  const build = (markdown: string, truncated: boolean) => {
+  const build = (markdown: string, truncated: boolean): string => {
     const body = markdown
       ? toTelegramRichHtml(markdown)
       : "<p>（正文为空）</p>";
     const hint = truncated ? "<footer>… 正文过长，已截断 …</footer>" : "";
     const isDirectBody =
       !truncated &&
-      stripHtmlTags(body).length <= TG_RICH_BODY_AUTO_EXPAND_LIMIT;
+      measureTelegramRichHtml(body).textCharacters <=
+        TG_RICH_BODY_AUTO_EXPAND_LIMIT;
     const codeSection = verificationCode
       ? buildRichVerificationCodeSection(verificationCode, isDirectBody)
       : "";
@@ -77,15 +88,19 @@ export const buildTelegramEmailHtml = (
     }
     return `${headerHtml}${codeSection}<details><summary>邮件正文</summary>${body}${hint}</details>`;
   };
-  const codeSection = verificationCode
-    ? buildRichVerificationCodeSection(verificationCode, true)
-    : "";
-  const fixedCharacters = stripHtmlTags(headerHtml + codeSection).length + 32;
-  const { markdown, truncated } = truncateMarkdown(
-    bodyMarkdown,
-    Math.max(0, maxVisibleCharacters - fixedCharacters),
+  const fixedHtml = `${headerHtml}${verificationCode ? buildRichVerificationCodeSection(verificationCode, true) : ""}<details><summary>邮件正文</summary><footer>… 正文过长，已截断 …</footer></details>`;
+  const availableCharacters = Math.max(
+    0,
+    maxVisibleCharacters - measureTelegramRichHtml(fixedHtml).textCharacters,
   );
-  return build(markdown, truncated);
+
+  const byCharacters = truncateMarkdown(bodyMarkdown, availableCharacters);
+  const fixedBlocks = measureTelegramRichHtml(fixedHtml).blocks;
+  const byBlocks = truncateMarkdownBlocks(
+    byCharacters.markdown,
+    Math.max(0, TG_RICH_BLOCK_LIMIT - fixedBlocks),
+  );
+  return build(byBlocks.markdown, byCharacters.truncated || byBlocks.truncated);
 };
 
 const STRONG_CONTEXT_RE =
@@ -276,10 +291,13 @@ export const editMessageWithAnalysis = async (
   const codeSection = verificationCode
     ? buildRichVerificationCodeSection(verificationCode)
     : "";
-  const summary = toTelegramRichHtml(result.summary);
+  const summaryMarkdown = truncateMarkdown(result.summary, 20_000).markdown;
+  const summary = toTelegramRichHtml(
+    truncateMarkdownBlocks(summaryMarkdown, 450).markdown,
+  );
   const tags =
     result.tags.length > 0
-      ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(tag.replace(/\s+/g, "_"))}`).join(" ")}</p>`
+      ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(truncateUnicodeText(tag.replace(/\s+/g, "_"), TG_TAG_LENGTH_LIMIT))}`).join(" ")}</p>`
       : "";
   await editRichMessage(
     env,

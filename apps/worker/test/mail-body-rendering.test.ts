@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Account } from "../src/types";
-import { toTelegramRichHtml } from "../src/utils/mail/body";
+import { htmlToMarkdown, renderEmailBody } from "../src/utils/mail/render";
 import {
-  htmlToMarkdown,
-  renderEmailBody,
+  measureTelegramRichHtml,
+  toTelegramRichHtml,
   truncateMarkdown,
-} from "../src/utils/mail/render";
+  truncateMarkdownBlocks,
+} from "../src/utils/mail/telegram-rich-html";
 import {
   buildTelegramEmailHtml,
   editMessageWithAnalysis,
@@ -251,6 +252,46 @@ describe("email HTML rendering", () => {
     );
   });
 
+  it("preserves private-use characters used internally by the renderer", () => {
+    expect(toTelegramRichHtml("a\uE0000\uE001b")).toBe(
+      "<p>a\uE0000\uE001b</p>",
+    );
+  });
+
+  it("preserves links with balanced parentheses", () => {
+    expect(toTelegramRichHtml("[Wiki](https://example.com/a_(b))")).toBe(
+      '<p><a href="https://example.com/a_(b)">Wiki</a></p>',
+    );
+  });
+
+  it("does not wrap a long URL already inside a Markdown link", () => {
+    const target = `https://example.com/${"x".repeat(220)}`;
+    expect(renderEmailBody(`[安全链接](${target})`).markdown).toBe(
+      `[安全链接](${target})`,
+    );
+  });
+
+  it("does not split an emoji surrogate pair while truncating", () => {
+    expect(truncateMarkdown("😀x", 1)).toEqual({
+      markdown: "😀",
+      truncated: true,
+    });
+  });
+
+  it("truncates oversized lists by complete lines to fit the block budget", () => {
+    const list = Array.from(
+      { length: 600 },
+      (_, index) => `- Item ${index}`,
+    ).join("\n");
+    const truncated = truncateMarkdownBlocks(list, 450);
+
+    expect(truncated.truncated).toBe(true);
+    expect(
+      measureTelegramRichHtml(toTelegramRichHtml(truncated.markdown)).blocks,
+    ).toBeLessThanOrEqual(450);
+    expect(truncated.markdown).toContain("- Item 0");
+  });
+
   it("removes Markdown horizontal rules from the email body", () => {
     expect(
       toTelegramRichHtml(
@@ -311,6 +352,65 @@ describe("email HTML rendering", () => {
 
     expect(result).toContain("<details><summary>邮件正文</summary>");
     expect(result).not.toContain("正文过长");
+  });
+
+  it("keeps the final message within Telegram's text and block limits", () => {
+    const tooManyParagraphs = Array.from(
+      { length: 600 },
+      (_, index) => `Paragraph ${index}`,
+    ).join("\n\n");
+    const manyBlocks = buildTelegramEmailHtml(
+      "<h6>Header</h6><hr/>",
+      tooManyParagraphs,
+      null,
+    );
+    const punctuation = buildTelegramEmailHtml(
+      "<h6>Header</h6><hr/>",
+      "#".repeat(40_000),
+      null,
+    );
+
+    expect(measureTelegramRichHtml(manyBlocks)).toMatchObject({
+      blocks: expect.any(Number),
+    });
+    expect(measureTelegramRichHtml(manyBlocks).blocks).toBeLessThanOrEqual(500);
+    expect(
+      measureTelegramRichHtml(manyBlocks).textCharacters,
+    ).toBeLessThanOrEqual(32_768);
+    expect(
+      measureTelegramRichHtml(punctuation).textCharacters,
+    ).toBeLessThanOrEqual(32_768);
+    expect(punctuation).toContain("正文过长");
+
+    const longList = buildTelegramEmailHtml(
+      "<h6>Header</h6><hr/>",
+      Array.from({ length: 600 }, (_, index) => `- Item ${index}`).join("\n"),
+      null,
+    );
+    expect(measureTelegramRichHtml(longList).blocks).toBeLessThanOrEqual(500);
+    expect(longList).toContain("正文过长");
+  });
+
+  it("bounds oversized header fields", () => {
+    const content = prepareEmailContent(
+      {
+        subject: "x".repeat(40_000),
+        from: { name: "Sender", address: "sender@example.com" },
+        to: [{ address: "user@example.com" }],
+        text: "Body",
+      },
+      { id: 1, chat_id: "42" } as Account,
+    );
+    const result = buildTelegramEmailHtml(
+      content.header,
+      content.bodyMarkdown,
+      null,
+    );
+
+    expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
+      32_768,
+    );
+    expect(content.header).toContain("…</b>");
   });
 
   it("renders a localized Telegram time and a detected verification code", () => {
@@ -375,5 +475,36 @@ describe("email HTML rendering", () => {
     expect(editRichMessageMock.mock.calls[0][3]).not.toContain(
       "<code>482913</code></p><p>&#160;</p><h6>",
     );
+  });
+
+  it("bounds untrusted LLM summary blocks and tag lengths", async () => {
+    analyzeEmailMock.mockResolvedValueOnce({
+      summary: Array.from(
+        { length: 600 },
+        (_, index) => `- Summary item ${index}`,
+      ).join("\n"),
+      shortSummary: "Summary",
+      tags: ["x".repeat(1_000)],
+      isJunk: false,
+      junkConfidence: 0,
+    });
+
+    await editMessageWithAnalysis(
+      {} as never,
+      "42",
+      8,
+      "<h6>Header</h6><hr/>",
+      "Subject",
+      "Body",
+      { inline_keyboard: [] },
+      null,
+    );
+
+    const html = editRichMessageMock.mock.calls.at(-1)?.[3] as string;
+    expect(measureTelegramRichHtml(html).blocks).toBeLessThanOrEqual(500);
+    expect(measureTelegramRichHtml(html).textCharacters).toBeLessThanOrEqual(
+      32_768,
+    );
+    expect(html).not.toContain("x".repeat(81));
   });
 });

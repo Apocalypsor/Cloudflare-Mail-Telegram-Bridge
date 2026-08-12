@@ -23,6 +23,7 @@ export const TG_API_BASE = "https://api.telegram.org/bot";
 // ── Telegram limits ──────────────────────────────────────────────────────────
 export const TG_MEDIA_GROUP_LIMIT = 10;
 export const TG_RICH_TEXT_LIMIT = 32_768;
+export const TG_RICH_BLOCK_LIMIT = 500;
 
 // ── LLM / 邮件处理 ──────────────────────────────────────────────────────────
 export const MAX_BODY_CHARS = 4000;
