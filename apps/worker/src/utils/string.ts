@@ -47,6 +47,16 @@ export const stripHtmlTags = (input: string): string => {
   return output;
 };
 
+export const truncateUnicodeText = (
+  value: string,
+  maxCharacters: number,
+): string => {
+  const characters = [...value];
+  if (characters.length <= maxCharacters) return value;
+  if (maxCharacters <= 1) return characters.slice(0, maxCharacters).join("");
+  return `${characters.slice(0, maxCharacters - 1).join("")}…`;
+};
+
 export const trimTrailingSlashes = (value: string): string => {
   let end = value.length;
   while (end > 0 && value.charCodeAt(end - 1) === 47) {

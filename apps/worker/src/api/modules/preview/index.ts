@@ -1,10 +1,10 @@
 import { authSession } from "@worker/api/plugins/auth-session";
 import { cf } from "@worker/api/plugins/cf";
 import { http } from "@worker/clients/http";
-import { analyzeEmail, hasLlm } from "@worker/clients/llm";
+import { LLMClient } from "@worker/clients/llm";
 import { MAX_BODY_CHARS } from "@worker/constants";
-import { formatBody } from "@worker/utils/mail/body";
 import { verifyProxySignature } from "@worker/utils/mail/image-proxy";
+import { renderTelegramEmailBodyHtml } from "@worker/utils/mail/telegram-rich-html";
 import { Elysia } from "elysia";
 import { HTTPError } from "ky";
 import { JunkCheckBody, PreviewBody, ProxyQuery } from "./model";
@@ -54,13 +54,17 @@ export const previewController = new Elysia({ name: "controller.preview" })
   // ─── 以下路由都要 session cookie ───────────────────────────────────
   .use(authSession)
 
-  // HTML → MarkdownV2 预览
+  // HTML -> Telegram Rich HTML 预览
   .post(
     "/api/preview",
     ({ body }) => {
       const html = body.html;
       if (!html) return { result: "", length: 0 };
-      const result = formatBody(undefined, html, MAX_BODY_CHARS);
+      const result = renderTelegramEmailBodyHtml(
+        undefined,
+        html,
+        MAX_BODY_CHARS,
+      );
       return { result, length: result.length };
     },
     { body: PreviewBody },
@@ -70,9 +74,10 @@ export const previewController = new Elysia({ name: "controller.preview" })
   .post(
     "/api/junk-check",
     async ({ env, body, status }) => {
-      if (!hasLlm(env)) return status(500, { error: "LLM not configured" });
-      const result = await analyzeEmail(
-        env,
+      if (!LLMClient.isConfigured(env)) {
+        return status(500, { error: "LLM not configured" });
+      }
+      const result = await new LLMClient(env).analyzeEmail(
         body.subject ?? "",
         body.body ?? "",
       );

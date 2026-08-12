@@ -1,4 +1,4 @@
-import { sendTextMessage } from "@worker/clients/telegram";
+import { TelegramClient } from "@worker/clients/telegram";
 import { getOwnAccounts } from "@worker/db/accounts";
 import {
   approveUser,
@@ -118,7 +118,7 @@ export abstract class UsersService {
     message: string,
   ): Promise<void> {
     try {
-      await sendTextMessage(env, telegramId, message);
+      await new TelegramClient(env).sendTextMessage(telegramId, message);
     } catch (err) {
       await reportErrorToObservability(env, "users.notify_user_failed", err, {
         telegramUserId: telegramId,

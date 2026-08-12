@@ -8,6 +8,7 @@ import {
   getHistoryId,
   putHistoryId,
 } from "@worker/db/accounts";
+import { EmailMessageNotFoundError } from "@worker/errors/email-provider";
 import { EmailProvider } from "@worker/providers/base";
 import type {
   GmailHistoryResponse,
@@ -277,10 +278,18 @@ export class GmailProvider extends EmailProvider {
   }
 
   async fetchRawEmailWithState(messageId: string): Promise<RawEmailWithState> {
-    const msg = await gmailGet<GmailRawMessage>(
-      await this.token(),
-      `/users/me/messages/${messageId}?format=raw`,
-    );
+    let msg: GmailRawMessage;
+    try {
+      msg = await gmailGet<GmailRawMessage>(
+        await this.token(),
+        `/users/me/messages/${messageId}?format=raw`,
+      );
+    } catch (error) {
+      if (error instanceof HTTPError && error.response.status === 404) {
+        throw new EmailMessageNotFoundError(messageId, "INBOX", error);
+      }
+      throw error;
+    }
     return {
       rawEmail: base64urlToArrayBuffer(msg.raw),
       state: msg.labelIds

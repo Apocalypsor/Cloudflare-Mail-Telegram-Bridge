@@ -107,6 +107,25 @@ describe("email delivery claims", () => {
   });
 });
 
+describe("failed email schema", () => {
+  it("uses only the Rich HTML message model", async () => {
+    const columns = await env.DB.prepare(
+      "SELECT name FROM pragma_table_info('failed_emails') ORDER BY cid",
+    ).all<{ name: string }>();
+
+    expect(columns.results.map((column) => column.name)).toEqual([
+      "id",
+      "account_id",
+      "email_message_id",
+      "tg_chat_id",
+      "tg_message_id",
+      "subject",
+      "error_message",
+      "created_at",
+    ]);
+  });
+});
+
 const readState = async (
   accountId: number,
   emailMessageId: string,

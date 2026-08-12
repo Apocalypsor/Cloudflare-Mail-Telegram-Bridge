@@ -4,7 +4,7 @@ import {
   SECRETS_AUTO_DELETE_SECONDS,
 } from "@worker/bot/utils/admin";
 import { isAdmin } from "@worker/bot/utils/auth";
-import { deleteMessage } from "@worker/clients/telegram";
+import { TelegramClient } from "@worker/clients/telegram";
 import { t } from "@worker/i18n";
 import { renewAllPush } from "@worker/providers";
 import type { Env, WaitUntil } from "@worker/types";
@@ -32,7 +32,9 @@ export const registerAdminHandlers = (
     const chatId = String(sent.chat.id);
     waitUntil(
       sleep(SECRETS_AUTO_DELETE_SECONDS * 1_000)
-        .then(() => deleteMessage(env, chatId, sent.message_id))
+        .then(() =>
+          new TelegramClient(env).deleteMessage(chatId, sent.message_id),
+        )
         .catch((err) =>
           reportErrorToObservability(
             env,

@@ -2,12 +2,9 @@ import {
   buildEmailKeyboard,
   buildInitialEmailKeyboard,
 } from "@worker/bot/keyboards";
-import { hasLlm } from "@worker/clients/llm";
+import { LLMClient } from "@worker/clients/llm";
 import {
-  deleteMessage,
-  sendTextMessage,
-  sendWithAttachments,
-  setReplyMarkup,
+  TelegramClient,
   type TelegramSendResult,
 } from "@worker/clients/telegram";
 import { putFailedEmail } from "@worker/db/failed-emails";
@@ -16,7 +13,7 @@ import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import type { MessageState } from "@worker/providers/types";
 import type { Account, Env } from "@worker/types";
 import {
-  buildTelegramEmailText,
+  buildTelegramEmailHtml,
   editMessageWithAnalysis,
   prepareEmailContent,
 } from "@worker/utils/mail-delivery/format";
@@ -70,12 +67,12 @@ export const deliverEmailToTelegram = async (
   const initialStarred = state?.location === "inbox" ? state.starred : false;
 
   const hasAttachments = !!(email.attachments && email.attachments.length > 0);
-  const hasSingleAttachment = hasAttachments && email.attachments?.length === 1;
-  const { subject, header, formattedBody, plainBody, verificationCode } =
-    prepareEmailContent(email, account, hasSingleAttachment);
-  const text = buildTelegramEmailText(header, formattedBody, verificationCode);
+  const { subject, header, bodyMarkdown, plainBody, verificationCode } =
+    prepareEmailContent(email, account);
+  const html = buildTelegramEmailHtml(header, bodyMarkdown, verificationCode);
 
-  const canAnalyze = hasLlm(env);
+  const canAnalyze = LLMClient.isConfigured(env);
+  const telegram = new TelegramClient(env);
 
   // 投递流程：先带"最小键盘"（仅刷新）发消息 → 拿到 sentMessageId → 建
   // 完整键盘 → setReplyMarkup 升级。首发就挂刷新键是保底 —— 完整键盘要求
@@ -87,21 +84,16 @@ export const deliverEmailToTelegram = async (
     options.beforeSend,
     () =>
       hasAttachments
-        ? sendWithAttachments(
-            env,
+        ? telegram.sendWithAttachments(
             chatId,
-            text,
+            html,
             email.attachments || [],
             initialKeyboard,
             topicId,
           )
-        : sendTextMessage(
-            env,
-            chatId,
-            text,
-            initialKeyboard,
-            topicId != null ? { message_thread_id: topicId } : undefined,
-          ).then((messageId) => ({ messageId })),
+        : telegram
+            .sendRichMessage(chatId, html, initialKeyboard, topicId)
+            .then((messageId) => ({ messageId })),
   );
   if (!initialSend.claimed) return "not-claimed";
   const { messageId: sentMessageId, followupError } = initialSend.value;
@@ -119,7 +111,7 @@ export const deliverEmailToTelegram = async (
     console.log(
       `Duplicate delivery detected for ${emailMessageId}, deleting duplicate Telegram message`,
     );
-    await deleteMessage(env, chatId, sentMessageId).catch(() => {});
+    await telegram.deleteMessage(chatId, sentMessageId).catch(() => {});
     return "sent";
   }
 
@@ -145,7 +137,9 @@ export const deliverEmailToTelegram = async (
     chatId,
     sentMessageId,
   );
-  await setReplyMarkup(env, chatId, sentMessageId, keyboard).catch(() => {});
+  await telegram
+    .setReplyMarkup(chatId, sentMessageId, keyboard)
+    .catch(() => {});
 
   if (initialStarred) {
     // 新消息投递完 + 初始就是 star → 同步置顶
@@ -175,7 +169,6 @@ export const deliverEmailToTelegram = async (
           env,
           chatId,
           sentMessageId,
-          hasSingleAttachment,
           header,
           subject,
           plainBody,
@@ -206,7 +199,6 @@ export const deliverEmailToTelegram = async (
           email_message_id: emailMessageId,
           tg_chat_id: chatId,
           tg_message_id: sentMessageId,
-          is_caption: hasSingleAttachment ? 1 : 0,
           subject,
           error_message: err instanceof Error ? err.message : String(err),
         }).catch((e) =>

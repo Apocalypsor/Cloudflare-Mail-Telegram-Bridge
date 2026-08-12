@@ -1,4 +1,3 @@
-import { isTelegramRateLimitError } from "@worker/clients/telegram";
 import { getAccountById } from "@worker/db/accounts";
 import {
   claimEmailDelivery,
@@ -11,9 +10,10 @@ import {
   markStaleEmailDeliveriesUnknown,
 } from "@worker/db/email-deliveries";
 import { getMappingsByEmailIds } from "@worker/db/message-map";
+import { EmailMessageNotFoundError } from "@worker/errors/email-provider";
+import { TelegramRateLimitError } from "@worker/errors/telegram";
 import { getEmailProvider } from "@worker/providers";
 import type { EmailProvider } from "@worker/providers/base";
-import { isEmailMessageNotFound } from "@worker/providers/errors";
 import type { Account, Env, WaitUntil } from "@worker/types";
 import { coordinateEmailDelivery } from "@worker/utils/mail-delivery/coordinator";
 import { deliverEmailToTelegram } from "@worker/utils/mail-delivery/deliver";
@@ -161,7 +161,7 @@ export const clearMissingEmailDelivery = async (
   emailMessageId: string,
   error: unknown,
 ): Promise<boolean> => {
-  if (!isEmailMessageNotFound(error)) return false;
+  if (!(error instanceof EmailMessageNotFoundError)) return false;
   await deleteEmailDelivery(d1, accountId, emailMessageId);
   return true;
 };
@@ -216,7 +216,7 @@ const processEmailDelivery = async (
         ),
       claim: () =>
         claimEmailDelivery(env.DB, request.accountId, request.emailMessageId),
-      isRetryableError: isTelegramRateLimitError,
+      isRetryableError: (error) => error instanceof TelegramRateLimitError,
       markRetryable: () =>
         markEmailDeliveryRetryable(
           env.DB,

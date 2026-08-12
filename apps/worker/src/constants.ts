@@ -21,11 +21,9 @@ export const MS_SUBSCRIPTION_LIFETIME_MINUTES = 2 * 24 * 60;
 export const TG_API_BASE = "https://api.telegram.org/bot";
 
 // ── Telegram limits ──────────────────────────────────────────────────────────
-export const TG_MSG_LIMIT = 4096;
-export const TG_CAPTION_LIMIT = 1024;
 export const TG_MEDIA_GROUP_LIMIT = 10;
-/** Telegram 维护者仅确认约 9500 是 entity 总体积的良好近似；以最终 MarkdownV2 字节数保守代理。 */
-export const TG_FORMATTED_TEXT_SAFE_BYTES = 9000;
+export const TG_RICH_TEXT_LIMIT = 32_768;
+export const TG_RICH_BLOCK_LIMIT = 500;
 
 // ── LLM / 邮件处理 ──────────────────────────────────────────────────────────
 export const MAX_BODY_CHARS = 4000;

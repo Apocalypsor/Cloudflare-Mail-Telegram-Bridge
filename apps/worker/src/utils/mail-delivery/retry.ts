@@ -1,5 +1,5 @@
 import { buildEmailKeyboard } from "@worker/bot/keyboards";
-import { hasLlm } from "@worker/clients/llm";
+import { LLMClient } from "@worker/clients/llm";
 import { getAccountById } from "@worker/db/accounts";
 import {
   deleteFailedEmail,
@@ -27,7 +27,6 @@ const reanalyzeEmail = async (
   env: Env,
   account: Account,
   mapping: MessageMapping,
-  isCaptionHint?: boolean,
 ): Promise<ReanalyzeResult> => {
   const reconcile = await reconcileMessageState(env, account, mapping);
   if (reconcile.status === "removed") {
@@ -39,13 +38,10 @@ const reanalyzeEmail = async (
   const rawEmail = await provider.fetchRawEmail(email_message_id);
   const parser = new PostalMime();
   const email = await parser.parse(rawEmail);
-  const isCaption =
-    isCaptionHint ?? !!(email.attachments && email.attachments.length === 1);
 
   const { subject, header, plainBody, verificationCode } = prepareEmailContent(
     email,
     account,
-    isCaption,
   );
   if (!plainBody.trim()) return { status: "analyzed" };
 
@@ -63,7 +59,6 @@ const reanalyzeEmail = async (
     env,
     tg_chat_id,
     tg_message_id,
-    isCaption,
     header,
     subject,
     plainBody,
@@ -91,7 +86,7 @@ export const retryFailedEmail = async (
   const account = await getAccountById(env.DB, failed.account_id);
   if (!account) throw new Error(`Account ${failed.account_id} not found`);
 
-  if (!hasLlm(env)) throw new Error("LLM not configured");
+  if (!LLMClient.isConfigured(env)) throw new Error("LLM not configured");
 
   // 拉真正的 mapping；已消失就视为孤儿
   // —— 原消息大概率已被 junk/archive 路径清理掉了，对应的 failed_email 没必要再重试
@@ -108,7 +103,7 @@ export const retryFailedEmail = async (
     return;
   }
 
-  await reanalyzeEmail(env, account, mapping, !!failed.is_caption);
+  await reanalyzeEmail(env, account, mapping);
 
   // removed 也算「处理完」—— 邮件已不在 inbox，没必要再重试
   await deleteFailedEmail(env.DB, failed.id);
@@ -119,12 +114,11 @@ export const refreshEmail = async (
   env: Env,
   chatId: string,
   tgMessageId: number,
-  isCaption?: boolean,
 ): Promise<
   | { ok: true; removed?: "junk" | "archive" | "deleted" }
   | { ok: false; reason: string }
 > => {
-  if (!hasLlm(env)) {
+  if (!LLMClient.isConfigured(env)) {
     return { ok: false, reason: t("bridge:refreshNoLlm") };
   }
 
@@ -138,7 +132,7 @@ export const refreshEmail = async (
     return { ok: false, reason: t("common:error.accountNotFoundShort") };
   }
 
-  const result = await reanalyzeEmail(env, account, mapping, isCaption);
+  const result = await reanalyzeEmail(env, account, mapping);
   if (result.status === "removed") {
     return { ok: true, removed: result.location };
   }

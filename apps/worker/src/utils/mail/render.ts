@@ -2,16 +2,11 @@ import { stripHtmlTags, utf8Decoder } from "@worker/utils/string";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 
-export type BodySource = "html" | "text" | "stripped-html" | "empty";
+type BodySource = "html" | "text" | "stripped-html" | "empty";
 
-export interface RenderedEmailBody {
+interface RenderedEmailBody {
   markdown: string;
   source: BodySource;
-}
-
-export interface TruncatedMarkdown {
-  markdown: string;
-  truncated: boolean;
 }
 
 interface BodyQuality {
@@ -96,68 +91,6 @@ export const renderEmailBody = (
     return { markdown: strippedHtml, source: "stripped-html" };
   }
   return { markdown: "", source: "empty" };
-};
-
-/** Truncate standard Markdown without counting hidden link destinations. */
-export const truncateMarkdown = (
-  markdown: string,
-  maxVisibleCharacters: number,
-): TruncatedMarkdown => {
-  const blocks = markdown
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
-    .filter(Boolean);
-  if (blocks.length === 0) return { markdown: "", truncated: false };
-  if (maxVisibleCharacters <= 0) {
-    return { markdown: "", truncated: true };
-  }
-
-  const retained: string[] = [];
-  let visibleCharacters = 0;
-  for (const block of blocks) {
-    const separatorCharacters = retained.length > 0 ? 2 : 0;
-    const blockCharacters = markdownToVisibleText(block).length;
-    if (
-      visibleCharacters + separatorCharacters + blockCharacters >
-      maxVisibleCharacters
-    ) {
-      if (retained.length === 0) {
-        return {
-          markdown: truncateOversizedBlock(block, maxVisibleCharacters),
-          truncated: true,
-        };
-      }
-      return { markdown: retained.join("\n\n"), truncated: true };
-    }
-    retained.push(block);
-    visibleCharacters += separatorCharacters + blockCharacters;
-  }
-
-  return { markdown: retained.join("\n\n"), truncated: false };
-};
-
-const truncateOversizedBlock = (
-  block: string,
-  maxVisibleCharacters: number,
-): string => {
-  const retainedLines: string[] = [];
-  let visibleCharacters = 0;
-  for (const line of block.split("\n")) {
-    const separatorCharacters = retainedLines.length > 0 ? 1 : 0;
-    const lineCharacters = markdownToVisibleText(line).length;
-    if (
-      visibleCharacters + separatorCharacters + lineCharacters >
-      maxVisibleCharacters
-    ) {
-      if (retainedLines.length === 0) {
-        return markdownToVisibleText(line).slice(0, maxVisibleCharacters);
-      }
-      break;
-    }
-    retainedLines.push(line);
-    visibleCharacters += separatorCharacters + lineCharacters;
-  }
-  return retainedLines.join("\n");
 };
 
 const decodeQuotedPrintable = (input: string): string => {
@@ -453,7 +386,8 @@ const normalizeMarkdown = (markdown: string): string => {
 };
 
 const normalizePlainText = (text: string): string => {
-  const linkedText = text.replace(/https?:\/\/[^\s<>]+/gi, (url) => {
+  const linkedText = text.replace(/https?:\/\/[^\s<>]+/gi, (url, offset) => {
+    if (isMarkdownLinkDestination(text, offset)) return url;
     if (url.length <= LONG_VISIBLE_URL_LENGTH) return url;
     try {
       return `[${new URL(url).hostname}](${url})`;
@@ -462,6 +396,10 @@ const normalizePlainText = (text: string): string => {
     }
   });
   return normalizeMarkdown(linkedText);
+};
+
+const isMarkdownLinkDestination = (text: string, offset: number): boolean => {
+  return /\[[^\]\n]*\]\($/.test(text.slice(0, offset));
 };
 
 const shouldPreferPlainText = (
@@ -533,7 +471,7 @@ const measureBodyQuality = (markdown: string): BodyQuality => {
 
 const markdownToVisibleText = (markdown: string): string => {
   return markdown
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/!?\[([^\]]*)\]\(((?:\\.|[^()\\]|\([^()]*\))*)\)/g, "$1")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s*(?:[-+*]|\d+\.)\s+/gm, "")
     .replace(/[*_~`>#]/g, "")

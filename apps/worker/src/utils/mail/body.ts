@@ -1,49 +1,5 @@
-import { renderEmailBody, truncateMarkdown } from "@worker/utils/mail/render";
-import {
-  escapeMdV2,
-  findLongestValidMdV2Prefix,
-  markdownToMdV2,
-} from "@worker/utils/markdown-v2";
-import { escapeHtmlText, stripHtmlTags } from "@worker/utils/string";
+import { escapeHtmlText } from "@worker/utils/string";
 import type { Address } from "postal-mime";
-
-/** 修复 Telegram MarkdownV2 易出错片段（例如单独一行的 "***"） */
-const sanitizeTelegramMdV2 = (md: string): string => {
-  return md.replace(/(^|\n)\*{3,}(?=\n|$)/g, "$1\\*\\*\\*");
-};
-
-/** 标准 Markdown → Telegram MarkdownV2 */
-export const toTelegramMdV2 = (markdown: string): string => {
-  if (!markdown) return "";
-  return markdownToMdV2(markdown).trimEnd();
-};
-
-const convertTelegramMdV2Safe = (markdown: string): string => {
-  return sanitizeTelegramMdV2(toTelegramMdV2(markdown));
-};
-
-/**
- * 处理邮件正文：优先将 HTML 转 Markdown，fallback 到纯文本，超长截断并提示。
- * @param maxLen 本次可用的最大字符数（由调用方根据其他部分占用动态计算）
- */
-export const formatBody = (
-  text: string | undefined,
-  html: string | undefined,
-  maxLen: number,
-): string => {
-  const rendered = renderEmailBody(text, html);
-  if (!rendered.markdown) return escapeMdV2("（正文为空）");
-
-  const { markdown, truncated } = truncateMarkdown(rendered.markdown, maxLen);
-  const truncatedHint = `\n\n${toTelegramMdV2("*… 正文过长，已截断 …*")}`;
-  const converted = convertTelegramMdV2Safe(markdown);
-  const validEnd = findLongestValidMdV2Prefix(converted);
-  const safeBody =
-    validEnd === converted.length
-      ? converted
-      : escapeMdV2(stripHtmlTags(markdown));
-  return truncated ? `${safeBody}${truncatedHint}` : safeBody;
-};
 
 // ─── 邮件正文包装 / 地址格式化 ──────────────────────────────────────────────
 

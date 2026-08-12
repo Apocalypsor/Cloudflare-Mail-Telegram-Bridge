@@ -1,8 +1,8 @@
 import { authAny } from "@worker/api/plugins/auth-any";
 import { cf } from "@worker/api/plugins/cf";
 import { buildEmailKeyboard } from "@worker/bot/keyboards";
-import { hasLlm } from "@worker/clients/llm";
-import { buildTgMessageLink, setReplyMarkup } from "@worker/clients/telegram";
+import { LLMClient } from "@worker/clients/llm";
+import { TelegramClient } from "@worker/clients/telegram";
 import { getMappingsByEmailIds } from "@worker/db/message-map";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import { buildWebMailUrl } from "@worker/utils/mail/token";
@@ -96,7 +96,7 @@ const mailGet = new Elysia({ name: "controller.mail.get" }).use(cf).get(
     }
     const tgMessageLink =
       mapping && result.location === "inbox"
-        ? buildTgMessageLink(
+        ? TelegramClient.buildMessageLink(
             mapping.tg_chat_id,
             mapping.tg_message_id,
             mapping.tg_thread_id,
@@ -180,7 +180,7 @@ const mailMutations = new Elysia({ name: "controller.mail.mutations" })
     "/api/mail/:id/refresh",
     async ({ env, executionCtx, account, emailMessageId, status }) => {
       try {
-        if (!hasLlm(env)) {
+        if (!LLMClient.isConfigured(env)) {
           return status(400, { ok: false, error: "LLM 未配置" });
         }
 
@@ -392,12 +392,9 @@ const mailMutations = new Elysia({ name: "controller.mail.mutations" })
             m.tg_chat_id,
             m.tg_message_id,
           );
-          await setReplyMarkup(
-            env,
-            m.tg_chat_id,
-            m.tg_message_id,
-            keyboard,
-          ).catch(() => {});
+          await new TelegramClient(env)
+            .setReplyMarkup(m.tg_chat_id, m.tg_message_id, keyboard)
+            .catch(() => {});
           await syncStarPinState(
             env,
             m.tg_chat_id,

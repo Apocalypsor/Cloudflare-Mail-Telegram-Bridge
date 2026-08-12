@@ -11,5 +11,19 @@
       "database_id": "ed82b3d6-e172-43d6-a9cd-896269dc9b33",
       "migrations_dir": "migrations"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TELEGRAM_RATE_LIMITER",
+        "class_name": "TelegramRateLimiter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "telegram-rate-limiter-20260613",
+      "new_sqlite_classes": ["TelegramRateLimiter"]
+    }
   ]
 }

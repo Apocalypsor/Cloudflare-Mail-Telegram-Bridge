@@ -83,7 +83,9 @@ bun wrangler d1 create gmail-tg-bridge
 bun migrate:worker:remote
 ```
 
-以后只要有 D1 migration，都要在部署对应 Worker 版本前先跑 `bun migrate:worker:remote`。
+以后有 D1 migration 时，优先让 migration 与新旧 Worker 都兼容。若 migration
+会删除或重命名现有字段，先部署不再依赖旧字段的新 Worker，确认生效后再运行
+`bun migrate:worker:remote`；新增兼容字段的 migration 可以先执行。
 
 ### 4.2 KV 命名空间
 
@@ -97,7 +99,7 @@ bun wrangler kv namespace create EMAIL_KV
 
 ## 5. Worker 部署
 
-如果本次发布包含 D1 migration，先跑：
+如果本次发布包含兼容性 migration，可以先跑：
 
 ```sh
 bun migrate:worker:remote
@@ -108,6 +110,11 @@ bun deploy:worker
 ```
 
 `wrangler deploy` 不会自动跑 D1 migrations。
+
+删除或重命名字段时顺序相反：先 `bun deploy:worker`，确认新版本正常，再运行
+`bun migrate:worker:remote`，避免旧 Worker 在部署窗口继续读写已经不存在的字段。
+仓库的 GitHub Actions production job 已按这个顺序在 Worker 部署成功后自动执行
+D1 migrations；以上命令用于手动部署。
 
 ### 5.1 设置 Telegram Webhook
 

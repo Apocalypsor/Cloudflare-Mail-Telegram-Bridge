@@ -17,7 +17,6 @@ export const putFailedEmail = async (
       email_message_id: data.email_message_id,
       tg_chat_id: data.tg_chat_id,
       tg_message_id: data.tg_message_id,
-      is_caption: data.is_caption,
       subject: data.subject ?? null,
       error_message: data.error_message ?? null,
       created_at: now,
