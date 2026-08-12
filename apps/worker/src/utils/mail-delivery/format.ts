@@ -53,9 +53,11 @@ const buildTelegramHeader = (
   }
   lines.push(
     `${escapeHtmlText(t("bridge:header.time"))} <tg-time unix="${Math.floor(now.getTime() / 1_000)}" format="wDT">${escapeHtmlText(date)}</tg-time>`,
-    line(t("bridge:header.subject"), subject),
   );
-  return `<p><b>${lines.join("<br>")}</b></p><hr/>`;
+  const escapedSubject = escapeHtmlText(
+    truncateUnicodeText(subject, TG_HEADER_FIELD_LIMIT),
+  );
+  return `<details><summary>${escapedSubject}</summary><p><b>${lines.join("<br>")}</b></p></details>`;
 };
 
 const buildRichVerificationCodeSection = (

@@ -1,10 +1,9 @@
 export default {
   header: {
-    from: "📤",
-    to: "📥",
-    account: "📧",
-    time: "🕒",
-    subject: "📝",
+    from: "📤 发件人:",
+    to: "📥 收件人:",
+    account: "📧 账号:",
+    time: "🕒 时间:",
   },
   verificationCode: "🔒 验证码:",
   aiSummary: "🤖 AI 摘要",
