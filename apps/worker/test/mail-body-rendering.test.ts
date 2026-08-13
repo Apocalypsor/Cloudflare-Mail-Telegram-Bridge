@@ -457,7 +457,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<p><b>Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
+      /^<p><b>Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
@@ -468,7 +468,7 @@ describe("email HTML rendering", () => {
       /🕒 时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
     expect(result).toContain(
-      "</details><p>&#160;</p><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
+      "</details><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
     );
     expect(result).not.toContain("邮件正文");
     expect(result.match(/<details>/g)).toHaveLength(1);
@@ -497,11 +497,13 @@ describe("email HTML rendering", () => {
     expect(editRichMessageMock).toHaveBeenCalledWith(
       "42",
       7,
-      expect.stringContaining("<code>482913</code></p><h6>🤖 AI 摘要</h6>"),
+      expect.stringContaining(
+        "<code>482913</code></p><p><b>🤖 AI 摘要</b></p>",
+      ),
       { inline_keyboard: [] },
     );
     expect(editRichMessageMock.mock.calls[0][2]).not.toContain(
-      "<code>482913</code></p><p>&#160;</p><h6>",
+      "<code>482913</code></p><p>&#160;</p><p><b>🤖 AI 摘要</b></p>",
     );
   });
 

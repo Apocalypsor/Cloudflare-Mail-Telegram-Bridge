@@ -61,7 +61,7 @@ const buildTelegramHeader = (
   const escapedSender = escapeHtmlText(
     truncateUnicodeText(sender, TG_HEADER_FIELD_LIMIT),
   );
-  return `<p><b>${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
+  return `<p><b>${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details>`;
 };
 
 const buildRichVerificationCodeSection = (
@@ -304,7 +304,7 @@ export const editMessageWithAnalysis = async (
   await new TelegramClient(env).editRichMessage(
     chatId,
     tgMessageId,
-    `${header}${codeSection}<h6>${escapeHtmlText(t("bridge:aiSummary"))}</h6>${summary}${tags}`,
+    `${header}${codeSection}<p><b>${escapeHtmlText(t("bridge:aiSummary"))}</b></p>${summary}${tags}`,
     keyboard,
   );
   return result;
