@@ -44,8 +44,9 @@ const buildTelegramHeader = (
     );
     return `${escapeHtmlText(label)} ${escapedValue}`;
   };
+  const sender = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
   const lines = [
-    line(t("bridge:header.from"), `${fromName} <${fromAddress}>`),
+    line(t("bridge:header.from"), sender),
     line(t("bridge:header.to"), recipient),
   ];
   if (accountEmail && accountEmail.toLowerCase() !== recipient.toLowerCase()) {
@@ -57,7 +58,10 @@ const buildTelegramHeader = (
   const escapedSubject = escapeHtmlText(
     truncateUnicodeText(subject, TG_HEADER_FIELD_LIMIT),
   );
-  return `<details><summary><b>${escapedSubject}</b></summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
+  const escapedSender = escapeHtmlText(
+    truncateUnicodeText(sender, TG_HEADER_FIELD_LIMIT),
+  );
+  return `<p><b>📝 ${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
 };
 
 const buildRichVerificationCodeSection = (

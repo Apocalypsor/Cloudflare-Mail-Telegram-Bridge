@@ -430,7 +430,9 @@ describe("email HTML rendering", () => {
     expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
       32_768,
     );
-    expect(content.header).toContain("…</b></summary>");
+    expect(content.header).toContain(
+      "…</b></p><details><summary>Sender &lt;sender@example.com&gt;</summary>",
+    );
   });
 
   it("renders a localized Telegram time and a detected verification code", () => {
@@ -455,12 +457,12 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<details><summary><b>Your verification code is 482913<\/b><\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
+      /^<p><b>📝 Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
     expect(content.header).toContain(
-      "📤 发件人: Example &lt;security@example.com&gt;<br>📥 收件人: user@example.com<br>📧 账号: account@example.com<br>🕒 时间: ",
+      "<p><b>📤 发件人: Example &lt;security@example.com&gt;<br>📥 收件人: user@example.com<br>📧 账号: account@example.com<br>🕒 时间: ",
     );
     expect(result).toMatch(
       /🕒 时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
