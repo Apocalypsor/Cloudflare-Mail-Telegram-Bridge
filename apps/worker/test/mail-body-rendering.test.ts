@@ -319,10 +319,9 @@ describe("email HTML rendering", () => {
     expect(result.startsWith(`${header}<p><b>🔒 验证码:</b> <code>`)).toBe(
       true,
     );
-    expect(result).not.toContain("</code></p><p>&#160;</p><details>");
-    expect(result).toContain("</code></p><details>");
+    expect(result).toContain("</code></p><p>&#160;</p><p>Action 0");
     expect(result).toContain("Action 0");
-    expect(result).toContain("<details><summary>邮件正文</summary>");
+    expect(result).not.toContain("<details><summary>邮件正文</summary>");
     expect(result).toContain("正文过长");
   });
 
@@ -348,7 +347,7 @@ describe("email HTML rendering", () => {
     );
   });
 
-  it("keeps a long email body collapsed by default", () => {
+  it("renders a long email body directly", () => {
     const result = buildTelegramEmailHtml(
       "<p>Header</p>",
       "x".repeat(801),
@@ -356,8 +355,23 @@ describe("email HTML rendering", () => {
       2_000,
     );
 
-    expect(result).toContain("<details><summary>邮件正文</summary>");
+    expect(result).toContain(`<p>${"x".repeat(801)}</p>`);
+    expect(result).not.toContain("<details>");
     expect(result).not.toContain("正文过长");
+  });
+
+  it("caps default email messages at 4,000 visible characters", () => {
+    const result = buildTelegramEmailHtml(
+      "<p>Header</p>",
+      "x".repeat(5_000),
+      null,
+    );
+
+    expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
+      4_000,
+    );
+    expect(result).toContain("正文过长");
+    expect(result).not.toContain("<details>");
   });
 
   it("keeps the final message within Telegram's text and block limits", () => {
@@ -441,7 +455,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<details><summary><b>Your verification code is 482913<\/b><\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
+      /^<details><summary><b>Your verification code is 482913<\/b><\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
@@ -452,7 +466,7 @@ describe("email HTML rendering", () => {
       /🕒 时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
     expect(result).toContain(
-      "<b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
+      "</details><p>&#160;</p><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
     );
     expect(result).not.toContain("邮件正文");
     expect(result.match(/<details>/g)).toHaveLength(1);

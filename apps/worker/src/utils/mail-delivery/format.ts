@@ -17,8 +17,8 @@ import {
 } from "@worker/utils/mail/telegram-rich-html";
 import { escapeHtmlText, truncateUnicodeText } from "@worker/utils/string";
 
-const TG_RICH_BODY_AUTO_EXPAND_LIMIT = 800;
 const TG_HEADER_FIELD_LIMIT = 1_000;
+const TG_EMAIL_VISIBLE_TEXT_LIMIT = 4_000;
 const TG_TAG_LENGTH_LIMIT = 80;
 
 /**
@@ -57,7 +57,7 @@ const buildTelegramHeader = (
   const escapedSubject = escapeHtmlText(
     truncateUnicodeText(subject, TG_HEADER_FIELD_LIMIT),
   );
-  return `<details><summary><b>${escapedSubject}</b></summary><p><b>${lines.join("<br>")}</b></p></details>`;
+  return `<details><summary><b>${escapedSubject}</b></summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
 };
 
 const buildRichVerificationCodeSection = (
@@ -70,29 +70,26 @@ export const buildTelegramEmailHtml = (
   headerHtml: string,
   bodyMarkdown: string,
   verificationCode: string | null,
-  maxVisibleCharacters = TG_RICH_TEXT_LIMIT,
+  maxVisibleCharacters = TG_EMAIL_VISIBLE_TEXT_LIMIT,
 ): string => {
   const build = (markdown: string, truncated: boolean): string => {
     const body = markdown
       ? toTelegramRichHtml(markdown)
       : "<p>（正文为空）</p>";
     const hint = truncated ? "<footer>… 正文过长，已截断 …</footer>" : "";
-    const isDirectBody =
-      !truncated &&
-      measureTelegramRichHtml(body).textCharacters <=
-        TG_RICH_BODY_AUTO_EXPAND_LIMIT;
     const codeSection = verificationCode
-      ? buildRichVerificationCodeSection(verificationCode, isDirectBody)
+      ? buildRichVerificationCodeSection(verificationCode, true)
       : "";
-    if (isDirectBody) {
-      return `${headerHtml}${codeSection}${body}`;
-    }
-    return `${headerHtml}${codeSection}<details><summary>邮件正文</summary>${body}${hint}</details>`;
+    return `${headerHtml}${codeSection}${body}${hint}`;
   };
-  const fixedHtml = `${headerHtml}${verificationCode ? buildRichVerificationCodeSection(verificationCode, true) : ""}<details><summary>邮件正文</summary><footer>… 正文过长，已截断 …</footer></details>`;
+  const fixedHtml = `${headerHtml}${verificationCode ? buildRichVerificationCodeSection(verificationCode, true) : ""}<footer>… 正文过长，已截断 …</footer>`;
+  const effectiveCharacterLimit = Math.min(
+    maxVisibleCharacters,
+    TG_RICH_TEXT_LIMIT,
+  );
   const availableCharacters = Math.max(
     0,
-    maxVisibleCharacters - measureTelegramRichHtml(fixedHtml).textCharacters,
+    effectiveCharacterLimit - measureTelegramRichHtml(fixedHtml).textCharacters,
   );
 
   const byCharacters = truncateMarkdown(bodyMarkdown, availableCharacters);
