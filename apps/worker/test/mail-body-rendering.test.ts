@@ -457,7 +457,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<p><b>📝 Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
+      /^<p><b>Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details><p>&#160;<\/p>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");

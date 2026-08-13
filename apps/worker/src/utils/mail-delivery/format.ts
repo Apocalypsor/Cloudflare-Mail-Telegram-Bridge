@@ -61,7 +61,7 @@ const buildTelegramHeader = (
   const escapedSender = escapeHtmlText(
     truncateUnicodeText(sender, TG_HEADER_FIELD_LIMIT),
   );
-  return `<p><b>📝 ${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
+  return `<p><b>${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details><p>&#160;</p>`;
 };
 
 const buildRichVerificationCodeSection = (
