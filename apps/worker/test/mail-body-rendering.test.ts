@@ -309,10 +309,10 @@ describe("email HTML rendering", () => {
   it("renders only a preview link before AI analysis", () => {
     const header = "<p><b>From:</b> sender@example.com</p>";
     const previewUrl =
-      "https://worker.example/mail/message-1?accountId=1&t=mail-token";
+      "https://worker.example/api/mail/message-1/open?access=1.mail-token";
 
     expect(buildTelegramEmailHtml(header, previewUrl, null)).toBe(
-      `${header}<p><a href="https://worker.example/mail/message-1?accountId=1&amp;t=mail-token">👁 查看原文</a></p>`,
+      `${header}<p><a href="https://worker.example/api/mail/message-1/open?access=1.mail-token">👁 查看原文</a></p>`,
     );
   });
 

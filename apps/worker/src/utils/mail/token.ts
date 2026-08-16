@@ -25,20 +25,38 @@ export const verifyMailTokenById = async (
   return timingSafeEqual(expected, token);
 };
 
-/** 生成邮件 web 预览链接（自动签 token）。`folder` 用于告诉预览页从哪个文件夹取邮件（仅 IMAP 需要）。 */
+/** 生成 Rich Message 里的邮件预览入口。
+ *
+ * 链接只使用一个 query parameter，避免 Rich HTML 把 `&` 转义成 `&amp;`
+ * 后 Telegram 客户端将实体原样带进浏览器。Worker 校验 access 后再 302 到
+ * Pages 的 `/mail/:id?accountId=...&t=...` 页面。
+ */
 export const buildMailPreviewUrl = async (
   workerUrl: string,
   adminSecret: string,
   emailMessageId: string,
   accountId: number,
-  folder?: "inbox" | "junk" | "archive",
 ): Promise<string> => {
   const token = await generateMailTokenById(
     adminSecret,
     emailMessageId,
     accountId,
   );
-  return buildWebMailUrl(workerUrl, emailMessageId, accountId, token, folder);
+  const access = `${accountId}.${token}`;
+  return `${normalizeBaseUrl(workerUrl)}/api/mail/${encodeURIComponent(emailMessageId)}/open?access=${encodeURIComponent(access)}`;
+};
+
+export const parseMailPreviewAccess = (
+  access: string,
+): { accountId: number; token: string } | null => {
+  const separator = access.indexOf(".");
+  if (separator <= 0 || separator !== access.lastIndexOf(".")) return null;
+
+  const accountId = Number(access.slice(0, separator));
+  const token = access.slice(separator + 1);
+  if (!Number.isInteger(accountId) || accountId <= 0 || !token) return null;
+
+  return { accountId, token };
 };
 
 /** Web 版邮件页 URL（已有 token 时复用，避免重复签名） */

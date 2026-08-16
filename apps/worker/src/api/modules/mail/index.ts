@@ -5,7 +5,10 @@ import { LLMClient } from "@worker/clients/llm";
 import { TelegramClient } from "@worker/clients/telegram";
 import { getMappingsByEmailIds } from "@worker/db/message-map";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
-import { buildWebMailUrl } from "@worker/utils/mail/token";
+import {
+  buildWebMailUrl,
+  parseMailPreviewAccess,
+} from "@worker/utils/mail/token";
 import { deliverEmailToTelegram } from "@worker/utils/mail-delivery/deliver";
 import { refreshEmail } from "@worker/utils/mail-delivery/retry";
 import {
@@ -22,6 +25,7 @@ import {
   MailActionBody,
   MailAttachmentQuery,
   MailGetQuery,
+  MailOpenQuery,
   MailParams,
   MailToggleStarBody,
 } from "./model";
@@ -30,6 +34,7 @@ import { contentDisposition, schedulePreviewTelegramCleanup } from "./utils";
 
 /**
  * Mail preview API + 6 mutations:
+ *  - GET    /api/mail/:id/open         compact access token → web preview redirect
  *  - GET    /api/mail/:id              token-only auth → preview JSON
  *  - POST   /api/mail/:id/move-to-inbox | trash | mark-as-junk | archive | unarchive | toggle-star
  *           三件套 (accountId/token) + session OR mini-app auth → 校验 owner → 执行
@@ -40,27 +45,83 @@ import { contentDisposition, schedulePreviewTelegramCleanup } from "./utils";
  *  - POST 都走 authAny（要求登录），再叠 token 三件套校验邮件归属
  */
 
-// ─── GET preview (token-only) ──────────────────────────────────────────────
-const mailGet = new Elysia({ name: "controller.mail.get" }).use(cf).get(
-  "/api/mail/:id",
-  async ({ env, executionCtx, params, query, status }) => {
-    const ctx = await MailService.resolveContext(
-      env,
-      query.accountId,
-      params.id,
-      query.t,
-    );
-    if (!ctx.ok) return status(ctx.status, { error: ctx.error });
-    const { account, emailMessageId, token } = ctx;
+export const mailController = new Elysia({ name: "controller.mail" })
+  .use(cf)
 
-    const result = await MailService.loadForRendering(
-      env,
-      account,
-      emailMessageId,
-      query.folder,
-    );
-    if (!result.ok) {
-      if (result.location && result.location !== "inbox") {
+  // ─── Public GET routes (token-only; no session required) ───────────────
+  .get(
+    "/api/mail/:id/open",
+    async ({ env, params, query, status }) => {
+      const access = parseMailPreviewAccess(query.access);
+      if (!access) return status(400, { error: "Invalid access" });
+
+      const ctx = await MailService.resolveContext(
+        env,
+        access.accountId,
+        params.id,
+        access.token,
+      );
+      if (!ctx.ok) return status(ctx.status, { error: ctx.error });
+
+      return Response.redirect(
+        buildWebMailUrl(
+          getWorkerBaseUrl(env),
+          ctx.emailMessageId,
+          ctx.accountId,
+          ctx.token,
+        ),
+        302,
+      );
+    },
+    { params: MailParams, query: MailOpenQuery },
+  )
+
+  .get(
+    "/api/mail/:id",
+    async ({ env, executionCtx, params, query, status }) => {
+      const ctx = await MailService.resolveContext(
+        env,
+        query.accountId,
+        params.id,
+        query.t,
+      );
+      if (!ctx.ok) return status(ctx.status, { error: ctx.error });
+      const { account, emailMessageId, token } = ctx;
+
+      const result = await MailService.loadForRendering(
+        env,
+        account,
+        emailMessageId,
+        query.folder,
+      );
+      if (!result.ok) {
+        if (result.location && result.location !== "inbox") {
+          schedulePreviewTelegramCleanup(
+            executionCtx,
+            env,
+            account.id,
+            emailMessageId,
+          );
+        }
+        return status(result.status, { error: result.reason });
+      }
+
+      executionCtx.waitUntil(
+        markEmailAsRead(env, account, emailMessageId, result.fetchFolder),
+      );
+
+      const webMailUrl = buildWebMailUrl(
+        getWorkerBaseUrl(env),
+        emailMessageId,
+        account.id,
+        token,
+        result.fetchFolder !== "inbox" ? result.fetchFolder : undefined,
+      );
+      const mailMappings = await getMappingsByEmailIds(env.DB, account.id, [
+        emailMessageId,
+      ]);
+      const mapping = mailMappings[0];
+      if (result.location !== "inbox") {
         schedulePreviewTelegramCleanup(
           executionCtx,
           env,
@@ -68,63 +129,33 @@ const mailGet = new Elysia({ name: "controller.mail.get" }).use(cf).get(
           emailMessageId,
         );
       }
-      return status(result.status, { error: result.reason });
-    }
+      const tgMessageLink =
+        mapping && result.location === "inbox"
+          ? TelegramClient.buildMessageLink(
+              mapping.tg_chat_id,
+              mapping.tg_message_id,
+              mapping.tg_thread_id,
+            )
+          : null;
 
-    executionCtx.waitUntil(
-      markEmailAsRead(env, account, emailMessageId, result.fetchFolder),
-    );
+      return {
+        meta: result.meta,
+        accountEmail: account.email,
+        bodyHtml: result.proxiedHtml,
+        bodyHtmlRaw: result.rawHtml,
+        attachments: result.attachments,
+        folder: result.fetchFolder,
+        inJunk: result.inJunk,
+        inArchive: result.location === "archive",
+        starred: result.starred,
+        canArchive: accountCanArchive(account),
+        webMailUrl,
+        tgMessageLink,
+      };
+    },
+    { params: MailParams, query: MailGetQuery },
+  )
 
-    const webMailUrl = buildWebMailUrl(
-      getWorkerBaseUrl(env),
-      emailMessageId,
-      account.id,
-      token,
-      result.fetchFolder !== "inbox" ? result.fetchFolder : undefined,
-    );
-    const mailMappings = await getMappingsByEmailIds(env.DB, account.id, [
-      emailMessageId,
-    ]);
-    const mapping = mailMappings[0];
-    if (result.location !== "inbox") {
-      schedulePreviewTelegramCleanup(
-        executionCtx,
-        env,
-        account.id,
-        emailMessageId,
-      );
-    }
-    const tgMessageLink =
-      mapping && result.location === "inbox"
-        ? TelegramClient.buildMessageLink(
-            mapping.tg_chat_id,
-            mapping.tg_message_id,
-            mapping.tg_thread_id,
-          )
-        : null;
-
-    return {
-      meta: result.meta,
-      accountEmail: account.email,
-      bodyHtml: result.proxiedHtml,
-      bodyHtmlRaw: result.rawHtml,
-      attachments: result.attachments,
-      folder: result.fetchFolder,
-      inJunk: result.inJunk,
-      inArchive: result.location === "archive",
-      starred: result.starred,
-      canArchive: accountCanArchive(account),
-      webMailUrl,
-      tgMessageLink,
-    };
-  },
-  { params: MailParams, query: MailGetQuery },
-);
-
-const mailAttachmentGet = new Elysia({
-  name: "controller.mail.attachment.get",
-})
-  .use(cf)
   .get(
     "/api/mail/:id/attachment",
     async ({ env, params, query, status }) => {
@@ -154,11 +185,9 @@ const mailAttachmentGet = new Elysia({
       });
     },
     { params: MailParams, query: MailAttachmentQuery },
-  );
+  )
 
-// ─── POST mutations (session OR mini-app auth + token check) ──────────────
-const mailMutations = new Elysia({ name: "controller.mail.mutations" })
-  .use(cf)
+  // ─── Mutations (session OR mini-app auth + token check) ────────────────
   .use(authAny)
   // 共用的 owner check + context resolve macro: 把 body.{accountId, token}
   // 配合 :id 拼出 (account, emailMessageId)，并校验 account 归当前 user。
@@ -420,8 +449,3 @@ const mailMutations = new Elysia({ name: "controller.mail.mutations" })
     },
     { params: MailParams, body: MailToggleStarBody },
   );
-
-export const mailController = new Elysia({ name: "controller.mail" })
-  .use(mailGet)
-  .use(mailAttachmentGet)
-  .use(mailMutations);

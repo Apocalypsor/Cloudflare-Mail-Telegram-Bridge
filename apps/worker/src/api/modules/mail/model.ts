@@ -8,6 +8,8 @@ export const MailGetQuery = t.Object({
   ),
 });
 
+export const MailOpenQuery = t.Object({ access: t.String() });
+
 export const MailAttachmentQuery = t.Composite([
   MailGetQuery,
   t.Object({
