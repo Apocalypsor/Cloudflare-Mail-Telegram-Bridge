@@ -160,10 +160,6 @@ const UsersPage = () => {
   );
 };
 
-export const Route = createFileRoute("/telegram-app/users")({
-  component: UsersPage,
-});
-
 const UserCard = ({
   user,
   busy,
@@ -252,3 +248,7 @@ const Meta = ({ label, value }: { label: string; value: string }) => (
     <dd className="min-w-0 text-zinc-300 break-words">{value}</dd>
   </>
 );
+
+export const Route = createFileRoute("/telegram-app/users")({
+  component: UsersPage,
+});

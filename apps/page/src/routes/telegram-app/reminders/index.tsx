@@ -262,8 +262,7 @@ const RemindersPage = () => {
     </div>
   );
 };
-// 三件套任缺其一 → 退化为"所有待提醒"列表模式。
-// `back` 由从邮件预览页跳进来时带上，存在则渲染 TG BackButton 跳回。
+
 const Search = t.Object({
   accountId: t.Optional(t.Number()),
   emailMessageId: t.Optional(t.String()),

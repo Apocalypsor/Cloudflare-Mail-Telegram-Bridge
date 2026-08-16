@@ -9,6 +9,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+const SETTINGS_QUERY_KEY = ["settings", "things"];
+
 const SettingsPage = () => {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -222,8 +224,7 @@ const SettingsPage = () => {
     </div>
   );
 };
+
 export const Route = createFileRoute("/telegram-app/settings/")({
   component: SettingsPage,
 });
-
-const SETTINGS_QUERY_KEY = ["settings", "things"];

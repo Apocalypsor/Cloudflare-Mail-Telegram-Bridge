@@ -9,6 +9,12 @@ import {
 import { DateRow } from "./date-row";
 import { ItemRow } from "./item-row";
 
+// Flat row union: the timeline alternates date headers and items, but they all
+// share the same column layout so a single rail can bridge through both.
+type TimelineRow =
+  | { kind: "date"; key: string; date: Date; count: number }
+  | { kind: "item"; key: string; reminder: Reminder };
+
 export const ReminderTimeline = ({
   listOnly,
   reminders,
@@ -125,8 +131,3 @@ export const ReminderTimeline = ({
     </div>
   );
 };
-// Flat row union: the timeline alternates date headers and items, but they all
-// share the same column layout so a single rail can bridge through both.
-type TimelineRow =
-  | { kind: "date"; key: string; date: Date; count: number }
-  | { kind: "item"; key: string; reminder: Reminder };

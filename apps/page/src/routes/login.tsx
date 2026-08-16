@@ -95,9 +95,7 @@ const LoginWidget = ({ returnTo }: { returnTo: string }) => {
 
   return <div ref={hostRef} className="flex justify-center min-h-[45px]" />;
 };
-// `return_to` 登陆成功后跳回的路径（默认 `/`）。
-// `denied=1` + `uid` 由 Worker callback 在用户未 approved 时带过来，页面展示
-// 拒绝态。其他情况都渲染登录表单。
+
 const Search = t.Object({
   return_to: t.Optional(t.String()),
   denied: t.Optional(t.Number()),

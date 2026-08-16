@@ -108,6 +108,7 @@ const JunkCheckPage = () => {
     </SessionGatedWebLayout>
   );
 };
+
 export const Route = createFileRoute("/junk-check/")({
   component: JunkCheckPage,
 });

@@ -14,6 +14,7 @@ export const formatExactTime = (date: Date): string => {
     timeZoneName: "short",
   });
 };
+
 /** 邮件时间显示：`"YYYY年M月D日 HH:mm"`，按浏览器本地时区。
  *  `Date.prototype.getHours()` 等默认走 local TZ，不需要额外处理。 */
 const pad = (n: number) => String(n).padStart(2, "0");

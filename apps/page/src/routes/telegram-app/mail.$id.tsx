@@ -175,8 +175,7 @@ const Subject = ({
     </h1>
   );
 };
-// accountId + t 必填：缺失 → validateSearch 抛出，由父级 errorComponent 渲染。
-// folder / back 可选。
+
 const Search = t.Object({
   accountId: t.Number(),
   t: t.String(),

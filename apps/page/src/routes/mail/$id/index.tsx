@@ -113,6 +113,7 @@ const WebMailPage = () => {
     </WebLayout>
   );
 };
+
 const Search = t.Object({
   access: t.Optional(t.String()),
   accountId: t.Optional(t.Number()),
@@ -121,7 +122,6 @@ const Search = t.Object({
     t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
   ),
 });
-
 const validateMailSearchFields = validateSearch(Search);
 const validateMailSearch = (input: Record<string, unknown>) => {
   const search = validateMailSearchFields(input);

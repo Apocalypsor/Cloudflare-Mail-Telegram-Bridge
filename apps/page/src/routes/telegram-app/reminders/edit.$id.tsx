@@ -247,6 +247,7 @@ const EditReminderPage = () => {
     </div>
   );
 };
+
 const Search = t.Object({ back: t.Optional(t.String()) });
 
 export const Route = createFileRoute("/telegram-app/reminders/edit/$id")({

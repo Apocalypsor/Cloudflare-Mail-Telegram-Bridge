@@ -128,6 +128,7 @@ const Pane = ({
     </div>
   );
 };
+
 export const Route = createFileRoute("/preview")({
   component: PreviewPage,
 });

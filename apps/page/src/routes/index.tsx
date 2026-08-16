@@ -91,6 +91,7 @@ const Feature = ({
     </Card>
   );
 };
+
 export const Route = createFileRoute("/")({
   component: LandingPage,
 });
