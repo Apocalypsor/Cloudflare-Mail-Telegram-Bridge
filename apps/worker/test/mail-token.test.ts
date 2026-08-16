@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMailPreviewUrl,
   parseMailPreviewAccess,
+  parseMailPreviewQuery,
 } from "../src/utils/mail/token";
 
 describe("mail preview links", () => {
@@ -9,7 +10,7 @@ describe("mail preview links", () => {
     await expect(
       buildMailPreviewUrl("https://worker.example/", "secret", "message/1", 42),
     ).resolves.toBe(
-      "https://worker.example/api/mail/message%2F1/open?access=42.e862bb796d05b826e5943624303386f1",
+      "https://worker.example/mail/message%2F1?access=42.e862bb796d05b826e5943624303386f1",
     );
   });
 
@@ -26,5 +27,16 @@ describe("mail preview links", () => {
     expect(parseMailPreviewAccess("missing-token")).toBeNull();
     expect(parseMailPreviewAccess("0.token")).toBeNull();
     expect(parseMailPreviewAccess("account.token.extra")).toBeNull();
+  });
+
+  it("accepts both compact and legacy API query parameters", () => {
+    expect(parseMailPreviewQuery({ access: "42.token" })).toEqual({
+      accountId: 42,
+      token: "token",
+    });
+    expect(parseMailPreviewQuery({ accountId: "42", t: "token" })).toEqual({
+      accountId: "42",
+      token: "token",
+    });
   });
 });

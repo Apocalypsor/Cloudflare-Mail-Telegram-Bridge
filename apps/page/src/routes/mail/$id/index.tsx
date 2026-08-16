@@ -9,6 +9,7 @@ import { WebLayout } from "@page/components/web-layout";
 import {
   buildMailAttachmentUrl,
   mailContentQueryOptions,
+  normalizeMailContentSearch,
 } from "@page/utils/mail-content";
 import { Type as t } from "@sinclair/typebox";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ const WebMailPage = () => {
     emailMessageId,
     accountId: search.accountId,
     token: search.t,
+    access: search.access,
     folder: search.folder,
   });
   const q = useQuery({
@@ -102,6 +104,7 @@ const WebMailPage = () => {
               emailMessageId,
               accountId: search.accountId,
               token: search.t,
+              access: search.access,
               folder: d.folder,
               attachmentId,
             })
@@ -112,13 +115,18 @@ const WebMailPage = () => {
   );
 };
 const Search = t.Object({
-  accountId: t.Number(),
-  t: t.String(),
+  access: t.Optional(t.String()),
+  accountId: t.Optional(t.Number()),
+  t: t.Optional(t.String()),
   folder: t.Optional(
     t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
   ),
 });
-const validateMailSearch = validateSearch(Search);
+
+const validateMailSearchFields = validateSearch(Search);
+const validateMailSearch = (input: Record<string, unknown>) => {
+  return normalizeMailContentSearch(validateMailSearchFields(input));
+};
 
 export const Route = createFileRoute("/mail/$id/")({
   component: WebMailPage,

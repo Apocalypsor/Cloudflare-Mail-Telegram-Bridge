@@ -1,14 +1,13 @@
 import { t, type UnwrapSchema } from "elysia";
 
 export const MailGetQuery = t.Object({
-  accountId: t.String(),
-  t: t.String(),
+  access: t.Optional(t.String()),
+  accountId: t.Optional(t.String()),
+  t: t.Optional(t.String()),
   folder: t.Optional(
     t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
   ),
 });
-
-export const MailOpenQuery = t.Object({ access: t.String() });
 
 export const MailAttachmentQuery = t.Composite([
   MailGetQuery,

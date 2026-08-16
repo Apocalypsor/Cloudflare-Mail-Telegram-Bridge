@@ -7,7 +7,7 @@ import { getMappingsByEmailIds } from "@worker/db/message-map";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import {
   buildWebMailUrl,
-  parseMailPreviewAccess,
+  parseMailPreviewQuery,
 } from "@worker/utils/mail/token";
 import { deliverEmailToTelegram } from "@worker/utils/mail-delivery/deliver";
 import { refreshEmail } from "@worker/utils/mail-delivery/retry";
@@ -25,7 +25,6 @@ import {
   MailActionBody,
   MailAttachmentQuery,
   MailGetQuery,
-  MailOpenQuery,
   MailParams,
   MailToggleStarBody,
 } from "./model";
@@ -34,8 +33,7 @@ import { contentDisposition, schedulePreviewTelegramCleanup } from "./utils";
 
 /**
  * Mail preview API + 6 mutations:
- *  - GET    /api/mail/:id/open         compact access token → web preview redirect
- *  - GET    /api/mail/:id              token-only auth → preview JSON
+ *  - GET    /api/mail/:id              access 或 accountId+t token auth → preview JSON
  *  - POST   /api/mail/:id/move-to-inbox | trash | mark-as-junk | archive | unarchive | toggle-star
  *           三件套 (accountId/token) + session OR mini-app auth → 校验 owner → 执行
  *  - POST   /api/mail/:id/refresh      同样鉴权 → 重新跑 LLM 分析并编辑 TG 消息
@@ -50,40 +48,16 @@ export const mailController = new Elysia({ name: "controller.mail" })
 
   // ─── Public GET routes (token-only; no session required) ───────────────
   .get(
-    "/api/mail/:id/open",
-    async ({ env, params, query, status }) => {
-      const access = parseMailPreviewAccess(query.access);
-      if (!access) return status(400, { error: "Invalid access" });
-
-      const ctx = await MailService.resolveContext(
-        env,
-        access.accountId,
-        params.id,
-        access.token,
-      );
-      if (!ctx.ok) return status(ctx.status, { error: ctx.error });
-
-      return Response.redirect(
-        buildWebMailUrl(
-          getWorkerBaseUrl(env),
-          ctx.emailMessageId,
-          ctx.accountId,
-          ctx.token,
-        ),
-        302,
-      );
-    },
-    { params: MailParams, query: MailOpenQuery },
-  )
-
-  .get(
     "/api/mail/:id",
     async ({ env, executionCtx, params, query, status }) => {
+      const credentials = parseMailPreviewQuery(query);
+      if (!credentials) return status(400, { error: "Invalid access" });
+
       const ctx = await MailService.resolveContext(
         env,
-        query.accountId,
+        credentials.accountId,
         params.id,
-        query.t,
+        credentials.token,
       );
       if (!ctx.ok) return status(ctx.status, { error: ctx.error });
       const { account, emailMessageId, token } = ctx;
@@ -159,11 +133,14 @@ export const mailController = new Elysia({ name: "controller.mail" })
   .get(
     "/api/mail/:id/attachment",
     async ({ env, params, query, status }) => {
+      const credentials = parseMailPreviewQuery(query);
+      if (!credentials) return status(400, { error: "Invalid access" });
+
       const ctx = await MailService.resolveContext(
         env,
-        query.accountId,
+        credentials.accountId,
         params.id,
-        query.t,
+        credentials.token,
       );
       if (!ctx.ok) return status(ctx.status, { error: ctx.error });
 

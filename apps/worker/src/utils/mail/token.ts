@@ -1,6 +1,12 @@
 import { hmacSha256Hex, timingSafeEqual } from "@worker/utils/hash";
 import { normalizeBaseUrl } from "@worker/utils/url";
 
+interface MailPreviewQuery {
+  access?: string;
+  accountId?: string;
+  t?: string;
+}
+
 /** 生成基于 accountId 的邮件查看链接 HMAC-SHA256 token（32 字符截断） */
 export const generateMailTokenById = async (
   secret: string,
@@ -28,8 +34,8 @@ export const verifyMailTokenById = async (
 /** 生成 Rich Message 里的邮件预览入口。
  *
  * 链接只使用一个 query parameter，避免 Rich HTML 把 `&` 转义成 `&amp;`
- * 后 Telegram 客户端将实体原样带进浏览器。Worker 校验 access 后再 302 到
- * Pages 的 `/mail/:id?accountId=...&t=...` 页面。
+ * 后 Telegram 客户端将实体原样带进浏览器。Pages 和邮件 API
+ * 都直接接受 `access`，不需要中间 redirect。
  */
 export const buildMailPreviewUrl = async (
   workerUrl: string,
@@ -42,8 +48,7 @@ export const buildMailPreviewUrl = async (
     emailMessageId,
     accountId,
   );
-  const access = `${accountId}.${token}`;
-  return `${normalizeBaseUrl(workerUrl)}/api/mail/${encodeURIComponent(emailMessageId)}/open?access=${encodeURIComponent(access)}`;
+  return buildWebMailUrl(workerUrl, emailMessageId, accountId, token);
 };
 
 export const parseMailPreviewAccess = (
@@ -59,6 +64,16 @@ export const parseMailPreviewAccess = (
   return { accountId, token };
 };
 
+/** 归一化新 `access` 或旧 `accountId + t` 查询参数。 */
+export const parseMailPreviewQuery = (
+  query: MailPreviewQuery,
+): { accountId: unknown; token: unknown } | null => {
+  if (query.access !== undefined) {
+    return parseMailPreviewAccess(query.access);
+  }
+  return { accountId: query.accountId, token: query.t };
+};
+
 /** Web 版邮件页 URL（已有 token 时复用，避免重复签名） */
 export const buildWebMailUrl = (
   workerUrl: string,
@@ -67,7 +82,8 @@ export const buildWebMailUrl = (
   token: string,
   folder?: "inbox" | "junk" | "archive",
 ): string => {
-  const base = `${normalizeBaseUrl(workerUrl)}/mail/${encodeURIComponent(emailMessageId)}?accountId=${accountId}&t=${encodeURIComponent(token)}`;
+  const access = encodeURIComponent(`${accountId}.${token}`);
+  const base = `${normalizeBaseUrl(workerUrl)}/mail/${encodeURIComponent(emailMessageId)}?access=${access}`;
   return folder ? `${base}&folder=${folder}` : base;
 };
 
