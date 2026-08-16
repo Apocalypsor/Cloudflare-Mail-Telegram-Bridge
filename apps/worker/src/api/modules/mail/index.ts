@@ -177,27 +177,24 @@ export const mailController = new Elysia({ name: "controller.mail" })
   // 共用的 owner check + context resolve macro: 把 body.access 或
   // body.{accountId, token}
   // 配合 :id 拼出 (account, emailMessageId)，并校验 account 归当前 user。
-  .resolve(
-    { as: "scoped" },
-    async ({ env, params, body, userId, isAdmin, status }) => {
-      const id = (params as { id: string }).id;
-      const credentials = parseMailPreviewCredentials(body as MailActionBody);
-      if (!credentials) {
-        return status(400, { ok: false, error: "Invalid access" });
-      }
-      const ctx = await MailService.resolveContext(
-        env,
-        credentials.accountId,
-        id,
-        credentials.token,
-      );
-      if (!ctx.ok) return status(ctx.status, { ok: false, error: ctx.error });
-      if (!isAdmin && ctx.account.telegram_user_id !== userId) {
-        return status(403, { ok: false, error: "Forbidden" });
-      }
-      return { account: ctx.account, emailMessageId: ctx.emailMessageId };
-    },
-  )
+  .resolve(async ({ env, params, body, userId, isAdmin, status }) => {
+    const id = (params as { id: string }).id;
+    const credentials = parseMailPreviewCredentials(body as MailActionBody);
+    if (!credentials) {
+      return status(400, { ok: false, error: "Invalid access" });
+    }
+    const ctx = await MailService.resolveContext(
+      env,
+      credentials.accountId,
+      id,
+      credentials.token,
+    );
+    if (!ctx.ok) return status(ctx.status, { ok: false, error: ctx.error });
+    if (!isAdmin && ctx.account.telegram_user_id !== userId) {
+      return status(403, { ok: false, error: "Forbidden" });
+    }
+    return { account: ctx.account, emailMessageId: ctx.emailMessageId };
+  })
 
   .post(
     "/api/mail/:id/refresh",
