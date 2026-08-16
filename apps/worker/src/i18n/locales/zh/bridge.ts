@@ -6,6 +6,7 @@ export default {
     time: "🕒 时间:",
   },
   verificationCode: "🔒 验证码:",
+  previewLink: "👁 查看原文",
   aiSummary: "🤖 AI 摘要",
   refreshing: "🔄 正在刷新…",
   refreshNoLlm: "LLM 未配置",

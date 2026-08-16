@@ -306,109 +306,26 @@ describe("email HTML rendering", () => {
     ).toBe("<p>First section</p><p>Second section</p>");
   });
 
-  it("shortens only the email body to fit the Rich Message text budget", () => {
+  it("renders only a preview link before AI analysis", () => {
     const header = "<p><b>From:</b> sender@example.com</p>";
-    const code = "123456";
-    const body = Array.from(
-      { length: 20 },
-      (_, index) => `Action ${index} ${"x".repeat(80)}`,
-    ).join("\n\n");
+    const previewUrl =
+      "https://worker.example/mail/message-1?accountId=1&t=mail-token";
 
-    const result = buildTelegramEmailHtml(header, body, code, 500);
-
-    expect(result.startsWith(`${header}<p><b>🔒 验证码:</b> <code>`)).toBe(
-      true,
+    expect(buildTelegramEmailHtml(header, previewUrl, null)).toBe(
+      `${header}<p><a href="https://worker.example/mail/message-1?accountId=1&amp;t=mail-token">👁 查看原文</a></p>`,
     );
-    expect(result).toContain("</code></p><p>&#160;</p><p>Action 0");
-    expect(result).toContain("Action 0");
-    expect(result).not.toContain("<details><summary>邮件正文</summary>");
-    expect(result).toContain("正文过长");
   });
 
-  it("does not charge a long link target against the Rich Message text limit", () => {
-    const target = `https://action.example/open?token=${"x".repeat(500)}`;
+  it("keeps the verification code above the preview link", () => {
     const result = buildTelegramEmailHtml(
       "<p>Header</p>",
-      `[Open order](${target})`,
-      null,
-      100,
+      "https://worker.example/mail/message-1",
+      "482913",
     );
 
-    expect(result).toContain(`<a href="${target}">Open order</a>`);
-    expect(result).not.toContain("正文过长");
-  });
-
-  it("renders a short email body directly without a details border", () => {
-    const header = "<p><b>From:</b> sender@example.com</p>";
-    const body = "[Open order](https://example.com/order)";
-
-    expect(buildTelegramEmailHtml(header, body, null, 500)).toBe(
-      `${header}<p><a href="https://example.com/order">Open order</a></p>`,
+    expect(result).toBe(
+      '<p>Header</p><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p><a href="https://worker.example/mail/message-1">👁 查看原文</a></p>',
     );
-  });
-
-  it("renders a long email body directly", () => {
-    const result = buildTelegramEmailHtml(
-      "<p>Header</p>",
-      "x".repeat(801),
-      null,
-      2_000,
-    );
-
-    expect(result).toContain(`<p>${"x".repeat(801)}</p>`);
-    expect(result).not.toContain("<details>");
-    expect(result).not.toContain("正文过长");
-  });
-
-  it("caps default email messages at 4,000 visible characters", () => {
-    const result = buildTelegramEmailHtml(
-      "<p>Header</p>",
-      "x".repeat(5_000),
-      null,
-    );
-
-    expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
-      4_000,
-    );
-    expect(result).toContain("正文过长");
-    expect(result).not.toContain("<details>");
-  });
-
-  it("keeps the final message within Telegram's text and block limits", () => {
-    const tooManyParagraphs = Array.from(
-      { length: 600 },
-      (_, index) => `Paragraph ${index}`,
-    ).join("\n\n");
-    const manyBlocks = buildTelegramEmailHtml(
-      "<h6>Header</h6><hr/>",
-      tooManyParagraphs,
-      null,
-    );
-    const punctuation = buildTelegramEmailHtml(
-      "<h6>Header</h6><hr/>",
-      "#".repeat(40_000),
-      null,
-    );
-
-    expect(measureTelegramRichHtml(manyBlocks)).toMatchObject({
-      blocks: expect.any(Number),
-    });
-    expect(measureTelegramRichHtml(manyBlocks).blocks).toBeLessThanOrEqual(500);
-    expect(
-      measureTelegramRichHtml(manyBlocks).textCharacters,
-    ).toBeLessThanOrEqual(32_768);
-    expect(
-      measureTelegramRichHtml(punctuation).textCharacters,
-    ).toBeLessThanOrEqual(32_768);
-    expect(punctuation).toContain("正文过长");
-
-    const longList = buildTelegramEmailHtml(
-      "<h6>Header</h6><hr/>",
-      Array.from({ length: 600 }, (_, index) => `- Item ${index}`).join("\n"),
-      null,
-    );
-    expect(measureTelegramRichHtml(longList).blocks).toBeLessThanOrEqual(500);
-    expect(longList).toContain("正文过长");
   });
 
   it("bounds oversized header fields", () => {
@@ -423,7 +340,7 @@ describe("email HTML rendering", () => {
     );
     const result = buildTelegramEmailHtml(
       content.header,
-      content.bodyMarkdown,
+      "https://worker.example/mail/message-1",
       null,
     );
 
@@ -451,7 +368,7 @@ describe("email HTML rendering", () => {
     );
     const result = buildTelegramEmailHtml(
       content.header,
-      content.bodyMarkdown,
+      "https://worker.example/mail/message-1",
       content.verificationCode,
     );
 
@@ -461,14 +378,15 @@ describe("email HTML rendering", () => {
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
+    expect(content.header).not.toContain("📤 发件人:");
     expect(content.header).toContain(
-      "<p><b>📤 发件人: Example &lt;security@example.com&gt;<br>📥 收件人: user@example.com<br>📧 账号: account@example.com<br>🕒 时间: ",
+      "<p><b>📥 收件人: user@example.com<br>📧 账号: account@example.com<br>🕒 时间: ",
     );
     expect(result).toMatch(
       /🕒 时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
     expect(result).toContain(
-      "</details><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p>",
+      '</details><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p><a href="https://worker.example/mail/message-1">👁 查看原文</a></p>',
     );
     expect(result).not.toContain("邮件正文");
     expect(result.match(/<details>/g)).toHaveLength(1);

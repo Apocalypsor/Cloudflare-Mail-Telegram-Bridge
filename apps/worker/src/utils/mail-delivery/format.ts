@@ -1,16 +1,10 @@
 import { type EmailAnalysis, LLMClient } from "@worker/clients/llm";
 import { TelegramClient } from "@worker/clients/telegram";
-import {
-  MESSAGE_DATE_LOCALE,
-  MESSAGE_DATE_TIMEZONE,
-  TG_RICH_BLOCK_LIMIT,
-  TG_RICH_TEXT_LIMIT,
-} from "@worker/constants";
+import { MESSAGE_DATE_LOCALE, MESSAGE_DATE_TIMEZONE } from "@worker/constants";
 import { t } from "@worker/i18n";
 import type { Account, Env } from "@worker/types";
 import { renderEmailBody } from "@worker/utils/mail/render";
 import {
-  measureTelegramRichHtml,
   toTelegramRichHtml,
   truncateMarkdown,
   truncateMarkdownBlocks,
@@ -18,7 +12,6 @@ import {
 import { escapeHtmlText, truncateUnicodeText } from "@worker/utils/string";
 
 const TG_HEADER_FIELD_LIMIT = 1_000;
-const TG_EMAIL_VISIBLE_TEXT_LIMIT = 4_000;
 const TG_TAG_LENGTH_LIMIT = 80;
 
 /**
@@ -45,10 +38,7 @@ const buildTelegramHeader = (
     return `${escapeHtmlText(label)} ${escapedValue}`;
   };
   const sender = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
-  const lines = [
-    line(t("bridge:header.from"), sender),
-    line(t("bridge:header.to"), recipient),
-  ];
+  const lines = [line(t("bridge:header.to"), recipient)];
   if (accountEmail && accountEmail.toLowerCase() !== recipient.toLowerCase()) {
     lines.push(line(t("bridge:header.account"), accountEmail));
   }
@@ -72,37 +62,14 @@ const buildRichVerificationCodeSection = (
 
 export const buildTelegramEmailHtml = (
   headerHtml: string,
-  bodyMarkdown: string,
+  previewUrl: string,
   verificationCode: string | null,
-  maxVisibleCharacters = TG_EMAIL_VISIBLE_TEXT_LIMIT,
 ): string => {
-  const build = (markdown: string, truncated: boolean): string => {
-    const body = markdown
-      ? toTelegramRichHtml(markdown)
-      : "<p>（正文为空）</p>";
-    const hint = truncated ? "<footer>… 正文过长，已截断 …</footer>" : "";
-    const codeSection = verificationCode
-      ? buildRichVerificationCodeSection(verificationCode, true)
-      : "";
-    return `${headerHtml}${codeSection}${body}${hint}`;
-  };
-  const fixedHtml = `${headerHtml}${verificationCode ? buildRichVerificationCodeSection(verificationCode, true) : ""}<footer>… 正文过长，已截断 …</footer>`;
-  const effectiveCharacterLimit = Math.min(
-    maxVisibleCharacters,
-    TG_RICH_TEXT_LIMIT,
-  );
-  const availableCharacters = Math.max(
-    0,
-    effectiveCharacterLimit - measureTelegramRichHtml(fixedHtml).textCharacters,
-  );
-
-  const byCharacters = truncateMarkdown(bodyMarkdown, availableCharacters);
-  const fixedBlocks = measureTelegramRichHtml(fixedHtml).blocks;
-  const byBlocks = truncateMarkdownBlocks(
-    byCharacters.markdown,
-    Math.max(0, TG_RICH_BLOCK_LIMIT - fixedBlocks),
-  );
-  return build(byBlocks.markdown, byCharacters.truncated || byBlocks.truncated);
+  const codeSection = verificationCode
+    ? buildRichVerificationCodeSection(verificationCode, true)
+    : "";
+  const escapedPreviewUrl = escapeHtmlText(previewUrl).replace(/"/g, "&quot;");
+  return `${headerHtml}${codeSection}<p><a href="${escapedPreviewUrl}">${escapeHtmlText(t("bridge:previewLink"))}</a></p>`;
 };
 
 const STRONG_CONTEXT_RE =
@@ -239,7 +206,7 @@ const extractVerificationCode = (
   return findCodeNearStrongContext(text) ?? findCodeInLineBlocks(text);
 };
 
-/** 从解析后的邮件中提取 TG 消息所需的各项内容（subject / header / 渲染好的正文 / LLM 用的纯文本） */
+/** 从解析后的邮件中提取 TG 消息所需的各项内容（subject / header / LLM 用的纯文本） */
 export const prepareEmailContent = (
   email: {
     subject?: string;
@@ -265,7 +232,7 @@ export const prepareEmailContent = (
   const bodyMarkdown = renderEmailBody(email.text, email.html).markdown;
   const plainBody = email.text?.trim() ? email.text : bodyMarkdown;
   const verificationCode = extractVerificationCode(subject, plainBody);
-  return { subject, header, bodyMarkdown, plainBody, verificationCode };
+  return { subject, header, plainBody, verificationCode };
 };
 
 /** 调用 LLM 分析邮件并编辑 Telegram 消息（验证码 / 摘要 + 标签），返回分析结果 */

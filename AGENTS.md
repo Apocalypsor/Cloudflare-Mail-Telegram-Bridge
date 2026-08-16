@@ -16,6 +16,8 @@ Routing, domains, deploy conditions, runtime topology, workspace structure, and 
 
 Read the current package scripts before running commands.
 
+Commands that access the network (including package-registry queries, `npm pack`, and documentation downloads) need explicit network permission in restricted sandboxes. Request the required escalation as soon as network access is needed; if a sandboxed command fails with a network, DNS, or registry error, immediately rerun it with escalation instead of waiting or retrying silently.
+
 ## Repo Conventions
 
 - **Helpers**: file-private if used in one file; place those file-private helpers at the bottom of the file, after the main exported component/function, when execution order allows. Keep setup constants and framework-required declarations in their natural positions. Lift to the nearest established shared location when used in multiple places. Same applies to dedup — extract instead of copy-pasting.
