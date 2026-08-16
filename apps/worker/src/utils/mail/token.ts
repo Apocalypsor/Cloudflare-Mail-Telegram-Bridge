@@ -1,10 +1,10 @@
 import { hmacSha256Hex, timingSafeEqual } from "@worker/utils/hash";
 import { normalizeBaseUrl } from "@worker/utils/url";
 
-interface MailPreviewQuery {
+interface MailPreviewCredentialsInput {
   access?: string;
-  accountId?: string;
-  t?: string;
+  accountId?: unknown;
+  token?: unknown;
 }
 
 /** 生成基于 accountId 的邮件查看链接 HMAC-SHA256 token（32 字符截断） */
@@ -51,7 +51,7 @@ export const buildMailPreviewUrl = async (
   return buildWebMailUrl(workerUrl, emailMessageId, accountId, token);
 };
 
-export const parseMailPreviewAccess = (
+const parseMailPreviewAccess = (
   access: string,
 ): { accountId: number; token: string } | null => {
   const separator = access.indexOf(".");
@@ -64,14 +64,14 @@ export const parseMailPreviewAccess = (
   return { accountId, token };
 };
 
-/** 归一化新 `access` 或旧 `accountId + t` 查询参数。 */
-export const parseMailPreviewQuery = (
-  query: MailPreviewQuery,
+/** 归一化新 `access` 或旧 `accountId + token` 凭证。 */
+export const parseMailPreviewCredentials = (
+  input: MailPreviewCredentialsInput,
 ): { accountId: unknown; token: unknown } | null => {
-  if (query.access !== undefined) {
-    return parseMailPreviewAccess(query.access);
+  if (input.access !== undefined) {
+    return parseMailPreviewAccess(input.access);
   }
-  return { accountId: query.accountId, token: query.t };
+  return { accountId: input.accountId, token: input.token };
 };
 
 /** Web 版邮件页 URL（已有 token 时复用，避免重复签名） */

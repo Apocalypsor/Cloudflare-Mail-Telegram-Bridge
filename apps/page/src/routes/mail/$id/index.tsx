@@ -8,8 +8,8 @@ import { MailStatusBadges } from "@page/components/mail-status-badges";
 import { WebLayout } from "@page/components/web-layout";
 import {
   buildMailAttachmentUrl,
+  type MailAccess,
   mailContentQueryOptions,
-  normalizeMailContentSearch,
 } from "@page/utils/mail-content";
 import { Type as t } from "@sinclair/typebox";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,10 @@ import { WebMailToolbar } from "./-components/web-toolbar";
 const WebMailPage = () => {
   const { id: emailMessageId } = Route.useParams();
   const search = Route.useSearch();
+  const mailAccess: MailAccess =
+    search.access !== undefined
+      ? { access: search.access }
+      : { accountId: search.accountId, token: search.t };
   const qc = useQueryClient();
   // CORS 代理 toggle —— 默认开启，由 toolbar 里的按钮切换；MailBodyFrame
   // 根据这个值决定渲染 proxiedHtml 还是 rawHtml。
@@ -29,9 +33,7 @@ const WebMailPage = () => {
   // (`ROUTE_MAIL_API`)，shape 相同，本来就该共享缓存。
   const queryOptions = mailContentQueryOptions({
     emailMessageId,
-    accountId: search.accountId,
-    token: search.t,
-    access: search.access,
+    ...mailAccess,
     folder: search.folder,
   });
   const q = useQuery({
@@ -72,8 +74,7 @@ const WebMailPage = () => {
 
         <WebMailToolbar
           emailMessageId={emailMessageId}
-          accountId={search.accountId}
-          token={search.t}
+          mailAccess={mailAccess}
           starred={d.starred}
           inJunk={d.inJunk}
           inArchive={d.inArchive}
@@ -102,9 +103,7 @@ const WebMailPage = () => {
           getDownloadUrl={(attachmentId) =>
             buildMailAttachmentUrl({
               emailMessageId,
-              accountId: search.accountId,
-              token: search.t,
-              access: search.access,
+              ...mailAccess,
               folder: d.folder,
               attachmentId,
             })
@@ -125,7 +124,18 @@ const Search = t.Object({
 
 const validateMailSearchFields = validateSearch(Search);
 const validateMailSearch = (input: Record<string, unknown>) => {
-  return normalizeMailContentSearch(validateMailSearchFields(input));
+  const search = validateMailSearchFields(input);
+  if (search.access !== undefined) {
+    return { access: search.access, folder: search.folder };
+  }
+  if (search.accountId !== undefined && search.t !== undefined) {
+    return {
+      accountId: search.accountId,
+      t: search.t,
+      folder: search.folder,
+    };
+  }
+  throw new Error("Missing mail access parameters");
 };
 
 export const Route = createFileRoute("/mail/$id/")({

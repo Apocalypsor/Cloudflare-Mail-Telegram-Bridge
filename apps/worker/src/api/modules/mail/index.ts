@@ -7,7 +7,7 @@ import { getMappingsByEmailIds } from "@worker/db/message-map";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import {
   buildWebMailUrl,
-  parseMailPreviewQuery,
+  parseMailPreviewCredentials,
 } from "@worker/utils/mail/token";
 import { deliverEmailToTelegram } from "@worker/utils/mail-delivery/deliver";
 import { refreshEmail } from "@worker/utils/mail-delivery/retry";
@@ -35,7 +35,7 @@ import { contentDisposition, schedulePreviewTelegramCleanup } from "./utils";
  * Mail preview API + 6 mutations:
  *  - GET    /api/mail/:id              access 或 accountId+t token auth → preview JSON
  *  - POST   /api/mail/:id/move-to-inbox | trash | mark-as-junk | archive | unarchive | toggle-star
- *           三件套 (accountId/token) + session OR mini-app auth → 校验 owner → 执行
+ *           access 或 accountId/token + session OR mini-app auth → 校验 owner → 执行
  *  - POST   /api/mail/:id/refresh      同样鉴权 → 重新跑 LLM 分析并编辑 TG 消息
  *
  * 鉴权拆两路：
@@ -50,7 +50,11 @@ export const mailController = new Elysia({ name: "controller.mail" })
   .get(
     "/api/mail/:id",
     async ({ env, executionCtx, params, query, status }) => {
-      const credentials = parseMailPreviewQuery(query);
+      const credentials = parseMailPreviewCredentials({
+        access: query.access,
+        accountId: query.accountId,
+        token: query.t,
+      });
       if (!credentials) return status(400, { error: "Invalid access" });
 
       const ctx = await MailService.resolveContext(
@@ -133,7 +137,11 @@ export const mailController = new Elysia({ name: "controller.mail" })
   .get(
     "/api/mail/:id/attachment",
     async ({ env, params, query, status }) => {
-      const credentials = parseMailPreviewQuery(query);
+      const credentials = parseMailPreviewCredentials({
+        access: query.access,
+        accountId: query.accountId,
+        token: query.t,
+      });
       if (!credentials) return status(400, { error: "Invalid access" });
 
       const ctx = await MailService.resolveContext(
@@ -166,14 +174,23 @@ export const mailController = new Elysia({ name: "controller.mail" })
 
   // ─── Mutations (session OR mini-app auth + token check) ────────────────
   .use(authAny)
-  // 共用的 owner check + context resolve macro: 把 body.{accountId, token}
+  // 共用的 owner check + context resolve macro: 把 body.access 或
+  // body.{accountId, token}
   // 配合 :id 拼出 (account, emailMessageId)，并校验 account 归当前 user。
   .resolve(
     { as: "scoped" },
     async ({ env, params, body, userId, isAdmin, status }) => {
       const id = (params as { id: string }).id;
-      const { accountId, token } = body as MailActionBody;
-      const ctx = await MailService.resolveContext(env, accountId, id, token);
+      const credentials = parseMailPreviewCredentials(body as MailActionBody);
+      if (!credentials) {
+        return status(400, { ok: false, error: "Invalid access" });
+      }
+      const ctx = await MailService.resolveContext(
+        env,
+        credentials.accountId,
+        id,
+        credentials.token,
+      );
       if (!ctx.ok) return status(ctx.status, { ok: false, error: ctx.error });
       if (!isAdmin && ctx.account.telegram_user_id !== userId) {
         return status(403, { ok: false, error: "Forbidden" });

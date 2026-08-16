@@ -1,31 +1,13 @@
 import { Chip } from "@heroui/react";
 import { type MailAction, useMailActions } from "@page/hooks/use-mail-actions";
 import { useSession } from "@page/hooks/use-session";
+import type { MailAccess } from "@page/utils/mail-content";
 import { useState } from "react";
 import { AccentButton } from "./accent-button";
 
-/** Web 版邮件 toolbar：星标 / 归档 / 标垃圾 / 图片代理切换。
- *  miniapp 那一套用 TG 原生 Main+SecondaryButton 走 popup；web 这套是真 DOM
- *  按钮平铺。共用 useMailActions hook 控制状态转换和后端调用。
- *
- *  图片代理开关只是本地切换 proxied/raw HTML，不发后端请求；即使浏览器未登录，
- *  只要邮件 token 有效也应该可用。 */
-export const WebMailToolbar = ({
-  emailMessageId,
-  accountId,
-  token,
-  starred: initialStarred,
-  inJunk,
-  inArchive,
-  canArchive,
-  folder,
-  useProxy,
-  onToggleProxy,
-  onChanged,
-}: {
+interface WebMailToolbarProps {
   emailMessageId: string;
-  accountId: number;
-  token: string;
+  mailAccess: MailAccess;
   starred: boolean;
   inJunk: boolean;
   inArchive: boolean;
@@ -35,7 +17,26 @@ export const WebMailToolbar = ({
   useProxy: boolean;
   onToggleProxy: () => void;
   onChanged: () => void;
-}) => {
+}
+
+/** Web 版邮件 toolbar：星标 / 归档 / 标垃圾 / 图片代理切换。
+ *  miniapp 那一套用 TG 原生 Main+SecondaryButton 走 popup；web 这套是真 DOM
+ *  按钮平铺。共用 useMailActions hook 控制状态转换和后端调用。
+ *
+ *  图片代理开关只是本地切换 proxied/raw HTML，不发后端请求；即使浏览器未登录，
+ *  只要邮件 token 有效也应该可用。 */
+export const WebMailToolbar = ({
+  emailMessageId,
+  mailAccess,
+  starred: initialStarred,
+  inJunk,
+  inArchive,
+  canArchive,
+  folder,
+  useProxy,
+  onToggleProxy,
+  onChanged,
+}: WebMailToolbarProps) => {
   const session = useSession();
   const [msg, setMsg] = useState<{ text: string; kind: "ok" | "error" } | null>(
     null,
@@ -48,8 +49,7 @@ export const WebMailToolbar = ({
     run: runAction,
   } = useMailActions({
     emailMessageId,
-    accountId,
-    token,
+    ...mailAccess,
     initialStarred,
     folder,
     onChanged,

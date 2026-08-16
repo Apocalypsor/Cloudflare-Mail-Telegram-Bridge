@@ -1,5 +1,6 @@
 import { api } from "@page/api/client";
 import { extractErrorMessage } from "@page/api/utils";
+import type { MailAccess } from "@page/utils/mail-content";
 import { useCallback, useRef, useState } from "react";
 
 /**
@@ -13,7 +14,7 @@ export type MailAction =
   | "mark-as-junk"
   | "move-to-inbox";
 
-export interface MailActionResult {
+interface MailActionResult {
   action: MailAction;
   /** toggle-star 时携带本次切到的 starred 状态 */
   starredNext?: boolean;
@@ -24,10 +25,8 @@ export interface MailActionResult {
   message?: string;
 }
 
-export interface UseMailActionsParams {
+interface UseMailActionsOptions {
   emailMessageId: string;
-  accountId: number;
-  token: string;
   initialStarred: boolean;
   /** 邮件当前 folder（来自预览页 search.folder）。仅 toggle-star 用到 ——
    *  IMAP 需要它选对 mailbox 加 / 去 \Flagged；不传按 INBOX。 */
@@ -36,7 +35,9 @@ export interface UseMailActionsParams {
   onChanged?: () => void;
 }
 
-export interface UseMailActionsReturn {
+type UseMailActionsParams = UseMailActionsOptions & MailAccess;
+
+interface UseMailActionsReturn {
   starred: boolean;
   /** 任一 terminal 动作成功后变 true，UI 应隐藏后续入口 */
   done: boolean;
@@ -58,7 +59,7 @@ const TERMINAL_ACTIONS: ReadonlySet<MailAction> = new Set([
   "move-to-inbox",
 ]);
 
-export const isTerminalMailAction = (action: MailAction): boolean => {
+const isTerminalMailAction = (action: MailAction): boolean => {
   return TERMINAL_ACTIONS.has(action);
 };
 
@@ -82,12 +83,17 @@ export const useMailActions = (
       action: MailAction,
       starredNext?: boolean,
     ): Promise<MailActionResult> => {
-      const { emailMessageId, accountId, token, folder, onChanged } =
-        propsRef.current;
+      const { emailMessageId, folder, onChanged } = propsRef.current;
       setPending(true);
       try {
         const m = api.api.mail({ id: emailMessageId });
-        const body = { accountId, token };
+        const body =
+          propsRef.current.access !== undefined
+            ? { access: propsRef.current.access }
+            : {
+                accountId: propsRef.current.accountId,
+                token: propsRef.current.token,
+              };
         const result = await (action === "toggle-star"
           ? m["toggle-star"].post({
               ...body,

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMailPreviewUrl,
-  parseMailPreviewAccess,
-  parseMailPreviewQuery,
+  parseMailPreviewCredentials,
 } from "../src/utils/mail/token";
 
 describe("mail preview links", () => {
@@ -16,7 +15,9 @@ describe("mail preview links", () => {
 
   it("decodes a valid preview access value", () => {
     expect(
-      parseMailPreviewAccess("42.e862bb796d05b826e5943624303386f1"),
+      parseMailPreviewCredentials({
+        access: "42.e862bb796d05b826e5943624303386f1",
+      }),
     ).toEqual({
       accountId: 42,
       token: "e862bb796d05b826e5943624303386f1",
@@ -24,17 +25,21 @@ describe("mail preview links", () => {
   });
 
   it("rejects malformed preview access values", () => {
-    expect(parseMailPreviewAccess("missing-token")).toBeNull();
-    expect(parseMailPreviewAccess("0.token")).toBeNull();
-    expect(parseMailPreviewAccess("account.token.extra")).toBeNull();
+    expect(parseMailPreviewCredentials({ access: "missing-token" })).toBeNull();
+    expect(parseMailPreviewCredentials({ access: "0.token" })).toBeNull();
+    expect(
+      parseMailPreviewCredentials({ access: "account.token.extra" }),
+    ).toBeNull();
   });
 
-  it("accepts both compact and legacy API query parameters", () => {
-    expect(parseMailPreviewQuery({ access: "42.token" })).toEqual({
+  it("accepts both compact and legacy credentials", () => {
+    expect(parseMailPreviewCredentials({ access: "42.token" })).toEqual({
       accountId: 42,
       token: "token",
     });
-    expect(parseMailPreviewQuery({ accountId: "42", t: "token" })).toEqual({
+    expect(
+      parseMailPreviewCredentials({ accountId: "42", token: "token" }),
+    ).toEqual({
       accountId: "42",
       token: "token",
     });

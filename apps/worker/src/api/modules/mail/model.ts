@@ -18,24 +18,26 @@ export const MailAttachmentQuery = t.Composite([
 
 export const MailParams = t.Object({ id: t.String() });
 
-export const MailActionBody = t.Object({
+const MailAccessBody = t.Object({ access: t.String() });
+const MailLegacyActionBody = t.Object({
   accountId: t.Number(),
   token: t.String(),
 });
+export const MailActionBody = t.Union([MailAccessBody, MailLegacyActionBody]);
 export type MailActionBody = UnwrapSchema<typeof MailActionBody>;
 
-export const MailToggleStarBody = t.Composite([
-  MailActionBody,
-  t.Object({
-    starred: t.Boolean(),
-    /** 调用方知道邮件当前 folder（preview 页 search.folder）就传，IMAP 用以选对
-     *  mailbox 加 / 去 \Flagged；不传按 INBOX。Gmail / Outlook 忽略。 */
-    folder: t.Optional(
-      t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
-    ),
-  }),
+const MailToggleStarFields = t.Object({
+  starred: t.Boolean(),
+  /** 调用方知道邮件当前 folder（preview 页 search.folder）就传，IMAP 用以选对
+   *  mailbox 加 / 去 \Flagged；不传按 INBOX。Gmail / Outlook 忽略。 */
+  folder: t.Optional(
+    t.Union([t.Literal("inbox"), t.Literal("junk"), t.Literal("archive")]),
+  ),
+});
+export const MailToggleStarBody = t.Union([
+  t.Composite([MailAccessBody, MailToggleStarFields]),
+  t.Composite([MailLegacyActionBody, MailToggleStarFields]),
 ]);
-export type MailToggleStarBody = UnwrapSchema<typeof MailToggleStarBody>;
 
 const MailMetaResponse = t.Object({
   subject: t.Optional(t.Union([t.String(), t.Null()])),
