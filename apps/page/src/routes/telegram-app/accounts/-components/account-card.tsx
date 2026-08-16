@@ -159,7 +159,7 @@ export const AccountCard = ({
                   if (parsedTopicId === undefined) return;
                   onUpdateChatId(account.id, chatId, parsedTopicId);
                 }}
-                className="min-w-[64px] rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="min-w-16 rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 保存
               </button>
@@ -193,7 +193,7 @@ export const AccountCard = ({
                   busy || !ownerId || ownerId === account.ownerTelegramId
                 }
                 onClick={() => onAssignOwner(account.id, ownerId)}
-                className="min-w-[64px] rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="min-w-16 rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 保存
               </button>
@@ -266,7 +266,7 @@ export const AccountCard = ({
 const Meta = ({ label, value }: { label: string; value: string }) => (
   <>
     <dt className="text-zinc-500">{label}</dt>
-    <dd className="min-w-0 text-zinc-300 break-words">{value}</dd>
+    <dd className="min-w-0 text-zinc-300 wrap-break-word">{value}</dd>
   </>
 );
 
@@ -347,7 +347,7 @@ const ArchivePicker = ({
         type="button"
         disabled={busy}
         onClick={onSave}
-        className="min-w-[64px] rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="min-w-16 rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-emerald-950 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         保存
       </button>

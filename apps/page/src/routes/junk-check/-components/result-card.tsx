@@ -28,8 +28,8 @@ export const ResultCard = ({
     <div
       className={`overflow-hidden rounded-2xl border ${
         isJunk
-          ? "border-red-900/60 bg-gradient-to-br from-red-950/40 via-red-950/20 to-zinc-950/60"
-          : "border-emerald-900/60 bg-gradient-to-br from-emerald-950/40 via-emerald-950/20 to-zinc-950/60"
+          ? "border-red-900/60 bg-linear-to-br from-red-950/40 via-red-950/20 to-zinc-950/60"
+          : "border-emerald-900/60 bg-linear-to-br from-emerald-950/40 via-emerald-950/20 to-zinc-950/60"
       }`}
     >
       {/* gauge + numerical */}

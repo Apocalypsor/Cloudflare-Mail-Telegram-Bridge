@@ -214,7 +214,7 @@ const EditReminderPage = () => {
             onChange={(e) => setText(e.target.value)}
             autoCorrect="off"
             autoCapitalize="off"
-            className={`w-full min-h-[80px] resize-y ${fieldClass}`}
+            className={`w-full min-h-20 resize-y ${fieldClass}`}
           />
         </div>
 

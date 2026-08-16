@@ -64,7 +64,7 @@ export const DateRow = ({
       </div>
 
       <div className="flex-1 min-w-0 flex items-center gap-2 h-6">
-        <div className="flex-1 h-px bg-gradient-to-r from-zinc-700 to-transparent" />
+        <div className="flex-1 h-px bg-linear-to-r from-zinc-700 to-transparent" />
         <span className="text-[11px] text-zinc-600 tabular-nums">
           {count} 项
         </span>

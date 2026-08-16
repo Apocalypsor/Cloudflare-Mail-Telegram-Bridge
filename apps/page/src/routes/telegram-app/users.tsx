@@ -180,10 +180,10 @@ const UserCard = ({
     <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-zinc-100 break-words">
+          <h2 className="text-[15px] font-semibold text-zinc-100 wrap-break-word">
             {user.name}
           </h2>
-          <p className="mt-1 text-xs text-zinc-500 break-words">{handle}</p>
+          <p className="mt-1 text-xs text-zinc-500 wrap-break-word">{handle}</p>
         </div>
         <span
           className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${
@@ -245,7 +245,7 @@ const UserCard = ({
 const Meta = ({ label, value }: { label: string; value: string }) => (
   <>
     <dt className="text-zinc-500">{label}</dt>
-    <dd className="min-w-0 text-zinc-300 break-words">{value}</dd>
+    <dd className="min-w-0 text-zinc-300 wrap-break-word">{value}</dd>
   </>
 );
 

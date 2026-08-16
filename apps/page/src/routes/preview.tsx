@@ -122,7 +122,7 @@ const Pane = ({
         </div>
         <span className="text-xs text-zinc-600 tabular-nums">{sideLabel}</span>
       </div>
-      <div className="h-[420px] sm:h-[560px] lg:h-[calc(100vh-220px)] lg:min-h-[620px]">
+      <div className="h-105 sm:h-140 lg:h-[calc(100vh-220px)] lg:min-h-155">
         {children}
       </div>
     </div>

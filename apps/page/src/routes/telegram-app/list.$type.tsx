@@ -149,7 +149,7 @@ const MailListPage = () => {
       </div>
 
       <div
-        className={`text-[13px] min-h-[18px] ${
+        className={`text-[13px] min-h-4.5 ${
           meta?.kind === "error"
             ? "text-red-400"
             : meta?.kind === "ok"
@@ -187,7 +187,7 @@ const MailListPage = () => {
                 }
                 className="block w-full text-left px-4 py-3 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
               >
-                <div className="text-sm text-emerald-300 break-words">
+                <div className="text-sm text-emerald-300 wrap-break-word">
                   {it.title || "(无主题)"}
                 </div>
                 <MailListAddressMeta item={it} />

@@ -27,7 +27,7 @@ export const ReminderEmailCard = ({
         </div>
       ) : (
         <>
-          <div className="text-[15px] font-semibold break-words text-zinc-100">
+          <div className="text-[15px] font-semibold wrap-break-word text-zinc-100">
             {error ? "邮件信息加载失败" : subject || "(无主题)"}
           </div>
           {accountEmail && (

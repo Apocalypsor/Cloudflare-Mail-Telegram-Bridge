@@ -62,7 +62,7 @@ const MailPreviewPage = () => {
     <>
       {/* 结构和间距都对齐 web `/mail/:id` —— 正常内容流（不置顶），滚动时
          subject/meta 跟着走。MailFab 底部 TG 原生按钮代替 web 的 toolbar。 */}
-      <article className="max-w-3xl mx-auto px-4 py-6 break-words">
+      <article className="max-w-3xl mx-auto px-4 py-6 wrap-break-word">
         {d.meta.subject && (
           <Subject subject={d.meta.subject} webMailUrl={d.webMailUrl} />
         )}
@@ -150,7 +150,7 @@ const Subject = ({
   webMailUrl: string;
 }) => {
   const baseClass =
-    "text-2xl sm:text-[28px] md:text-[32px] font-semibold tracking-tight leading-tight break-words mb-4";
+    "text-2xl sm:text-[28px] md:text-[32px] font-semibold tracking-tight leading-tight wrap-break-word mb-4";
 
   if (!webMailUrl) {
     return <h1 className={`${baseClass} text-zinc-100`}>{subject}</h1>;

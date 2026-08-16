@@ -36,7 +36,7 @@ export const MailMeta = ({
       {rows.map(({ label, value, title }) => (
         <div key={label} className="contents">
           <dt className="text-zinc-500">{label}</dt>
-          <dd className="text-zinc-300 break-words" title={title}>
+          <dd className="text-zinc-300 wrap-break-word" title={title}>
             {value}
           </dd>
         </div>

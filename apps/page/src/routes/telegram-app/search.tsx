@@ -120,14 +120,14 @@ const SearchPage = () => {
         <button
           type="submit"
           disabled={searchQuery.isFetching || !input.trim()}
-          className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-[colors,transform] duration-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center min-w-[68px]"
+          className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-sm font-semibold transition-[colors,transform] duration-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center min-w-17"
         >
           {searchQuery.isFetching ? <Spinner size="sm" /> : "搜索"}
         </button>
       </form>
 
       <div
-        className={`text-[13px] min-h-[18px] ${
+        className={`text-[13px] min-h-4.5 ${
           errMsg ? "text-red-400" : "text-zinc-500"
         }`}
       >
@@ -157,7 +157,7 @@ const SearchPage = () => {
                 onClick={() => navigateToMail(it.accountId, it.id, it.token)}
                 className="block w-full text-left px-4 py-3 hover:bg-zinc-800/60 active:bg-zinc-800 transition-colors"
               >
-                <div className="text-sm text-emerald-300 break-words">
+                <div className="text-sm text-emerald-300 wrap-break-word">
                   {it.title || "(无主题)"}
                 </div>
                 <MailListAddressMeta item={it} />

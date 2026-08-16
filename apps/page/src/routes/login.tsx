@@ -93,7 +93,7 @@ const LoginWidget = ({ returnTo }: { returnTo: string }) => {
     return <p className="text-xs text-red-400">无法加载登录组件，请刷新重试</p>;
   }
 
-  return <div ref={hostRef} className="flex justify-center min-h-[45px]" />;
+  return <div ref={hostRef} className="flex justify-center min-h-11.25" />;
 };
 
 const Search = t.Object({

@@ -202,7 +202,7 @@ const AccountDetailPage = () => {
     <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-zinc-100 break-words">
+          <h1 className="text-xl font-semibold text-zinc-100 wrap-break-word">
             {data?.account.email || (data ? `#${data.account.id}` : "账号详情")}
           </h1>
           {data && (

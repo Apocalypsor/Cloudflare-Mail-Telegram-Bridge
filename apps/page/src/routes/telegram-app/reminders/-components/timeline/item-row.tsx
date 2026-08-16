@@ -54,7 +54,7 @@ export const ItemRow = ({
 
       <div className="relative w-4 shrink-0 self-stretch">
         {!isFirst && (
-          <div className="absolute left-1/2 -translate-x-px top-0 h-[26px] w-px bg-zinc-800" />
+          <div className="absolute left-1/2 -translate-x-px top-0 h-6.5 w-px bg-zinc-800" />
         )}
         {!isLast && (
           <div
@@ -63,14 +63,14 @@ export const ItemRow = ({
           />
         )}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 top-[20px] w-3 h-3 rounded-full ring-4 ring-zinc-950 z-10 ${
+          className={`absolute left-1/2 -translate-x-1/2 top-5 w-3 h-3 rounded-full ring-4 ring-zinc-950 z-10 ${
             isOverdue
               ? "bg-zinc-600"
               : "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]"
           }`}
         />
         {isImminent && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-[20px] w-3 h-3 rounded-full bg-emerald-500/40 animate-ping" />
+          <div className="absolute left-1/2 -translate-x-1/2 top-5 w-3 h-3 rounded-full bg-emerald-500/40 animate-ping" />
         )}
       </div>
 

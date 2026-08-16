@@ -22,7 +22,7 @@ export const MailListAddressMeta = ({
 }) => {
   const to = formatEmailOnly(item.to);
   return (
-    <div className="mt-1.5 space-y-0.5 text-[11px] leading-4 break-words">
+    <div className="mt-1.5 space-y-0.5 text-[11px] leading-4 wrap-break-word">
       {item.from && <div className="min-w-0 text-zinc-100">{item.from}</div>}
       {to && <div className="min-w-0 text-zinc-500">{to}</div>}
     </div>

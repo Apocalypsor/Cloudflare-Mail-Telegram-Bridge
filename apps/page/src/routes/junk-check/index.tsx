@@ -78,7 +78,7 @@ const JunkCheckPage = () => {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="粘贴邮件正文内容…"
-              className={`${inputClass} min-h-[200px] resize-y`}
+              className={`${inputClass} min-h-50 resize-y`}
             />
           </div>
 

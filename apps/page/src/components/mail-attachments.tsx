@@ -34,10 +34,10 @@ export const MailAttachments = ({
                 📎
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-zinc-100 break-words">
+                <div className="text-zinc-100 wrap-break-word">
                   {att.filename || "未命名附件"}
                 </div>
-                <div className="mt-0.5 text-xs text-zinc-500 break-words">
+                <div className="mt-0.5 text-xs text-zinc-500 wrap-break-word">
                   {[att.mimeType, size].filter(Boolean).join(" · ") ||
                     "未知类型"}
                 </div>

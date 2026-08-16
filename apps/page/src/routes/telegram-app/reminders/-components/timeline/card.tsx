@@ -32,7 +32,7 @@ export const Card = ({
   const inner = (
     <>
       {display ? (
-        <div className="flex gap-1.5 items-start text-[15px] leading-relaxed break-words text-zinc-100">
+        <div className="flex gap-1.5 items-start text-[15px] leading-relaxed wrap-break-word text-zinc-100">
           <span className="shrink-0">{display.icon}</span>
           <span className="flex-1">{display.value}</span>
         </div>

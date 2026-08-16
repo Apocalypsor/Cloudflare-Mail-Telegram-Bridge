@@ -63,7 +63,7 @@ const WebMailPage = () => {
     <WebLayout>
       <article>
         {d.meta.subject && (
-          <h1 className="text-2xl sm:text-[28px] md:text-[32px] font-semibold tracking-tight leading-tight break-words mb-4 text-zinc-100">
+          <h1 className="text-2xl sm:text-[28px] md:text-[32px] font-semibold tracking-tight leading-tight wrap-break-word mb-4 text-zinc-100">
             {d.meta.subject}
           </h1>
         )}

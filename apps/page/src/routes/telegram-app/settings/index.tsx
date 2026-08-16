@@ -196,7 +196,7 @@ const SettingsPage = () => {
               <span className="block text-xs font-medium tracking-wide text-zinc-400 uppercase mb-2">
                 用户时区
               </span>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-[15px] text-zinc-300 break-words">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-[15px] text-zinc-300 wrap-break-word">
                 {displayUserTimezone}
               </div>
             </div>

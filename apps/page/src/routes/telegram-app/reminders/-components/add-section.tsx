@@ -125,7 +125,7 @@ export const ReminderAddSection = ({
           onChange={(e) => onTextChange(e.target.value)}
           autoCorrect="off"
           autoCapitalize="off"
-          className={`w-full min-h-[80px] resize-y ${inputClass}`}
+          className={`w-full min-h-20 resize-y ${inputClass}`}
         />
       </div>
 

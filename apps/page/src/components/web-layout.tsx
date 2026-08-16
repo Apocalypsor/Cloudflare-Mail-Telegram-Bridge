@@ -129,7 +129,7 @@ const AuthStatus = ({
     <Dropdown>
       <Dropdown.Trigger
         aria-label="账户菜单"
-        className="shrink-0 flex items-center gap-2 pl-1 pr-2 py-1 rounded-full text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 data-[pressed]:bg-zinc-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+        className="shrink-0 flex items-center gap-2 pl-1 pr-2 py-1 rounded-full text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 data-pressed:bg-zinc-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
       >
         <span className="inline-flex w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 items-center justify-center text-[11px] font-semibold text-emerald-300">
           {initial}
