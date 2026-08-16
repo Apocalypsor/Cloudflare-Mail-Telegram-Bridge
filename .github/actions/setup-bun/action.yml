@@ -1,5 +1,5 @@
 name: Setup Bun + cache
-description: Install bun, restore the global install cache (keyed by bun.lock), and run `bun install --frozen-lockfile`.
+description: Install bun, restore the exact global install cache, and save cache misses from main.
 
 runs:
   using: composite
@@ -7,11 +7,15 @@ runs:
     - uses: oven-sh/setup-bun@v2
       with:
         bun-version: latest
-    - uses: actions/cache@v6
+    - uses: actions/cache/restore@v6
+      id: bun-cache
       with:
         path: ~/.bun/install/cache
         key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-        restore-keys: |
-          bun-${{ runner.os }}-
     - shell: bash
       run: bun install --frozen-lockfile
+    - uses: actions/cache/save@v6
+      if: github.ref == 'refs/heads/main' && steps.bun-cache.outputs.cache-hit != 'true'
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ steps.bun-cache.outputs.cache-primary-key }}
