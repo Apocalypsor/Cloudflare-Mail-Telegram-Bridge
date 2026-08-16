@@ -306,25 +306,25 @@ describe("email HTML rendering", () => {
     ).toBe("<p>First section</p><p>Second section</p>");
   });
 
-  it("renders only a preview link before AI analysis", () => {
+  it("renders only an AI generating status before analysis", () => {
     const header = "<p><b>From:</b> sender@example.com</p>";
-    const previewUrl =
-      "https://worker.example/mail/message-1?access=1.mail-token";
 
-    expect(buildTelegramEmailHtml(header, previewUrl, null)).toBe(
-      `${header}<p><a href="https://worker.example/mail/message-1?access=1.mail-token">👁 查看原文</a></p>`,
+    expect(buildTelegramEmailHtml(header, null, true)).toBe(
+      `${header}<p>🤖 AI 生成中，请点击下方按钮查看原文</p>`,
     );
   });
 
-  it("keeps the verification code above the preview link", () => {
-    const result = buildTelegramEmailHtml(
-      "<p>Header</p>",
-      "https://worker.example/mail/message-1",
-      "482913",
-    );
+  it("keeps the verification code above the AI generating status", () => {
+    const result = buildTelegramEmailHtml("<p>Header</p>", "482913", true);
 
     expect(result).toBe(
-      '<p>Header</p><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p><a href="https://worker.example/mail/message-1">👁 查看原文</a></p>',
+      "<p>Header</p><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p>🤖 AI 生成中，请点击下方按钮查看原文</p>",
+    );
+  });
+
+  it("omits the AI status when analysis will not run", () => {
+    expect(buildTelegramEmailHtml("<p>Header</p>", "482913", false)).toBe(
+      "<p>Header</p><p><b>🔒 验证码:</b> <code>482913</code></p>",
     );
   });
 
@@ -338,11 +338,7 @@ describe("email HTML rendering", () => {
       },
       { id: 1, chat_id: "42" } as Account,
     );
-    const result = buildTelegramEmailHtml(
-      content.header,
-      "https://worker.example/mail/message-1",
-      null,
-    );
+    const result = buildTelegramEmailHtml(content.header, null, true);
 
     expect(measureTelegramRichHtml(result).textCharacters).toBeLessThanOrEqual(
       32_768,
@@ -368,8 +364,8 @@ describe("email HTML rendering", () => {
     );
     const result = buildTelegramEmailHtml(
       content.header,
-      "https://worker.example/mail/message-1",
       content.verificationCode,
+      true,
     );
 
     expect(content.verificationCode).toBe("482913");
@@ -386,7 +382,7 @@ describe("email HTML rendering", () => {
       /🕒 时间: <tg-time unix="\d+" format="wDT">[^<]+<\/tg-time>/,
     );
     expect(result).toContain(
-      '</details><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p><a href="https://worker.example/mail/message-1">👁 查看原文</a></p>',
+      "</details><p><b>🔒 验证码:</b> <code>482913</code></p><p>&#160;</p><p>🤖 AI 生成中，请点击下方按钮查看原文</p>",
     );
     expect(result).not.toContain("邮件正文");
     expect(result.match(/<details>/g)).toHaveLength(1);

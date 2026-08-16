@@ -31,26 +31,6 @@ export const verifyMailTokenById = async (
   return timingSafeEqual(expected, token);
 };
 
-/** 生成 Rich Message 里的邮件预览入口。
- *
- * 链接只使用一个 query parameter，避免 Rich HTML 把 `&` 转义成 `&amp;`
- * 后 Telegram 客户端将实体原样带进浏览器。Pages 和邮件 API
- * 都直接接受 `access`，不需要中间 redirect。
- */
-export const buildMailPreviewUrl = async (
-  workerUrl: string,
-  adminSecret: string,
-  emailMessageId: string,
-  accountId: number,
-): Promise<string> => {
-  const token = await generateMailTokenById(
-    adminSecret,
-    emailMessageId,
-    accountId,
-  );
-  return buildWebMailUrl(workerUrl, emailMessageId, accountId, token);
-};
-
 const parseMailPreviewAccess = (
   access: string,
 ): { accountId: number; token: string } | null => {

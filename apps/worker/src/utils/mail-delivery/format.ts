@@ -62,14 +62,16 @@ const buildRichVerificationCodeSection = (
 
 export const buildTelegramEmailHtml = (
   headerHtml: string,
-  previewUrl: string,
   verificationCode: string | null,
+  isAiGenerating: boolean,
 ): string => {
   const codeSection = verificationCode
-    ? buildRichVerificationCodeSection(verificationCode, true)
+    ? buildRichVerificationCodeSection(verificationCode, isAiGenerating)
     : "";
-  const escapedPreviewUrl = escapeHtmlText(previewUrl).replace(/"/g, "&quot;");
-  return `${headerHtml}${codeSection}<p><a href="${escapedPreviewUrl}">${escapeHtmlText(t("bridge:previewLink"))}</a></p>`;
+  const statusSection = isAiGenerating
+    ? `<p>${escapeHtmlText(t("bridge:aiGenerating"))}</p>`
+    : "";
+  return `${headerHtml}${codeSection}${statusSection}`;
 };
 
 const STRONG_CONTEXT_RE =

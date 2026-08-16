@@ -1,16 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildMailPreviewUrl,
+  buildWebMailUrl,
   parseMailPreviewCredentials,
 } from "../src/utils/mail/token";
 
 describe("mail preview links", () => {
-  it("uses one access query parameter so Rich HTML needs no ampersand entity", async () => {
-    await expect(
-      buildMailPreviewUrl("https://worker.example/", "secret", "message/1", 42),
-    ).resolves.toBe(
-      "https://worker.example/mail/message%2F1?access=42.e862bb796d05b826e5943624303386f1",
-    );
+  it("uses one access query parameter for generated web mail URLs", () => {
+    expect(
+      buildWebMailUrl("https://worker.example/", "message/1", 42, "token"),
+    ).toBe("https://worker.example/mail/message%2F1?access=42.token");
   });
 
   it("decodes a valid preview access value", () => {

@@ -12,7 +12,6 @@ import { putMessageMapping, updateShortSummary } from "@worker/db/message-map";
 import { accountCanArchive, getEmailProvider } from "@worker/providers";
 import type { MessageState } from "@worker/providers/types";
 import type { Account, Env } from "@worker/types";
-import { buildMailPreviewUrl } from "@worker/utils/mail/token";
 import {
   buildTelegramEmailHtml,
   editMessageWithAnalysis,
@@ -20,7 +19,6 @@ import {
 } from "@worker/utils/mail-delivery/format";
 import { syncStarPinState } from "@worker/utils/message-actions";
 import { reportErrorToObservability } from "@worker/utils/observability";
-import { getWorkerBaseUrl } from "@worker/utils/url";
 import PostalMime from "postal-mime";
 import { type EmailDeliveryResult, runAfterDeliveryClaim } from "./coordinator";
 
@@ -33,7 +31,7 @@ interface EmailDeliveryOptions {
  *
  * 流程：
  *  1. 远端状态 reconcile（收到通知 → 后台投递的窗口里用户可能在远端把邮件挪走 → 跳过投递）
- *  2. parse + 渲染 header + 预览链接（共用 `prepareEmailContent`，跟 retry 流复用）
+ *  2. parse + 渲染 header + AI 生成中状态（共用 `prepareEmailContent`，跟 retry 流复用）
  *  3. 发"最小键盘"消息 → 拿 sentMessageId → 写 mapping → 升级到完整键盘
  *  4. （可选）后台 LLM 分析 + edit message；失败入 `failed_emails` 等 cron 重试
  */
@@ -73,15 +71,10 @@ export const deliverEmailToTelegram = async (
     email,
     account,
   );
-  const previewUrl = await buildMailPreviewUrl(
-    getWorkerBaseUrl(env),
-    env.ADMIN_SECRET,
-    emailMessageId,
-    account.id,
-  );
-  const html = buildTelegramEmailHtml(header, previewUrl, verificationCode);
-
   const canAnalyze = LLMClient.isConfigured(env);
+  const willAnalyze = canAnalyze && !!plainBody.trim();
+  const html = buildTelegramEmailHtml(header, verificationCode, willAnalyze);
+
   const telegram = new TelegramClient(env);
 
   // 投递流程：先带"最小键盘"（仅刷新）发消息 → 拿到 sentMessageId → 建
@@ -156,9 +149,7 @@ export const deliverEmailToTelegram = async (
     await syncStarPinState(env, chatId, sentMessageId, true);
   }
 
-  if (!canAnalyze) return "sent";
-
-  if (!plainBody.trim()) return "sent";
+  if (!willAnalyze) return "sent";
 
   waitUntil(
     (async () => {
