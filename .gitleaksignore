@@ -1,0 +1,7 @@
+# Historical false positives from a removed test-only mail-token fixture.
+59342a052a0d7d91a35ea98c368564b41b2e8d12:apps/worker/test/mail-token.test.ts:generic-api-key:19
+944223eb4d9bc97b78809f06b8291e34e480741e:apps/worker/test/mail-token.test.ts:generic-api-key:13
+c7c7d565e32f7e6166fda8e90a741cc87544b35c:apps/worker/test/mail-token.test.ts:generic-api-key:12
+c7c7d565e32f7e6166fda8e90a741cc87544b35c:apps/worker/test/mail-token.test.ts:generic-api-key:21
+6ca9b82b5a228d935e1577486423b52db9875f4a:apps/worker/test/mail-token.test.ts:generic-api-key:17
+6ca9b82b5a228d935e1577486423b52db9875f4a:apps/worker/test/mail-token.test.ts:generic-api-key:21

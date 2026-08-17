@@ -14,11 +14,11 @@ describe("mail preview links", () => {
   it("decodes a valid preview access value", () => {
     expect(
       parseMailPreviewCredentials({
-        access: "42.e862bb796d05b826e5943624303386f1",
+        access: "42.fixture-token",
       }),
     ).toEqual({
       accountId: 42,
-      token: "e862bb796d05b826e5943624303386f1",
+      token: "fixture-token",
     });
   });
 
