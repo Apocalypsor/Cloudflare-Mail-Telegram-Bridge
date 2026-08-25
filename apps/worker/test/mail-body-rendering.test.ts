@@ -344,7 +344,7 @@ describe("email HTML rendering", () => {
       32_768,
     );
     expect(content.header).toContain(
-      "…</h2><details><summary>Sender &lt;sender@example.com&gt;</summary>",
+      "…</h3><details><summary>Sender &lt;sender@example.com&gt;</summary>",
     );
   });
 
@@ -370,7 +370,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<h2>Your verification code is 482913<\/h2><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
+      /^<h3>Your verification code is 482913<\/h3><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
