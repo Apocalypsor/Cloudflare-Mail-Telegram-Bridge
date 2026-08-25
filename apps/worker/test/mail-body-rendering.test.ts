@@ -344,7 +344,7 @@ describe("email HTML rendering", () => {
       32_768,
     );
     expect(content.header).toContain(
-      "…</b></p><details><summary>Sender &lt;sender@example.com&gt;</summary>",
+      "…</h2><details><summary>Sender &lt;sender@example.com&gt;</summary>",
     );
   });
 
@@ -370,7 +370,7 @@ describe("email HTML rendering", () => {
 
     expect(content.verificationCode).toBe("482913");
     expect(content.header).toMatch(
-      /^<p><b>Your verification code is 482913<\/b><\/p><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
+      /^<h2>Your verification code is 482913<\/h2><details><summary>Example &lt;security@example.com&gt;<\/summary><p><b>[\s\S]*<\/b><\/p><\/details>$/,
     );
     expect(content.header).not.toContain("<h6>");
     expect(content.header).not.toContain("<hr/>");
@@ -419,6 +419,9 @@ describe("email HTML rendering", () => {
     expect(editRichMessageMock.mock.calls[0][2]).not.toContain(
       "<code>482913</code></p><p>&#160;</p><p><b>🤖 AI 摘要</b></p>",
     );
+    expect(editRichMessageMock.mock.calls[0][2]).toContain(
+      "<p>&#160;</p><footer>#Security</footer>",
+    );
   });
 
   it("bounds untrusted LLM summary blocks and tag lengths", async () => {
@@ -444,11 +447,12 @@ describe("email HTML rendering", () => {
       null,
     );
 
-    const html = editRichMessageMock.mock.calls.at(-1)?.[3] as string;
+    const html = editRichMessageMock.mock.calls.at(-1)?.[2] as string;
     expect(measureTelegramRichHtml(html).blocks).toBeLessThanOrEqual(500);
     expect(measureTelegramRichHtml(html).textCharacters).toBeLessThanOrEqual(
       32_768,
     );
+    expect(html).toContain("<p>&#160;</p><footer>#");
     expect(html).not.toContain("x".repeat(81));
   });
 });

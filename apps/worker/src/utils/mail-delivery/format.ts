@@ -51,7 +51,7 @@ const buildTelegramHeader = (
   const escapedSender = escapeHtmlText(
     truncateUnicodeText(sender, TG_HEADER_FIELD_LIMIT),
   );
-  return `<p><b>${escapedSubject}</b></p><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details>`;
+  return `<h2>${escapedSubject}</h2><details><summary>${escapedSender}</summary><p><b>${lines.join("<br>")}</b></p></details>`;
 };
 
 const buildRichVerificationCodeSection = (
@@ -268,7 +268,7 @@ export const editMessageWithAnalysis = async (
   );
   const tags =
     result.tags.length > 0
-      ? `<p>&#160;</p><p>${result.tags.map((tag) => `#${escapeHtmlText(truncateUnicodeText(tag.replace(/\s+/g, "_"), TG_TAG_LENGTH_LIMIT))}`).join(" ")}</p>`
+      ? `<p>&#160;</p><footer>${result.tags.map((tag) => `#${escapeHtmlText(truncateUnicodeText(tag.replace(/\s+/g, "_"), TG_TAG_LENGTH_LIMIT))}`).join(" ")}</footer>`
       : "";
   await new TelegramClient(env).editRichMessage(
     chatId,
