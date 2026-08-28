@@ -28,7 +28,7 @@
     "i18next": "^26.0.8",
     "ky": "^2.0.0",
     "linkedom": "^0.18.12",
-    "postal-mime": "^2.7.4",
+    "postal-mime": "^3.0.0",
     "turndown": "^7.2.4",
     "workers-observability-hub": "^1.0.3",
     "zod": "^4.4.3"
